@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bozeman Garden Planner</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inconsolata:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --soil: #3d2b1f;
+    --compost: #6b4226;
+    --green: #4a7c59;
+    --sage: #8aab8e;
+    --straw: #c9a84c;
+    --sky: #7fb3cc;
+    --clay: #c97843;
+    --cream: #f5f0e8;
+    --dark: #1a1208;
+    --text: #2c1f0f;
+    --muted: #7a6a55;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--dark);
+    color: var(--cream);
+    font-family: 'Inconsolata', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* Texture overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.6;
+  }
+
+  .wrapper { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+
+  header {
+    border-bottom: 1px solid var(--compost);
+    padding-bottom: 20px;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: flex-end;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .site-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.2rem;
+    color: var(--straw);
+    line-height: 1.1;
+  }
+
+  .site-title span { color: var(--sage); font-style: italic; }
+
+  .location-badge {
+    background: var(--soil);
+    border: 1px solid var(--compost);
+    padding: 4px 12px;
+    border-radius: 2px;
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+  }
+
+  /* Weather strip */
+  #weather-strip {
+    background: var(--soil);
+    border: 1px solid var(--compost);
+    border-radius: 4px;
+    padding: 14px 20px;
+    margin-bottom: 24px;
+    display: flex;
+    gap: 28px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .weather-label { color: var(--muted); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
+  .weather-val { font-size: 1.4rem; color: var(--cream); font-weight: 500; }
+  .weather-val.big { font-size: 2rem; color: var(--straw); }
+  .weather-item { display: flex; flex-direction: column; gap: 2px; }
+  .weather-divider { width: 1px; height: 40px; background: var(--compost); flex-shrink: 0; }
+  .weather-loading { color: var(--muted); font-style: italic; }
+
+  /* Daily care */
+  #daily-care {
+    background: linear-gradient(135deg, #1e2a1a 0%, #141a12 100%);
+    border: 1px solid var(--green);
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 28px;
+  }
+
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.1rem;
+    color: var(--straw);
+    letter-spacing: 0.04em;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--compost);
+  }
+
+  .care-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+  }
+
+  .care-item {
+    background: rgba(74,124,89,0.12);
+    border: 1px solid rgba(74,124,89,0.3);
+    border-radius: 3px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .care-item.urgent { border-color: rgba(201,120,67,0.5); background: rgba(201,120,67,0.1); }
+  .care-item.info { border-color: rgba(127,179,204,0.3); background: rgba(127,179,204,0.07); }
+
+  .care-icon { font-size: 1.2rem; line-height: 1; flex-shrink: 0; margin-top: 1px; }
+  .care-text { font-size: 13px; color: var(--cream); }
+  .care-text strong { color: var(--sage); display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 2px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 0; margin-bottom: 0; border-bottom: 1px solid var(--compost); }
+
+  .tab-btn {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--muted);
+    font-family: 'Inconsolata', monospace;
+    font-size: 13px;
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.06em;
+    margin-bottom: -1px;
+  }
+
+  .tab-btn:hover { color: var(--cream); }
+  .tab-btn.active { color: var(--straw); border-bottom-color: var(--straw); }
+
+  .tab-content { display: none; padding-top: 24px; }
+  .tab-content.active { display: block; }
+
+  /* Beds grid */
+  .beds-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  @media (max-width: 700px) { .beds-grid { grid-template-columns: 1fr; } }
+
+  .bed-wide { grid-column: 1 / -1; }
+
+  .bed-card {
+    background: var(--soil);
+    border: 1px solid var(--compost);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .bed-header {
+    background: var(--compost);
+    padding: 10px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .bed-name { font-family: 'Playfair Display', serif; font-size: 1rem; color: var(--cream); }
+  .bed-dims { font-size: 11px; color: rgba(255,255,255,0.6); letter-spacing: 0.1em; }
+
+  .bed-body { padding: 16px; }
+
+  /* Planting grid visual */
+  .planting-visual {
+    display: grid;
+    gap: 3px;
+    margin-bottom: 14px;
+  }
+
+  .plant-cell {
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: transform 0.15s;
+    position: relative;
+    aspect-ratio: 1;
+  }
+
+  .plant-cell:hover { transform: scale(1.3); z-index: 10; }
+
+  .oya-zone {
+    position: absolute;
+    border: 1px dashed rgba(127,179,204,0.4);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  .bed-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  /* Planting details */
+  .plant-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  .plant-table th {
+    text-align: left;
+    color: var(--muted);
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 10px;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--compost);
+  }
+
+  .plant-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid rgba(61,43,31,0.5);
+    color: var(--cream);
+    vertical-align: top;
+  }
+
+  .plant-table tr:last-child td { border-bottom: none; }
+
+  .pill {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+  }
+
+  .pill-green { background: rgba(74,124,89,0.3); color: var(--sage); }
+  .pill-straw { background: rgba(201,168,76,0.2); color: var(--straw); }
+  .pill-sky { background: rgba(127,179,204,0.2); color: var(--sky); }
+  .pill-clay { background: rgba(201,120,67,0.2); color: var(--clay); }
+
+  /* Planting density notes */
+  .density-note {
+    background: rgba(138,171,142,0.08);
+    border-left: 3px solid var(--sage);
+    padding: 10px 14px;
+    margin: 14px 0;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  .density-note strong { color: var(--cream); }
+
+  /* Native yard section */
+  .native-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 14px;
+  }
+
+  .native-card {
+    background: var(--soil);
+    border: 1px solid var(--compost);
+    border-radius: 4px;
+    padding: 14px;
+  }
+
+  .native-name { font-family: 'Playfair Display', serif; font-style: italic; color: var(--straw); margin-bottom: 2px; }
+  .native-common { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  .native-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+
+  /* Grass tracker */
+  .grass-log {
+    background: var(--soil);
+    border: 1px solid var(--compost);
+    border-radius: 4px;
+    padding: 16px;
+  }
+
+  .grass-log textarea {
+    width: 100%;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--compost);
+    border-radius: 3px;
+    color: var(--cream);
+    font-family: 'Inconsolata', monospace;
+    font-size: 13px;
+    padding: 10px;
+    resize: vertical;
+    min-height: 100px;
+  }
+
+  .log-entry {
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(61,43,31,0.5);
+    font-size: 13px;
+  }
+  .log-entry:last-child { border-bottom: none; }
+  .log-date { color: var(--straw); font-size: 11px; margin-bottom: 2px; }
+
+  .btn {
+    background: var(--green);
+    border: none;
+    color: var(--cream);
+    font-family: 'Inconsolata', monospace;
+    font-size: 12px;
+    padding: 7px 16px;
+    cursor: pointer;
+    border-radius: 2px;
+    letter-spacing: 0.06em;
+    margin-top: 8px;
+    transition: background 0.2s;
+  }
+  .btn:hover { background: #5a9069; }
+
+  /* Weekly forecast */
+  .forecast-row {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    margin-bottom: 20px;
+  }
+
+  .forecast-day {
+    background: var(--soil);
+    border: 1px solid var(--compost);
+    border-radius: 4px;
+    padding: 10px 12px;
+    text-align: center;
+    flex-shrink: 0;
+    min-width: 80px;
+  }
+
+  .forecast-day.today { border-color: var(--straw); }
+  .fday-name { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .fday-icon { font-size: 1.4rem; margin: 4px 0; }
+  .fday-hi { color: var(--clay); font-size: 13px; }
+  .fday-lo { color: var(--sky); font-size: 11px; }
+  .fday-rain { color: var(--sky); font-size: 10px; margin-top: 3px; }
+
+  /* Info callout */
+  .callout {
+    background: rgba(127,179,204,0.08);
+    border: 1px solid rgba(127,179,204,0.25);
+    border-radius: 4px;
+    padding: 14px 18px;
+    margin: 20px 0;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .callout strong { color: var(--sky); }
+
+  /* Tooltip */
+  .tooltip { position: relative; }
+  .tooltip .tip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--dark);
+    border: 1px solid var(--compost);
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 100;
+    color: var(--cream);
+    pointer-events: none;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  }
+  .tooltip:hover .tip { display: block; }
+
+  .refresh-btn {
+    background: none;
+    border: 1px solid var(--compost);
+    color: var(--muted);
+    font-family: 'Inconsolata', monospace;
+    font-size: 11px;
+    padding: 3px 10px;
+    cursor: pointer;
+    border-radius: 2px;
+    margin-left: auto;
+  }
+  .refresh-btn:hover { color: var(--cream); border-color: var(--sage); }
+
+  .weather-strip-inner { display: flex; gap: 28px; align-items: center; flex-wrap: wrap; flex: 1; }
+
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header>
+    <div>
+      <div class="site-title">Bozeman <span>Garden Planner</span></div>
+      <div style="color:var(--muted);font-size:12px;margin-top:4px;">Native yard restoration · 3× 8×4 raised beds · 1× 10×2 raised bed</div>
+    </div>
+    <div class="location-badge">📍 Bozeman, MT · Zone 5b · Elev. ~4,800 ft</div>
+  </header>
+
+  <!-- Weather Strip -->
+  <div id="weather-strip">
+    <div class="weather-strip-inner" id="weather-content">
+      <div class="weather-loading">⟳ Loading Bozeman weather…</div>
+    </div>
+    <button class="refresh-btn" onclick="loadWeather()">↻ Refresh</button>
+  </div>
+
+  <!-- Daily Care -->
+  <div id="daily-care">
+    <div class="section-title">Today's Garden Care</div>
+    <div class="care-grid" id="care-items">
+      <div class="weather-loading">Loading care recommendations…</div>
+    </div>
+  </div>
+
+  <!-- Weekly Forecast -->
+  <div style="margin-bottom:28px;">
+    <div class="section-title" style="font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--straw);margin-bottom:14px;display:flex;align-items:center;gap:10px;">
+      7-Day Outlook
+      <span style="flex:1;height:1px;background:var(--compost);display:block;"></span>
+    </div>
+    <div class="forecast-row" id="forecast-row">
+      <div class="weather-loading">Loading forecast…</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('beds')">Raised Beds</button>
+    <button class="tab-btn" onclick="switchTab('natives')">Native Yard</button>
+    <button class="tab-btn" onclick="switchTab('grass')">Grass Tracker</button>
+    <button class="tab-btn" onclick="switchTab('roadmap')">Roadmap</button>
+  </div>
+
+  <!-- TAB: BEDS -->
+  <div class="tab-content active" id="tab-beds">
+
+    <div class="callout">
+      <strong>Dense planting strategy for Bozeman (Zone 5b, ~140 frost-free days):</strong>
+      Oya pots irrigate ~4×4 ft each, so with 2 per bed you have full coverage if centered well.
+      Use the <em>square foot method</em> but push plant counts 10–15% denser — the oya keeps moisture
+      even during dry spells. Start transplants 4–6 weeks early indoors (Feb–Mar). Last frost ~May 15, first frost ~Sept 20.
+    </div>
+
+    <div class="beds-grid">
+
+      <!-- Bed A -->
+      <div class="bed-card">
+        <div class="bed-header">
+          <div class="bed-name">Bed A — 8×4 ft</div>
+          <div class="bed-dims">2 OYA POTS · FULL SUN PREFERRED</div>
+        </div>
+        <div class="bed-body">
+          <div class="density-note">
+            <strong>Theme: Tomatoes + Companions</strong><br>
+            2 indeterminate tomatoes (back) + 1 determinate (mid), basil at base, marigolds at edges,
+            nasturtiums trailing. Fill gaps with lettuce in early season (pull by June).
+          </div>
+          <div id="bedA-visual" class="planting-visual"></div>
+          <div class="bed-legend" id="bedA-legend"></div>
+          <table class="plant-table" style="margin-top:14px;">
+            <tr><th>Plant</th><th>Qty</th><th>Spacing</th><th>Notes</th></tr>
+            <tr><td>Tomato (indeterminate)</td><td>2</td><td>24"</td><td><span class="pill pill-clay">cage</span> back row, stake to trellis</td></tr>
+            <tr><td>Tomato (determinate)</td><td>1</td><td>18"</td><td>mid-bed, good for salsa</td></tr>
+            <tr><td>Basil</td><td>4</td><td>6"</td><td><span class="pill pill-green">companion</span> deters aphids</td></tr>
+            <tr><td>Marigold (French)</td><td>6</td><td>8"</td><td><span class="pill pill-green">companion</span> nematode deterrent</td></tr>
+            <tr><td>Nasturtium</td><td>4</td><td>10"</td><td>trailing edges, edible, aphid trap</td></tr>
+            <tr><td>Lettuce (spring)</td><td>8</td><td>6"</td><td><span class="pill pill-straw">remove by June</span></td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- Bed B -->
+      <div class="bed-card">
+        <div class="bed-header">
+          <div class="bed-name">Bed B — 8×4 ft</div>
+          <div class="bed-dims">2 OYA POTS · FULL SUN PREFERRED</div>
+        </div>
+        <div class="bed-body">
+          <div class="density-note">
+            <strong>Theme: Brassicas + Roots</strong><br>
+            Winter squash on one end (let vine sprawl outside), brassicas in center with row cover for flea beetles,
+            carrots and beets filling gaps. Dill at far end attracts beneficials.
+          </div>
+          <div id="bedB-visual" class="planting-visual"></div>
+          <div class="bed-legend" id="bedB-legend"></div>
+          <table class="plant-table" style="margin-top:14px;">
+            <tr><th>Plant</th><th>Qty</th><th>Spacing</th><th>Notes</th></tr>
+            <tr><td>Broccoli</td><td>3</td><td>18"</td><td><span class="pill pill-sky">row cover</span> early season</td></tr>
+            <tr><td>Kale (Lacinato)</td><td>4</td><td>12"</td><td>harvest outer leaves, plant lasts all season</td></tr>
+            <tr><td>Kohlrabi</td><td>4</td><td>8"</td><td>quick, harvest in 50 days</td></tr>
+            <tr><td>Carrot (Danvers)</td><td>20</td><td>3"</td><td>direct sow, thin to 3"</td></tr>
+            <tr><td>Beet (Chioggia)</td><td>12</td><td>4"</td><td>direct sow, both root + greens edible</td></tr>
+            <tr><td>Dill</td><td>2</td><td>10"</td><td><span class="pill pill-green">beneficial insects</span></td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- Bed C -->
+      <div class="bed-card">
+        <div class="bed-header">
+          <div class="bed-name">Bed C — 8×4 ft</div>
+          <div class="bed-dims">2 OYA POTS · PART SUN OK</div>
+        </div>
+        <div class="bed-body">
+          <div class="density-note">
+            <strong>Theme: Cucurbits + Beans</strong><br>
+            Zucchini at ends (they sprawl), bush beans filling center rows (fix nitrogen),
+            cucumber trained vertically on trellis, a few pepper plants tucked in warm spots.
+            Beans undersown with radish as quick crop.
+          </div>
+          <div id="bedC-visual" class="planting-visual"></div>
+          <div class="bed-legend" id="bedC-legend"></div>
+          <table class="plant-table" style="margin-top:14px;">
+            <tr><th>Plant</th><th>Qty</th><th>Spacing</th><th>Notes</th></tr>
+            <tr><td>Zucchini</td><td>2</td><td>24"</td><td>ends of bed, 1 plant easily fills 4×4</td></tr>
+            <tr><td>Bush Bean (Provider)</td><td>16</td><td>6"</td><td><span class="pill pill-green">nitrogen fixer</span> direct sow after frost</td></tr>
+            <tr><td>Cucumber (Marketmore)</td><td>2</td><td>12"</td><td><span class="pill pill-straw">trellis</span> vertical to save space</td></tr>
+            <tr><td>Pepper (Carmen or Shishito)</td><td>2</td><td>14"</td><td>needs warmth, south-facing placement</td></tr>
+            <tr><td>Radish</td><td>10</td><td>3"</td><td>undersow beans, harvest in 30 days</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- Bed D: 10x2 -->
+      <div class="bed-card bed-wide">
+        <div class="bed-header">
+          <div class="bed-name">Bed D — 10×2 ft</div>
+          <div class="bed-dims">2 OYA POTS · HERBS + GREENS STRIP</div>
+        </div>
+        <div class="bed-body">
+          <div class="density-note">
+            <strong>Theme: Perennial Herbs + Cut Greens</strong><br>
+            Only 2 ft wide — perfect for a densely planted herb strip with cut-and-come-again greens.
+            Place perennial herbs (chives, thyme, oregano) in the middle third so they persist year to year.
+            Flank with annual greens. Two oya pots placed at 2.5 ft and 7.5 ft from one end cover the full length.
+          </div>
+          <div id="bedD-visual" class="planting-visual"></div>
+          <div class="bed-legend" id="bedD-legend"></div>
+          <table class="plant-table" style="margin-top:14px;">
+            <tr><th>Plant</th><th>Qty</th><th>Spacing</th><th>Notes</th></tr>
+            <tr><td>Chives</td><td>3</td><td>8"</td><td><span class="pill pill-straw">perennial</span> divide each spring</td></tr>
+            <tr><td>Thyme</td><td>2</td><td>10"</td><td><span class="pill pill-straw">perennial</span> drought tolerant once established</td></tr>
+            <tr><td>Oregano</td><td>2</td><td>10"</td><td><span class="pill pill-straw">perennial</span> can spread, contains well in bed</td></tr>
+            <tr><td>Parsley</td><td>3</td><td>8"</td><td>biennial, self-seeds in mild years</td></tr>
+            <tr><td>Arugula</td><td>12</td><td>4"</td><td>cut-and-come-again, 2 sowings (spring + Aug)</td></tr>
+            <tr><td>Spinach (Bloomsdale)</td><td>10</td><td>4"</td><td>spring and fall crop, bolts in heat</td></tr>
+            <tr><td>Cilantro</td><td>6</td><td>6"</td><td>bolt-resistant variety, succession sow monthly</td></tr>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="callout" style="margin-top:20px;">
+      <strong>Oya pot tip:</strong> Fill each oya before a hot stretch and check every 2–3 days in peak summer. At Bozeman's altitude (4,800 ft), evaporation is high and afternoons can be intense even when mornings are cool. In spring and fall, oya pots may stay full for a week. The clay seeps at a rate matched to soil tension — you mostly just need to top them off.
+    </div>
+
+  </div>
+
+  <!-- TAB: NATIVES -->
+  <div class="tab-content" id="tab-natives">
+    <div class="callout">
+      <strong>Your native restoration context:</strong> 5 years of sheet mulching + native bed installs is serious progress.
+      The grass creep is normal — rhizomatous grasses like Kentucky bluegrass can push through decomposed cardboard
+      after a few years. Below is a palette of natives well-suited to Bozeman (zone 5b, semi-arid, short season).
+    </div>
+    <div class="native-grid">
+      <div class="native-card">
+        <div class="native-name">Penstemon strictus</div>
+        <div class="native-common">Rocky Mountain Penstemon</div>
+        <div class="native-tags">
+          <span class="pill pill-green">Pollinator</span>
+          <span class="pill pill-straw">Drought tolerant</span>
+          <span class="pill pill-sky">Zone 4</span>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px;">Blue-purple spires June–July. Plant in clusters of 3–5 for visual impact. Spreads slowly by seed.</p>
+      </div>
+      <div class="native-card">
+        <div class="native-name">Echinacea purpurea</div>
+        <div class="native-common">Purple Coneflower</div>
+        <div class="native-tags">
+          <span class="pill pill-green">Pollinator</span>
+          <span class="pill pill-clay">Bird seed</span>
+          <span class="pill pill-straw">Drought tolerant</span>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px;">Leave seed heads through winter for goldfinches. Self-seeds moderately. One of the best natives for Montana.</p>
+      </div>
+      <div class="native-card">
+        <div class="native-name">Ratibida columnifera</div>
+        <div class="native-common">Prairie Coneflower</div>
+        <div class="native-tags">
+          <span class="pill pill-green">Pollinator</span>
+          <span class="pill pill-straw">Drought tolerant</span>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px;">Long bloom season (June–Sept). Extremely tough once established. Great for dry edges.</p>
+      </div>
+      <div class="native-card">
+        <div class="native-name">Gaillardia aristata</div>
+        <div class="native-common">Blanket Flower</div>
+        <div class="native-tags">
+          <span class="pill pill-green">Pollinator</span>
+          <span class="pill pill-straw">Native to MT</span>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px;">Truly native to Montana. Fiery orange-red blooms all summer. Short-lived perennial, self-seeds freely.</p>
+      </div>
+      <div class="native-card">
+        <div class="native-name">Symphyotrichum laeve</div>
+        <div class="native-common">Smooth Blue Aster</div>
+        <div class="native-tags">
+          <span class="pill pill-green">Late pollinator</span>
+          <span class="pill pill-sky">Fall bloom</span>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px;">Critical late-season nectar source (Aug–Oct). Pairs beautifully with goldenrod for fall structure.</p>
+      </div>
+      <div class="native-card">
+        <div class="native-name">Solidago canadensis</div>
+        <div class="native-common">Canada Goldenrod</div>
+        <div class="native-tags">
+          <span class="pill pill-green">Pollinator</span>
+          <span class="pill pill-clay">Spreads</span>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px;">Can spread aggressively — plant where you want a mass. Excellent for late pollinators. Rhizomatous.</p>
+      </div>
+      <div class="native-card">
+        <div class="native-name">Linum lewisii</div>
+        <div class="native-common">Prairie Flax</div>
+        <div class="native-tags">
+          <span class="pill pill-green">Pollinator</span>
+          <span class="pill pill-straw">Drought tolerant</span>
+          <span class="pill pill-straw">Native to MT</span>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px;">Sky-blue flowers, delicate texture. Direct sow in fall. Self-seeds reliably. Very tough.</p>
+      </div>
+      <div class="native-card">
+        <div class="native-name">Bouteloua gracilis</div>
+        <div class="native-common">Blue Grama Grass</div>
+        <div class="native-tags">
+          <span class="pill pill-straw">Native grass</span>
+          <span class="pill pill-straw">Drought tolerant</span>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px;">Native sod-forming grass — use to outcompete Kentucky bluegrass invaders. Low, tough, beautiful seed heads.</p>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top:20px;">
+      <strong>Grass creep strategy:</strong> Where bluegrass is returning, the most effective approach is smothering with new cardboard + 4" of wood chip mulch in fall, then planting aggressive native groundcovers in spring (try <em>Phlox subulata</em> or <em>Thymus serpyllum</em> as living mulch in high-creep zones). Avoid disturbing the soil — each tilling brings up new grass seeds.
+    </div>
+  </div>
+
+  <!-- TAB: GRASS TRACKER -->
+  <div class="tab-content" id="tab-grass">
+    <div class="callout">
+      <strong>Track grass creep zones</strong> to see patterns over time — which areas re-invade fastest, after which weather events, and what interventions worked. This data will help prioritize fall mulching.
+    </div>
+    <div class="grass-log">
+      <div class="section-title" style="font-family:'Playfair Display',serif;font-size:1rem;color:var(--straw);margin-bottom:12px;display:flex;align-items:center;gap:10px;">
+        Log an Observation
+        <span style="flex:1;height:1px;background:var(--compost);display:block;"></span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">ZONE / LOCATION</label>
+          <input id="grass-zone" type="text" placeholder="e.g. NW corner, front bed edge…" style="width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--compost);border-radius:3px;color:var(--cream);font-family:'Inconsolata',monospace;font-size:13px;padding:8px 10px;">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">SEVERITY (1–5)</label>
+          <select id="grass-severity" style="width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--compost);border-radius:3px;color:var(--cream);font-family:'Inconsolata',monospace;font-size:13px;padding:8px 10px;">
+            <option value="1">1 — Light sprigs</option>
+            <option value="2">2 — Scattered patches</option>
+            <option value="3" selected>3 — Moderate return</option>
+            <option value="4">4 — Heavy invasion</option>
+            <option value="5">5 — Full recolonization</option>
+          </select>
+        </div>
+      </div>
+      <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">NOTES / PLANNED INTERVENTION</label>
+      <textarea id="grass-notes" placeholder="What did you observe? What will you do about it?"></textarea>
+      <button class="btn" onclick="logGrass()">+ Log Entry</button>
+
+      <div style="margin-top:20px;">
+        <div class="section-title" style="font-family:'Playfair Display',serif;font-size:1rem;color:var(--straw);margin-bottom:12px;display:flex;align-items:center;gap:10px;">
+          Log History
+          <span style="flex:1;height:1px;background:var(--compost);display:block;"></span>
+        </div>
+        <div id="grass-history">
+          <div style="color:var(--muted);font-size:12px;font-style:italic;">No entries yet. Start logging to see patterns emerge.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: ROADMAP -->
+  <div class="tab-content" id="tab-roadmap">
+    <div class="callout">
+      <strong>Phase roadmap</strong> — this tool is designed to grow. Here's what's planned and how each piece connects.
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;">
+
+      <div class="native-card">
+        <div style="color:var(--sage);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;">✅ Phase 1 — Now</div>
+        <div class="native-name" style="font-style:normal;">Weather + Daily Care</div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.7;">Live Bozeman weather, daily care recommendations, dense planting guides for all 4 beds, native plant palette, grass creep tracker.</p>
+      </div>
+
+      <div class="native-card">
+        <div style="color:var(--straw);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;">🔜 Phase 2 — Season Planner</div>
+        <div class="native-name" style="font-style:normal;">Planting Calendar</div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.7;">Auto-generated seed starting + transplant dates keyed to Bozeman's frost dates. Succession planting schedules. Bed rotation planner by year.</p>
+      </div>
+
+      <div class="native-card">
+        <div style="color:var(--straw);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;">🔜 Phase 3 — Plant Journal</div>
+        <div class="native-name" style="font-style:normal;">PictureThis Integration</div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.7;">Paste PictureThis ID results to log identified plants to their bed/zone. Track health, bloom times, and what's thriving vs struggling each year.</p>
+      </div>
+
+      <div class="native-card">
+        <div style="color:var(--straw);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;">🔜 Phase 4 — Yield Tracker</div>
+        <div class="native-name" style="font-style:normal;">Harvest Log</div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.7;">Log harvests by bed and plant. See what's most productive per square foot. Helps decide what to plant more or less of next year.</p>
+      </div>
+
+      <div class="native-card">
+        <div style="color:var(--muted);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;">🌱 Phase 5 — Long-range</div>
+        <div class="native-name" style="font-style:normal;">Native Yard Map</div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.7;">Visual overhead map of the yard with drawn zones — beds, native areas, mulch zones, grass-creep hot spots. Year-over-year comparison view.</p>
+      </div>
+
+      <div class="native-card">
+        <div style="color:var(--muted);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;">🌱 Phase 6 — Long-range</div>
+        <div class="native-name" style="font-style:normal;">Soil Health Tracking</div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.7;">Log soil test results over time. Track amendments (compost, worm castings, wood chips). See how soil biology is improving. Correlate with yields.</p>
+      </div>
+
+    </div>
+
+    <div class="callout" style="margin-top:20px;">
+      <strong>How to expand this tool:</strong> Each new phase can be added as a new tab and built in a follow-up conversation.
+      Your data (grass log, plant notes, harvest records) will live in localStorage in the browser and persist between sessions.
+      Eventually these can sync to a Google Sheet or simple JSON file for backup.
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── WEATHER ───────────────────────────────────────────────────────────────
+// Bozeman coordinates
+const LAT = 45.6769;
+const LON = -111.0429;
+
+const WMO_ICONS = {
+  0: ['☀️','Clear sky'], 1: ['🌤️','Mainly clear'], 2: ['⛅','Partly cloudy'], 3: ['☁️','Overcast'],
+  45: ['🌫️','Fog'], 48: ['🌫️','Icy fog'], 51: ['🌦️','Light drizzle'], 53: ['🌧️','Drizzle'],
+  55: ['🌧️','Heavy drizzle'], 61: ['🌧️','Light rain'], 63: ['🌧️','Rain'], 65: ['🌧️','Heavy rain'],
+  71: ['🌨️','Light snow'], 73: ['🌨️','Snow'], 75: ['❄️','Heavy snow'], 80: ['🌦️','Rain showers'],
+  81: ['🌧️','Showers'], 82: ['⛈️','Heavy showers'], 85: ['🌨️','Snow showers'], 86: ['❄️','Heavy snow showers'],
+  95: ['⛈️','Thunderstorm'], 99: ['⛈️','Severe thunderstorm']
+};
+
+let weatherData = null;
+
+async function loadWeather() {
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}` +
+      `&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,precipitation` +
+      `&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max,precipitation_sum` +
+      `&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=America%2FDenver&forecast_days=7`;
+
+    const res = await fetch(url);
+    const data = await res.json();
+    weatherData = data;
+
+    renderWeather(data);
+    renderForecast(data);
+    renderCare(data);
+  } catch(e) {
+    document.getElementById('weather-content').innerHTML = `<span style="color:var(--clay)">Could not load weather. Check connection.</span>`;
+  }
+}
+
+function ctof(c) { return Math.round(c * 9/5 + 32); }
+
+function renderWeather(data) {
+  const c = data.current;
+  const [icon, desc] = WMO_ICONS[c.weather_code] || ['🌡️','Unknown'];
+  const tempF = Math.round(c.temperature_2m);
+  const feelsF = Math.round(c.apparent_temperature);
+  const hum = c.relative_humidity_2m;
+  const wind = Math.round(c.wind_speed_10m);
+  const precip = c.precipitation;
+
+  document.getElementById('weather-content').innerHTML = `
+    <div class="weather-item">
+      <span class="weather-label">Now</span>
+      <span class="weather-val big">${icon} ${tempF}°F</span>
+    </div>
+    <div class="weather-divider"></div>
+    <div class="weather-item">
+      <span class="weather-label">Feels like</span>
+      <span class="weather-val">${feelsF}°F</span>
+    </div>
+    <div class="weather-divider"></div>
+    <div class="weather-item">
+      <span class="weather-label">Conditions</span>
+      <span class="weather-val" style="font-size:1rem">${desc}</span>
+    </div>
+    <div class="weather-divider"></div>
+    <div class="weather-item">
+      <span class="weather-label">Humidity</span>
+      <span class="weather-val">${hum}%</span>
+    </div>
+    <div class="weather-divider"></div>
+    <div class="weather-item">
+      <span class="weather-label">Wind</span>
+      <span class="weather-val">${wind} mph</span>
+    </div>
+    <div class="weather-divider"></div>
+    <div class="weather-item">
+      <span class="weather-label">Precip today</span>
+      <span class="weather-val">${precip}" in</span>
+    </div>
+  `;
+}
+
+function renderForecast(data) {
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const d = data.daily;
+  let html = '';
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(d.time[i] + 'T12:00:00');
+    const dayName = i === 0 ? 'Today' : days[date.getDay()];
+    const [icon] = WMO_ICONS[d.weather_code[i]] || ['🌡️'];
+    const hi = Math.round(d.temperature_2m_max[i]);
+    const lo = Math.round(d.temperature_2m_min[i]);
+    const rainPct = d.precipitation_probability_max[i];
+    const rainIn = d.precipitation_sum[i];
+    html += `<div class="forecast-day ${i===0?'today':''}">
+      <div class="fday-name">${dayName}</div>
+      <div class="fday-icon">${icon}</div>
+      <div class="fday-hi">${hi}°</div>
+      <div class="fday-lo">${lo}°</div>
+      ${rainPct > 20 ? `<div class="fday-rain">💧${rainPct}%</div>` : ''}
+    </div>`;
+  }
+  document.getElementById('forecast-row').innerHTML = html;
+}
+
+function renderCare(data) {
+  const c = data.current;
+  const d = data.daily;
+  const temp = Math.round(c.temperature_2m);
+  const hum = c.relative_humidity_2m;
+  const wind = Math.round(c.wind_speed_10m);
+  const precip = c.precipitation;
+  const rainToday = d.precipitation_sum[0];
+  const rainChance = d.precipitation_probability_max[0];
+  const hiToday = Math.round(d.temperature_2m_max[0]);
+  const loToday = Math.round(d.temperature_2m_min[0]);
+
+  const items = [];
+  const now = new Date();
+  const month = now.getMonth() + 1; // 1-12
+  const day = now.getDate();
+
+  // Frost risk (Bozeman last frost ~May 15, first frost ~Sept 20)
+  const frostRisk = loToday <= 36;
+  const hardFrost = loToday <= 28;
+
+  if (hardFrost) {
+    items.push({type:'urgent', icon:'🥶', label:'Hard Frost Tonight', text:`Low of ${loToday}°F expected. Bring in tender plants, cover tomatoes and peppers with fleece. Fill oya pots before cover goes on.`});
+  } else if (frostRisk) {
+    items.push({type:'urgent', icon:'🌡️', label:'Frost Risk', text:`Low of ${loToday}°F tonight. Cover brassica seedlings and any tender transplants. Check in the morning.`});
+  }
+
+  // Watering
+  if (rainToday > 0.25 || rainChance > 70) {
+    items.push({type:'info', icon:'🌧️', label:'Oya pots: skip today', text:`${rainToday > 0 ? rainToday + '" of rain' : rainChance + '% rain chance'}. Skip refilling oya pots unless beds look dry.`});
+  } else if (hiToday >= 80) {
+    items.push({type:'urgent', icon:'💧', label:'Top off oya pots', text:`High of ${hiToday}°F — high evaporation day. Check and refill all 8 oya pots. Water deeply around any new transplants.`});
+  } else {
+    items.push({type:'info', icon:'💧', label:'Check oya pot levels', text:`No significant rain expected. Check oya pots every 2–3 days. Stick finger 2" into soil to gauge moisture.`});
+  }
+
+  // Wind advisory
+  if (wind >= 20) {
+    items.push({type:'urgent', icon:'💨', label:'High wind alert', text:`${wind} mph winds. Check plant stakes and tomato cages. Don't transplant seedlings today — stress/desiccation risk.`});
+  }
+
+  // Heat stress
+  if (hiToday >= 85) {
+    items.push({type:'urgent', icon:'☀️', label:'Heat stress watch', text:`${hiToday}°F expected. Water in the morning, not midday. Shade cloth over young brassica seedlings if you have it.`});
+  }
+
+  // Humidity / disease
+  if (hum >= 80 && hiToday >= 65) {
+    items.push({type:'info', icon:'🍄', label:'Fungal conditions', text:`High humidity + warmth = watch for powdery mildew on squash, early blight on tomatoes. Increase airflow, avoid overhead watering.`});
+  }
+
+  // Season-specific tasks
+  if (month >= 3 && month <= 4) {
+    items.push({type:'info', icon:'🌱', label:'Start seeds indoors', text:'Bozeman indoor seed start window: tomatoes, peppers, brassicas 6–8 weeks before last frost (around May 15). This is your window.'});
+  }
+  if (month === 5 && day >= 1 && day <= 14) {
+    items.push({type:'info', icon:'🌿', label:'Harden off transplants', text:'Set indoor starts outside 1–2 hrs/day this week, increasing each day. Avoid wind and full midday sun at first.'});
+  }
+  if (month === 5 && day >= 15) {
+    items.push({type:'info', icon:'🌿', label:'Transplant window open', text:'Post last-frost window — safe to transplant tomatoes, peppers, squash. Direct sow beans and squash directly.'});
+  }
+  if (month >= 6 && month <= 8) {
+    items.push({type:'info', icon:'🥬', label:'Harvest pressure', text:'Check beds daily for anything ready to harvest — zucchini and beans especially. Overgrown fruits slow new production.'});
+  }
+  if (month === 8) {
+    items.push({type:'info', icon:'🌾', label:'Fall prep begins', text:'Second sow of arugula, spinach, cilantro in herb bed. Order garlic for October planting. Compost any finished plants.'});
+  }
+  if (month >= 9) {
+    items.push({type:'info', icon:'🍂', label:'Season wind-down', text:'First frost ~Sept 20. Harvest green tomatoes to ripen indoors. Pull annuals, top-dress beds with 2" compost.'});
+  }
+
+  // Native yard
+  items.push({type:'info', icon:'🌾', label:'Native yard check', text:'Walk the native beds. Note any grass returning at edges. Log sightings in Grass Tracker tab. Mark areas to re-mulch.'});
+
+  // General daily
+  items.push({type:'info', icon:'🔍', label:'Scout for pests', text:'Flea beetles on brassicas, aphids on tomatoes, squash vine borer on zucchini stems. Early detection = easy control.'});
+
+  const html = items.map(i => `
+    <div class="care-item ${i.type}">
+      <div class="care-icon">${i.icon}</div>
+      <div class="care-text"><strong>${i.label}</strong>${i.text}</div>
+    </div>
+  `).join('');
+
+  document.getElementById('care-items').innerHTML = html;
+}
+
+// ─── BED VISUALS ───────────────────────────────────────────────────────────
+function renderBed(containerId, legendId, cols, rows, plants) {
+  const container = document.getElementById(containerId);
+  const legend = document.getElementById(legendId);
+
+  // Build grid
+  container.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  const total = cols * rows;
+  const cells = [];
+
+  // Distribute plants across cells
+  let flatPlants = [];
+  plants.forEach(p => {
+    for (let i = 0; i < p.count; i++) flatPlants.push(p);
+  });
+
+  // Fill remaining with soil
+  while (flatPlants.length < total) flatPlants.push(null);
+
+  // Shuffle for natural look
+  for (let i = flatPlants.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i+1));
+    [flatPlants[i], flatPlants[j]] = [flatPlants[j], flatPlants[i]];
+  }
+
+  flatPlants.forEach((p, idx) => {
+    const cell = document.createElement('div');
+    cell.className = 'plant-cell tooltip';
+    if (p) {
+      cell.style.background = p.color;
+      cell.textContent = p.emoji;
+      cell.innerHTML += `<div class="tip">${p.name}</div>`;
+    } else {
+      cell.style.background = 'rgba(61,43,31,0.4)';
+    }
+    container.appendChild(cell);
+  });
+
+  // Legend
+  const seen = {};
+  plants.forEach(p => {
+    if (!seen[p.name]) {
+      seen[p.name] = true;
+      legend.innerHTML += `<div class="legend-item"><div class="legend-dot" style="background:${p.color}"></div>${p.emoji} ${p.name}</div>`;
+    }
+  });
+}
+
+// Bed A: Tomatoes + companions — 16 cols × 8 rows = 128 cells (scaled for 8×4 at 6" spacing)
+renderBed('bedA-visual', 'bedA-legend', 16, 8, [
+  {name:'Tomato (indet.)', emoji:'🍅', color:'#8B1A1A', count:2},
+  {name:'Tomato (det.)', emoji:'🍅', color:'#c0392b', count:1},
+  {name:'Basil', emoji:'🌿', color:'#2e7d32', count:12},
+  {name:'Marigold', emoji:'🌼', color:'#e65100', count:16},
+  {name:'Nasturtium', emoji:'🌺', color:'#d84315', count:10},
+  {name:'Lettuce (spring)', emoji:'🥬', color:'#558b2f', count:18},
+]);
+
+// Bed B: Brassicas + roots
+renderBed('bedB-visual', 'bedB-legend', 16, 8, [
+  {name:'Broccoli', emoji:'🥦', color:'#1b5e20', count:3},
+  {name:'Kale', emoji:'🥬', color:'#33691e', count:6},
+  {name:'Kohlrabi', emoji:'🟣', color:'#6a1b9a', count:8},
+  {name:'Carrot', emoji:'🥕', color:'#e65100', count:22},
+  {name:'Beet', emoji:'🔴', color:'#880e4f', count:16},
+  {name:'Dill', emoji:'🌿', color:'#827717', count:6},
+]);
+
+// Bed C: Cucurbits + beans
+renderBed('bedC-visual', 'bedC-legend', 16, 8, [
+  {name:'Zucchini', emoji:'🥒', color:'#2e7d32', count:2},
+  {name:'Bush Bean', emoji:'🫛', color:'#558b2f', count:20},
+  {name:'Cucumber', emoji:'🥒', color:'#1b5e20', count:4},
+  {name:'Pepper', emoji:'🫑', color:'#827717', count:4},
+  {name:'Radish', emoji:'🌸', color:'#ad1457', count:14},
+]);
+
+// Bed D: 10×2 herb strip — 20 cols × 4 rows
+renderBed('bedD-visual', 'bedD-legend', 20, 4, [
+  {name:'Chives', emoji:'💜', color:'#6a1b9a', count:5},
+  {name:'Thyme', emoji:'🌿', color:'#4e6b3c', count:4},
+  {name:'Oregano', emoji:'🌿', color:'#558b2f', count:4},
+  {name:'Parsley', emoji:'🌱', color:'#2e7d32', count:5},
+  {name:'Arugula', emoji:'🥬', color:'#33691e', count:14},
+  {name:'Spinach', emoji:'🥬', color:'#1b5e20', count:10},
+  {name:'Cilantro', emoji:'🌱', color:'#827717', count:8},
+]);
+
+// ─── TABS ───────────────────────────────────────────────────────────────────
+function switchTab(id) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ─── GRASS LOG ──────────────────────────────────────────────────────────────
+const GRASS_KEY = 'bozeman_grass_log';
+
+function loadGrassLog() {
+  const data = JSON.parse(localStorage.getItem(GRASS_KEY) || '[]');
+  const hist = document.getElementById('grass-history');
+  if (!data.length) {
+    hist.innerHTML = '<div style="color:var(--muted);font-size:12px;font-style:italic;">No entries yet. Start logging to see patterns emerge.</div>';
+    return;
+  }
+  hist.innerHTML = data.slice().reverse().map(e => `
+    <div class="log-entry">
+      <div class="log-date">${e.date} · ${e.zone} · Severity ${e.severity}/5</div>
+      <div>${e.notes}</div>
+    </div>
+  `).join('');
+}
+
+function logGrass() {
+  const zone = document.getElementById('grass-zone').value.trim();
+  const sev = document.getElementById('grass-severity').value;
+  const notes = document.getElementById('grass-notes').value.trim();
+
+  if (!zone || !notes) { alert('Please fill in zone and notes.'); return; }
+
+  const data = JSON.parse(localStorage.getItem(GRASS_KEY) || '[]');
+  data.push({
+    date: new Date().toLocaleDateString('en-US', {year:'numeric',month:'short',day:'numeric'}),
+    zone, severity: sev, notes
+  });
+  localStorage.setItem(GRASS_KEY, JSON.stringify(data));
+
+  document.getElementById('grass-zone').value = '';
+  document.getElementById('grass-notes').value = '';
+  loadGrassLog();
+}
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+loadWeather();
+loadGrassLog();
+</script>
+</body>
+</html>
