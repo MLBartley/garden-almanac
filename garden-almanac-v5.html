@@ -134,6 +134,51 @@ html,body{height:100%;overflow:hidden;font-family:'Crimson Pro',Georgia,serif;ba
 .yoy-date{font-family:'Space Mono',monospace;font-size:8px;color:var(--moss);margin-bottom:4px;letter-spacing:.06em;}
 .yoy-text{font-size:.83rem;line-height:1.5;}
 .bag-badge{font-family:'Space Mono',monospace;font-size:7px;padding:1px 6px;border-radius:6px;background:#f5edd8;color:#8a6010;margin-left:4px;}
+/* ── MOON & SUN WIDGET ── */
+.moon-widget{background:var(--ink);color:var(--paper);border-radius:var(--radius);padding:11px 14px;margin-bottom:10px;display:flex;align-items:flex-start;gap:12px;}
+.moon-phase-emoji{font-size:2rem;flex-shrink:0;line-height:1.1;}
+.moon-info{flex:1;}
+.moon-name{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.12em;color:#9fc9a0;text-transform:uppercase;}
+.moon-bio{font-size:.8rem;color:rgba(255,255,255,.82);margin-top:2px;line-height:1.4;}
+.moon-next{font-family:'Space Mono',monospace;font-size:8px;color:var(--lichen);margin-top:4px;}
+.sun-row{display:flex;gap:12px;margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.1);flex-wrap:wrap;}
+.sun-item{font-family:'Space Mono',monospace;font-size:8px;color:var(--lichen);}
+.sun-item strong{color:var(--paper);}
+/* ── ALMANAC REFERENCE ── */
+.climate-table{width:100%;border-collapse:collapse;font-size:.79rem;}
+.climate-table th{font-family:'Space Mono',monospace;font-size:7px;letter-spacing:.06em;color:var(--muted);text-align:right;padding:4px 5px;border-bottom:1px solid var(--rule);}
+.climate-table th:first-child{text-align:left;}
+.climate-table td{padding:4px 5px;text-align:right;border-bottom:1px solid var(--rule);}
+.climate-table td:first-child{text-align:left;font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);}
+.climate-table tr.cm-current td{background:var(--surface);font-weight:600;}
+.climate-table tr.cm-current td:first-child{color:var(--moss);}
+.frost-row{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--rule);}
+.frost-row:last-child{border-bottom:none;}
+.frost-row-date{font-family:'Space Mono',monospace;font-size:8px;width:55px;flex-shrink:0;color:var(--muted);}
+.frost-track{flex:1;height:7px;background:var(--rule);border-radius:4px;overflow:hidden;}
+.frost-fill{height:100%;border-radius:4px;}
+.ff-high{background:#9b59b6;}.ff-med{background:#e8a060;}.ff-low{background:#7ec87e;}
+.frost-pct{font-family:'Space Mono',monospace;font-size:8px;width:28px;text-align:right;flex-shrink:0;}
+.pheno-card{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);padding:10px 12px;margin-bottom:7px;}
+.pheno-cue{font-size:.88rem;font-weight:600;margin-bottom:3px;}
+.pheno-action{font-size:.8rem;color:var(--muted);line-height:1.4;}
+.native-entry{display:flex;align-items:flex-start;gap:7px;padding:5px 0;border-bottom:1px solid var(--rule);font-size:.83rem;line-height:1.4;}
+.native-entry:last-child{border-bottom:none;}
+.preserve-card{background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-bottom:8px;}
+.preserve-crop{font-weight:600;font-size:.9rem;margin-bottom:1px;}
+.preserve-window{font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:5px;}
+.preserve-method{font-size:.79rem;color:var(--muted);line-height:1.5;padding-left:10px;position:relative;}
+.preserve-method::before{content:'·';position:absolute;left:0;color:var(--moss);}
+/* ── CLIMATE LOGS ── */
+.clim-log-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--rule);font-size:.8rem;}
+.clim-log-row:last-child{border-bottom:none;}
+.clim-badge{font-family:'Space Mono',monospace;font-size:7px;padding:2px 7px;border-radius:8px;flex-shrink:0;}
+.clb-rain{background:#d4eaf7;color:#2a6080;}.clb-soil{background:#f5edd8;color:#8a6010;}.clb-gdd{background:#e8f5e8;color:#1a5a1a;}
+.gdd-bar{height:9px;background:var(--rule);border-radius:5px;overflow:hidden;margin:7px 0;}
+.gdd-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,#7ec87e,#c4922a);}
+.gdd-milestones{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;}
+.gdd-stone{font-family:'Space Mono',monospace;font-size:7px;padding:2px 8px;border-radius:8px;}
+.gm-done{background:#e8f5e8;color:#1a5a1a;}.gm-next{background:#fff0e0;color:#7a4000;}.gm-far{background:var(--surface);color:var(--muted);}
 /* frost alert banner */
 #frost-alert-banner{display:none;margin-bottom:10px;}
 .frost-banner{border-radius:var(--radius);padding:13px 14px;border:1.5px solid;}
@@ -576,6 +621,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         </div>
       </div>
       <div class="forecast-scroll" id="forecast-row"></div>
+      <div id="moon-sun-widget"></div>
       <div id="spring-widget-wrap"></div>
       <div id="week-sprint-wrap"></div>
       <div id="ready-to-plant-wrap"></div>
@@ -802,6 +848,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <button class="pvt-btn" onclick="setYearTab('beds',this)">Bed History</button>
         <button class="pvt-btn" onclick="setYearTab('compost',this)">Compost</button>
         <button class="pvt-btn" onclick="setYearTab('plan',this)">Next Season</button>
+        <button class="pvt-btn" onclick="setYearTab('climate',this)">Climate</button>
       </div>
 
       <!-- ── ALMANAC ── -->
@@ -823,6 +870,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <div id="timeline-list"></div>
         <div class="section-label">Full almanac</div>
         <div id="full-calendar"></div>
+        <div id="almanac-extras"></div>
       </div>
 
       <!-- ── CHECKLISTS ── -->
@@ -863,6 +911,35 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <div id="amendment-list"></div>
         <div class="section-label">💡 Recommendations</div>
         <div id="amend-recs"></div>
+      </div>
+
+      <!-- ── CLIMATE ── -->
+      <div id="yr-climate" style="display:none;">
+        <div class="section-label" style="margin-top:0;">📈 Growing degree days (base 50°F)</div>
+        <div id="gdd-display"></div>
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:12px;">
+          <input type="number" id="gdd-hi" placeholder="Today hi °F" style="flex:1;border:1px solid var(--rule);border-radius:4px;padding:7px 10px;font-family:'Crimson Pro',serif;font-size:.93rem;background:white;outline:none;">
+          <input type="number" id="gdd-lo" placeholder="Lo °F" style="flex:1;border:1px solid var(--rule);border-radius:4px;padding:7px 10px;font-family:'Crimson Pro',serif;font-size:.93rem;background:white;outline:none;">
+          <button class="btn-primary" style="padding:7px 11px;flex-shrink:0;" onclick="logGDDEntry()">+ GDD</button>
+        </div>
+        <div id="gdd-log"></div>
+        <div class="section-label">🌧 Rain gauge</div>
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:12px;">
+          <input type="number" id="rain-amount" placeholder="Inches (e.g. 0.25)" step="0.01" style="flex:1;border:1px solid var(--rule);border-radius:4px;padding:7px 10px;font-family:'Crimson Pro',serif;font-size:.93rem;background:white;outline:none;">
+          <input type="date" id="rain-date" style="flex:1;border:1px solid var(--rule);border-radius:4px;padding:7px 10px;font-family:'Space Mono',monospace;font-size:9px;background:white;outline:none;">
+          <button class="btn-primary" style="padding:7px 11px;flex-shrink:0;" onclick="logRainfall()">+ Log</button>
+        </div>
+        <div id="rain-log"></div>
+        <div class="section-label">🌡 Soil temperature</div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+          <input type="number" id="soil-temp" placeholder="Temp °F" style="flex:1;min-width:80px;border:1px solid var(--rule);border-radius:4px;padding:7px 10px;font-family:'Crimson Pro',serif;font-size:.93rem;background:white;outline:none;">
+          <select id="soil-depth" style="border:1px solid var(--rule);border-radius:4px;padding:7px 9px;font-family:'Space Mono',monospace;font-size:10px;background:white;outline:none;appearance:none;-webkit-appearance:none;">
+            <option value="2">2 in</option><option value="4" selected>4 in</option><option value="6">6 in</option>
+          </select>
+          <input type="date" id="soil-date" style="flex:1;min-width:100px;border:1px solid var(--rule);border-radius:4px;padding:7px 10px;font-family:'Space Mono',monospace;font-size:9px;background:white;outline:none;">
+          <button class="btn-primary" style="padding:7px 11px;flex-shrink:0;" onclick="logSoilTemp()">+ Log</button>
+        </div>
+        <div id="soil-log"></div>
       </div>
 
       <!-- ── NEXT SEASON ── -->
@@ -1502,6 +1579,9 @@ function loadDB() {
       if(!d.wishlist)d.wishlist=[];
       if(!d.seedSaving)d.seedSaving=[];
       if(!d.checklists)d.checklists={};
+      if(!d.rainfallLog)d.rainfallLog=[];
+      if(!d.soilTempLog)d.soilTempLog=[];
+      if(!d.gddLog)d.gddLog=[];
       saveDB(d);
       return d;
     }
@@ -1514,7 +1594,8 @@ function saveDB(db) { localStorage.setItem(DB_KEY, JSON.stringify(db)); }
 function defaultDB() {
   return { journal:[], plants:defaultPlants(), beds:defaultBeds(), seeds:defaultSeeds(), bedDesigns:{}, bedStatuses:{},
     sowLogs:[], hardenLogs:[], oyaLogs:{}, harvestLog:[], plantingList:[], settings:{},
-    bedHistory:{}, amendments:[], compostLog:[], wishlist:[], seedSaving:[], checklists:{} };
+    bedHistory:{}, amendments:[], compostLog:[], wishlist:[], seedSaving:[], checklists:{},
+    rainfallLog:[], soilTempLog:[], gddLog:[] };
 }
 function defaultSeeds() {
   const td='Triple Divide Organic Seeds 2026', bc='Baker Creek Heirloom Seeds 2026',
@@ -2919,6 +3000,68 @@ function renderPlants(){
 
 // ════════════════════════════════════════
 // ════════════════════════════════════════
+//  ALMANAC REFERENCE DATA — Bozeman Zone 5b
+// ════════════════════════════════════════
+const BOZEMAN_CLIMATE=[
+  {m:'Jan',hi:33,lo:14,precip:0.91},{m:'Feb',hi:39,lo:19,precip:0.64},
+  {m:'Mar',hi:47,lo:25,precip:0.83},{m:'Apr',hi:57,lo:33,precip:1.39},
+  {m:'May',hi:66,lo:41,precip:2.29},{m:'Jun',hi:75,lo:49,precip:2.47},
+  {m:'Jul',hi:84,lo:55,precip:1.20},{m:'Aug',hi:83,lo:54,precip:1.12},
+  {m:'Sep',hi:71,lo:44,precip:1.46},{m:'Oct',hi:58,lo:34,precip:1.22},
+  {m:'Nov',hi:41,lo:22,precip:0.97},{m:'Dec',hi:33,lo:15,precip:0.88},
+];
+const FROST_PROB={
+  spring:[
+    {date:'Apr 1',prob:99},{date:'Apr 15',prob:94},{date:'May 1',prob:80},
+    {date:'May 10',prob:65},{date:'May 15',prob:50},{date:'May 20',prob:35},
+    {date:'May 25',prob:20},{date:'Jun 1',prob:8},{date:'Jun 10',prob:2},
+  ],
+  fall:[
+    {date:'Sep 1',prob:5},{date:'Sep 10',prob:12},{date:'Sep 15',prob:20},
+    {date:'Sep 20',prob:32},{date:'Sep 25',prob:45},{date:'Oct 1',prob:60},
+    {date:'Oct 10',prob:78},{date:'Oct 15',prob:88},{date:'Oct 31',prob:98},
+  ],
+};
+const PHENOLOGY=[
+  {months:[3,4],icon:'🌸',cue:'Forsythia or pasqueflower appears',action:'Soil is workable soon. Direct sow peas and spinach when daytime soil feels 40°F+.'},
+  {months:[4],icon:'🌼',cue:'Dandelions in bloom',action:'Soil is ready. Direct sow peas, spinach, arugula, radishes. Thin last year\'s perennials.'},
+  {months:[5],icon:'💜',cue:'Lilacs in full bloom',action:'Plant corn and squash seeds. Last frost is approaching — have transplants hardened off.'},
+  {months:[5,6],icon:'💐',cue:'Lilacs begin to fade',action:'Safe window to transplant tomatoes and peppers without frost protection.'},
+  {months:[6,7],icon:'🌿',cue:'Cottonwood fluff flying',action:'Cucumber beetles are active. Row cover cucurbits or scout closely for adults and eggs.'},
+  {months:[8,9],icon:'✨',cue:'Goldenrod begins blooming',action:'Approximately 6 weeks to first frost. Start fall planting, begin slowing warm-season fertilizing.'},
+  {months:[9],icon:'🍂',cue:'Aspen leaves turning gold',action:'Move grow bags indoors within 2 weeks. Keep row cover on hand — frost can arrive any night.'},
+  {months:[10],icon:'🍁',cue:'Aspens fully turned and dropping',action:'Hard frost imminent. Final harvest, garlic planting window closing, empty oya pots.'},
+];
+const NATIVE_BLOOMS={
+  3:['Pasqueflower (Pulsatilla patens) — first native of spring','Yellow glacier lily (Erythronium grandiflorum)'],
+  4:['Yellow violet (Viola nuttallii)','Wild strawberry (Fragaria virginiana) begins','Early blue phlox (Phlox diffusa)'],
+  5:['Serviceberry / Saskatoon (Amelanchier alnifolia) — peak','Shooting star (Dodecatheon pulchellum)','Sticky geranium (Geranium viscosissimum)'],
+  6:['Blue wild flax (Linum lewisii)','Rocky Mountain penstemon (Penstemon strictus)','Wild rose (Rosa woodsii)','Nine-bark (Physocarpus malvaceus)'],
+  7:['Purple coneflower (Echinacea angustifolia) — peak pollinator','Blanket flower (Gaillardia aristata)','Yarrow (Achillea millefolium)','Rocky Mtn bee plant (Cleome serrulata)'],
+  8:['Goldenrod begins (Solidago missouriensis)','Annual sunflower (Helianthus annuus)','Wild bergamot (Monarda fistulosa)'],
+  9:['Smooth aster (Symphyotrichum laeve) — critical late nectar','Aromatic aster (S. oblongifolium)','Goldenrod peak','Rabbitbrush (Ericameria nauseosa)'],
+  10:['Late asters (seed heads forming)','Rabbitbrush seed heads — goldfinch season'],
+};
+const PRESERVATION=[
+  {emoji:'🍅',crop:'Tomatoes',window:'Aug–Sep',methods:['Sauce & can (up to 1 year)','Freeze whole or as paste','Dehydrate for sun-dried','Fresh: 2 weeks countertop']},
+  {emoji:'🥒',crop:'Cucumbers',window:'Jul–Aug',methods:['Refrigerator pickles (3 wks)','Lacto-fermented dill pickles (months)','Freeze: not recommended — texture degrades']},
+  {emoji:'🫘',crop:'Beans',window:'Jul–Aug',methods:['Blanch 3 min + freeze (1 year)','Dilly beans lacto-ferment','Dry beans: leave on vine until seeds rattle']},
+  {emoji:'🎃',crop:'Winter squash',window:'Sep–Oct',methods:['Cure 10 days at 80°F with airflow','Store whole at 55–60°F, dark (3–6 months)','Freeze: cook, cube, freeze (1 year)']},
+  {emoji:'🥬',crop:'Kale',window:'Sep–Nov',methods:['Blanch 2 min + freeze (1 year)','Dehydrate for chips (135°F, 4–6 hrs)','Lacto-ferment like kimchi']},
+  {emoji:'🧄',crop:'Garlic',window:'Jul',methods:['Cure 4–6 wks at 70°F with good airflow','Store in mesh bag at 55–60°F (6–12 months)','Freeze minced in olive oil for convenience']},
+  {emoji:'🌿',crop:'Fresh herbs',window:'Jun–Sep',methods:['Dry in bundles or dehydrator at 95°F (1+ year)','Freeze in olive oil in ice cube trays','Herb-infused vinegar or salt']},
+  {emoji:'🌽',crop:'Sweet corn',window:'Aug',methods:['Blanch 4 min + freeze on or off cob','Best used fresh — sugars convert to starch fast','Freeze immediately after picking']},
+];
+const GDD_MILESTONES=[
+  {gdd:50,label:'Peas germinate',emoji:'🌱'},
+  {gdd:150,label:'Bean pods set',emoji:'🫘'},
+  {gdd:300,label:'Cucumber first flowers',emoji:'🥒'},
+  {gdd:500,label:'Corn tassels',emoji:'🌽'},
+  {gdd:700,label:'First ripe tomato',emoji:'🍅'},
+  {gdd:1000,label:'Late crops finishing',emoji:'🍂'},
+];
+
+// ════════════════════════════════════════
 //  MONTHLY CHECKLISTS — Zone 5b Bozeman
 // ════════════════════════════════════════
 const MONTHLY_TASKS={
@@ -4034,6 +4177,208 @@ function renderWeekSprint() {
 }
 
 // ════════════════════════════════════════
+//  MOON & SUN
+// ════════════════════════════════════════
+function getMoonInfo(date){
+  const knownNew=new Date('2000-01-06T18:14:00Z');
+  const cycle=29.530588853;
+  const phase=((( date-knownNew)/86400000%cycle)+cycle)%cycle;
+  let emoji,name,bioType;
+  if(phase<1.85){emoji='🌑';name='New Moon';bioType='leaf';}
+  else if(phase<7.38){emoji='🌒';name='Waxing Crescent';bioType='leaf';}
+  else if(phase<9.22){emoji='🌓';name='First Quarter';bioType='fruit';}
+  else if(phase<14.77){emoji='🌔';name='Waxing Gibbous';bioType='fruit';}
+  else if(phase<16.61){emoji='🌕';name='Full Moon';bioType='root';}
+  else if(phase<22.15){emoji='🌖';name='Waning Gibbous';bioType='root';}
+  else if(phase<23.99){emoji='🌗';name='Last Quarter';bioType='flower';}
+  else{emoji='🌘';name='Waning Crescent';bioType='flower';}
+  const bioDesc={fruit:'Fruit & seed day — sow fruiting crops, harvest',root:'Root day — sow root crops, harvest roots',leaf:'Leaf day — leafy greens, transplanting, watering',flower:'Flower day — tend flowers, prune, light watering'};
+  const daysToFull=phase<14.77?(14.77-phase):(cycle+14.77-phase);
+  const daysToNew=phase<0.5?(0.5-phase):(cycle-phase+0.5);
+  return{emoji,name,bioType,bioDesc:bioDesc[bioType],daysToFull:Math.ceil(daysToFull),daysToNew:Math.ceil(daysToNew)};
+}
+function getSunTimes(date){
+  const lat=LAT,lng=LON,zenith=90.833;
+  const start=new Date(date.getFullYear(),0,0);
+  const N=Math.floor((date-start)/86400000);
+  const lngHour=lng/15;
+  const tzOffset=-date.getTimezoneOffset()/60;
+  function calc(isSunrise){
+    const t=N+((isSunrise?6:18)-lngHour)/24;
+    const M=(0.9856*t-3.289+360)%360;
+    const Mr=M*Math.PI/180;
+    let L=(M+1.916*Math.sin(Mr)+0.020*Math.sin(2*Mr)+282.634+360)%360;
+    let RA=(Math.atan(0.91764*Math.tan(L*Math.PI/180))/(Math.PI/180)+360)%360;
+    const Lq=Math.floor(L/90)*90;const RAq=Math.floor(RA/90)*90;
+    RA=(RA+Lq-RAq)/15;
+    const sinDec=0.39782*Math.sin(L*Math.PI/180);
+    const cosDec=Math.cos(Math.asin(sinDec));
+    const cosH=(Math.cos(zenith*Math.PI/180)-sinDec*Math.sin(lat*Math.PI/180))/(cosDec*Math.cos(lat*Math.PI/180));
+    if(Math.abs(cosH)>1)return null;
+    const H=(isSunrise?(360-Math.acos(cosH)/(Math.PI/180)):Math.acos(cosH)/(Math.PI/180))/15;
+    let UT=((H+RA-0.06571*t-6.622-lngHour)%24+24)%24;
+    return(UT+tzOffset+24)%24;
+  }
+  const rH=calc(true),sH=calc(false);
+  if(rH===null||sH===null)return null;
+  const fmt=h=>{const hr=Math.floor(h)%24,mn=Math.round((h%1)*60),ap=hr<12?'AM':'PM',h12=hr===0?12:hr>12?hr-12:hr;return`${h12}:${String(mn).padStart(2,'0')} ${ap}`;};
+  const dl=((sH-rH+24)%24);
+  return{rise:fmt(rH),set:fmt(sH),daylight:`${Math.floor(dl)}h ${Math.round((dl%1)*60)}m`};
+}
+function renderMoonWidget(){
+  const el=document.getElementById('moon-sun-widget');if(!el)return;
+  const now=new Date();
+  const moon=getMoonInfo(now);
+  const sun=getSunTimes(now);
+  const sunHtml=sun?`<div class="sun-row"><div class="sun-item">🌅 RISE <strong>${sun.rise}</strong></div><div class="sun-item">🌇 SET <strong>${sun.set}</strong></div><div class="sun-item">☀️ <strong>${sun.daylight}</strong> daylight</div></div>`:'';
+  el.innerHTML=`<div class="moon-widget"><div class="moon-phase-emoji">${moon.emoji}</div><div class="moon-info"><div class="moon-name">${moon.name}</div><div class="moon-bio">${moon.bioDesc}</div><div class="moon-next">Full in ${moon.daysToFull}d · New in ${moon.daysToNew}d</div>${sunHtml}</div></div>`;
+}
+
+// ════════════════════════════════════════
+//  ALMANAC EXTRAS
+// ════════════════════════════════════════
+function renderAlmanacExtras(){
+  const el=document.getElementById('almanac-extras');if(!el)return;
+  const now=new Date();const curMonth=now.getMonth()+1;
+  // Climate normals
+  let html=`<div class="section-label">Bozeman climate normals</div><div class="card" style="padding:10px;overflow-x:auto;"><table class="climate-table"><thead><tr><th>Month</th><th>Hi °F</th><th>Lo °F</th><th>Precip"</th></tr></thead><tbody>`;
+  BOZEMAN_CLIMATE.forEach((m,i)=>{
+    const cur=i+1===curMonth?' class="cm-current"':'';
+    html+=`<tr${cur}><td>${m.m}</td><td>${m.hi}</td><td>${m.lo}</td><td>${m.precip}</td></tr>`;
+  });
+  html+=`</tbody></table></div>`;
+  // Frost probability
+  const isSpring=curMonth>=3&&curMonth<=6;
+  const isFall=curMonth>=8&&curMonth<=10;
+  if(isSpring||isFall){
+    const set=isSpring?FROST_PROB.spring:FROST_PROB.fall;
+    const label=isSpring?'Spring frost probability':'Fall frost probability';
+    html+=`<div class="section-label">${label}</div><div class="card" style="padding:10px 13px;">`;
+    set.forEach(row=>{
+      const cls=row.prob>=60?'ff-high':row.prob>=25?'ff-med':'ff-low';
+      html+=`<div class="frost-row"><span class="frost-row-date">${row.date}</span><div class="frost-track"><div class="frost-fill ${cls}" style="width:${row.prob}%;"></div></div><span class="frost-pct">${row.prob}%</span></div>`;
+    });
+    html+=`</div>`;
+  } else {
+    html+=`<div class="section-label">Frost probability (Bozeman)</div><div class="card" style="padding:11px 13px;font-size:.82rem;color:var(--muted);">Last spring frost: May 15 (50% probability). First fall frost: Sept 20 (32%). Navigate to March–June or Aug–Oct for probability charts.</div>`;
+  }
+  // Phenology for current month
+  const pheno=PHENOLOGY.filter(p=>p.months.includes(curMonth));
+  if(pheno.length){
+    html+=`<div class="section-label">What to watch for now</div>`;
+    pheno.forEach(p=>{html+=`<div class="pheno-card"><div class="pheno-cue">${p.icon} ${p.cue}</div><div class="pheno-action">${p.action}</div></div>`;});
+  }
+  // Native blooms for current + adjacent months
+  const bloomMonths=[curMonth-1,curMonth,curMonth+1].filter(m=>m>=1&&m<=12);
+  const hasBloom=bloomMonths.some(m=>NATIVE_BLOOMS[m]);
+  if(hasBloom){
+    html+=`<div class="section-label">Native blooms</div>`;
+    bloomMonths.forEach(m=>{
+      if(!NATIVE_BLOOMS[m])return;
+      const mo=BOZEMAN_CLIMATE[m-1];
+      const isCur=m===curMonth;
+      html+=`<div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.1em;color:${isCur?'var(--moss)':'var(--muted)'};padding:6px 0 3px;text-transform:uppercase;">${mo.m}${isCur?' ← now':''}</div>`;
+      NATIVE_BLOOMS[m].forEach(plant=>{html+=`<div class="native-entry"><span>🌸</span><span class="native-name">${plant}</span></div>`;});
+    });
+  }
+  // Preservation guide for in-season crops
+  const preserveNow=PRESERVATION.filter(p=>{
+    // rough month-to-window mapping
+    const w=p.window;
+    const m=BOZEMAN_CLIMATE[curMonth-1]?.m;
+    if(w.includes(m))return true;
+    if(curMonth>=6&&curMonth<=9&&['Jun–Sep','Jul–Aug','Aug–Sep','Aug'].some(v=>v===w))return true;
+    return false;
+  });
+  if(preserveNow.length){
+    html+=`<div class="section-label">Preservation guide</div>`;
+    preserveNow.forEach(p=>{
+      html+=`<div class="preserve-card"><div class="preserve-crop">${p.emoji} ${p.crop}</div><div class="preserve-window">${p.window}</div>${p.methods.map(m=>`<div class="preserve-method">${m}</div>`).join('')}</div>`;
+    });
+  } else {
+    html+=`<div class="section-label">Preservation guide</div><div class="card" style="padding:11px 13px;font-size:.82rem;color:var(--muted);">Preservation tips appear Jul–Nov when harvests are in season.</div>`;
+  }
+  el.innerHTML=html;
+}
+
+// ════════════════════════════════════════
+//  CLIMATE LOGS
+// ════════════════════════════════════════
+function renderClimateTab(){
+  const today=new Date().toISOString().slice(0,10);
+  const rainDate=document.getElementById('rain-date');if(rainDate&&!rainDate.value)rainDate.value=today;
+  const soilDate=document.getElementById('soil-date');if(soilDate&&!soilDate.value)soilDate.value=today;
+  renderGDD();renderRainLog();renderSoilLog();
+}
+function logGDDEntry(){
+  const hi=parseFloat(document.getElementById('gdd-hi')?.value);
+  const lo=parseFloat(document.getElementById('gdd-lo')?.value);
+  if(isNaN(hi)||isNaN(lo))return;
+  const gdd=Math.max(0,((hi+lo)/2)-50);
+  if(!db.gddLog)db.gddLog=[];
+  db.gddLog.unshift({id:'gdd-'+Date.now(),date:new Date().toISOString(),hi,lo,gdd:Math.round(gdd*10)/10});
+  saveDB(db);
+  document.getElementById('gdd-hi').value='';document.getElementById('gdd-lo').value='';
+  renderGDD();
+}
+function deleteGDDEntry(id){db.gddLog=(db.gddLog||[]).filter(e=>e.id!==id);saveDB(db);renderGDD();}
+function logRainfall(){
+  const amount=parseFloat(document.getElementById('rain-amount')?.value);
+  const date=document.getElementById('rain-date')?.value||new Date().toISOString().slice(0,10);
+  if(isNaN(amount)||amount<=0)return;
+  if(!db.rainfallLog)db.rainfallLog=[];
+  db.rainfallLog.unshift({id:'rain-'+Date.now(),date,amount:Math.round(amount*100)/100});
+  saveDB(db);document.getElementById('rain-amount').value='';renderRainLog();
+}
+function deleteRainEntry(id){db.rainfallLog=(db.rainfallLog||[]).filter(e=>e.id!==id);saveDB(db);renderRainLog();}
+function logSoilTemp(){
+  const temp=parseFloat(document.getElementById('soil-temp')?.value);
+  const depth=document.getElementById('soil-depth')?.value||'4';
+  const date=document.getElementById('soil-date')?.value||new Date().toISOString().slice(0,10);
+  if(isNaN(temp))return;
+  if(!db.soilTempLog)db.soilTempLog=[];
+  db.soilTempLog.unshift({id:'soil-'+Date.now(),date,temp,depth});
+  saveDB(db);document.getElementById('soil-temp').value='';renderSoilLog();
+}
+function deleteSoilEntry(id){db.soilTempLog=(db.soilTempLog||[]).filter(e=>e.id!==id);saveDB(db);renderSoilLog();}
+function renderGDD(){
+  const el=document.getElementById('gdd-display');if(!el)return;
+  const yr=new Date().getFullYear();
+  const seasonStart=new Date(yr,4,15); // May 15
+  const log=(db.gddLog||[]).filter(e=>new Date(e.date)>=seasonStart);
+  const total=log.reduce((s,e)=>s+e.gdd,0);
+  const maxGDD=1400;
+  const pct=Math.min(100,(total/maxGDD)*100);
+  // milestones
+  const msHtml=GDD_MILESTONES.map(ms=>{
+    const cls=total>=ms.gdd?'gm-done':total>ms.gdd*0.7?'gm-next':'gm-far';
+    return`<span class="gdd-stone ${cls}">${ms.emoji} ${ms.gdd} ${ms.label}</span>`;
+  }).join('');
+  const recentHtml=log.slice(0,8).map(e=>`<div class="clim-log-row"><span class="clim-badge clb-gdd">GDD</span><span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">${new Date(e.date+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span><span style="flex:1;text-align:right;font-size:.88rem;">+${e.gdd} <span style="font-size:.75rem;color:var(--muted);">(${e.hi}°/${e.lo}°)</span></span><button onclick="deleteGDDEntry('${e.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:1px 5px;">✕</button></div>`).join('');
+  el.innerHTML=`<div class="card" style="padding:12px 13px;margin-bottom:10px;"><div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">SEASON TOTAL (since May 15)</span><span style="font-family:'Space Mono',monospace;font-size:1.1rem;font-weight:700;color:var(--moss);">${Math.round(total)} GDD</span></div><div class="gdd-bar"><div class="gdd-fill" style="width:${pct}%;"></div></div><div style="font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:8px;"><span>0</span><span>700</span><span>1400</span></div><div class="gdd-milestones">${msHtml}</div>${log.length?`<div style="margin-top:8px;border-top:1px solid var(--rule);padding-top:8px;">${recentHtml}</div>`:''}</div>`;
+}
+function renderRainLog(){
+  const el=document.getElementById('rain-log');if(!el)return;
+  const log=(db.rainfallLog||[]).slice(0,12);
+  if(!log.length){el.innerHTML='<div style="color:var(--muted);font-size:.82rem;padding:6px 0 12px;">No rainfall logged yet.</div>';return;}
+  // rolling 30-day total
+  const cutoff=new Date();cutoff.setDate(cutoff.getDate()-30);
+  const total30=log.filter(e=>new Date(e.date)>=cutoff).reduce((s,e)=>s+e.amount,0);
+  const norm=BOZEMAN_CLIMATE[new Date().getMonth()].precip;
+  el.innerHTML=`<div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:8px;">30-day total: <strong style="color:var(--ink);">${total30.toFixed(2)}"</strong> vs ${norm}" avg</div>`+log.map(e=>`<div class="clim-log-row"><span class="clim-badge clb-rain">RAIN</span><span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">${new Date(e.date+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span><span style="flex:1;text-align:right;font-size:.88rem;">${e.amount}"</span><button onclick="deleteRainEntry('${e.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:1px 5px;">✕</button></div>`).join('');
+}
+function renderSoilLog(){
+  const el=document.getElementById('soil-log');if(!el)return;
+  const log=(db.soilTempLog||[]).slice(0,12);
+  if(!log.length){el.innerHTML='<div style="color:var(--muted);font-size:.82rem;padding:6px 0 12px;">No soil temperature logged yet. Key thresholds: 40°F peas/spinach · 50°F carrots/beets · 60°F beans/corn · 65°F cucumbers/basil.</div>';return;}
+  const thresholds=`<div style="font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);margin-bottom:8px;">Germination thresholds: 40°F peas · 50°F beans · 60°F corn · 65°F basil</div>`;
+  el.innerHTML=thresholds+log.map(e=>{
+    const color=e.temp>=65?'#1a5a1a':e.temp>=60?'#5a7a1a':e.temp>=50?'#8a6010':e.temp>=40?'#2a6080':'#9b59b6';
+    return`<div class="clim-log-row"><span class="clim-badge clb-soil">SOIL</span><span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">${new Date(e.date+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span><span style="flex:1;text-align:right;font-size:.88rem;"><strong style="color:${color};">${e.temp}°F</strong> <span style="font-size:.75rem;color:var(--muted);">@ ${e.depth}"</span></span><button onclick="deleteSoilEntry('${e.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:1px 5px;">✕</button></div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════
 //  YEAR TAB
 // ════════════════════════════════════════
 let activeYearTab='almanac';
@@ -4044,17 +4389,18 @@ function setYearTab(tab,btn){
   activeYearTab=tab;
   document.querySelectorAll('#view-year .pvt-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  ['almanac','checklist','beds','compost','plan'].forEach(t=>{
+  ['almanac','checklist','beds','compost','climate','plan'].forEach(t=>{
     const el=document.getElementById('yr-'+t);
     if(el)el.style.display=t===tab?'':'none';
   });
   renderYearTabContent(tab);
 }
 function renderYearTabContent(tab){
-  if(tab==='almanac')renderTimeline();
+  if(tab==='almanac'){renderTimeline();renderAlmanacExtras();}
   else if(tab==='checklist')renderChecklists();
   else if(tab==='beds')renderBedHistory();
   else if(tab==='compost')renderCompost();
+  else if(tab==='climate')renderClimateTab();
   else if(tab==='plan')renderNextSeason();
 }
 function renderYear(){renderYearTabContent(activeYearTab);}
@@ -4352,7 +4698,7 @@ function renderSeedSaving(){
   </div>`).join('');
 }
 
-function renderAll(){renderJournal();renderPlants();renderTimeline();renderSeeds();renderSpring();renderReadyToPlant();renderWeekSprint();renderYear();}
+function renderAll(){renderJournal();renderPlants();renderTimeline();renderSeeds();renderSpring();renderReadyToPlant();renderWeekSprint();renderMoonWidget();renderYear();}
 
 // ── INIT ──
 updateHeaderDate();loadWeather();renderAll();checkSyncStatus();
