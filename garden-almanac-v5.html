@@ -397,6 +397,18 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 .store-cool{background:#f5edd8;color:#8a6010;}
 .store-ambient{background:#e8e4d8;color:#6a5840;}
 .store-live{background:#e2f0e4;color:#2a6a2a;font-weight:600;}
+.seed-card.skipped{opacity:.7;}
+.seed-card.skipped .seed-name{color:var(--muted);}
+.seed-section-divider{grid-column:1/-1;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--moss);padding:10px 0 5px;border-top:1px solid var(--rule);margin-top:2px;}
+.seed-section-divider:first-child{border-top:none;margin-top:0;padding-top:2px;}
+.seed-skip-btn{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.04em;background:none;border:1px solid var(--rule);border-radius:10px;padding:3px 10px;color:var(--muted);cursor:pointer;}
+.seed-skip-btn:hover{background:var(--surface);}
+.seed-unskip-btn{color:var(--moss) !important;border-color:var(--moss) !important;}
+.seed-timing-now{display:inline-flex;align-items:center;font-family:'Space Mono',monospace;font-size:8px;padding:2px 6px;border-radius:10px;background:#e2f0e4;color:#2a6a2a;font-weight:600;}
+.seed-timing-soon{display:inline-flex;align-items:center;font-family:'Space Mono',monospace;font-size:8px;padding:2px 6px;border-radius:10px;background:#fff8e2;color:#8a6010;font-weight:600;}
+.seed-timing-wait{display:inline-flex;align-items:center;font-family:'Space Mono',monospace;font-size:8px;padding:2px 6px;border-radius:10px;background:var(--surface);color:var(--muted);}
+.seed-reminder-tag{display:inline-flex;align-items:center;font-family:'Space Mono',monospace;font-size:8px;padding:2px 7px;border-radius:10px;background:#fff8e2;color:#8a6010;margin-top:5px;}
+.seed-planting-rec{font-size:.78rem;color:var(--moss);margin-top:3px;}
 .ai-thinking{display:flex;align-items:center;gap:9px;padding:13px;background:#f0f5f0;border:1px solid #c4d4c5;border-radius:var(--radius);margin-bottom:11px;}
 .ai-dot{width:7px;height:7px;border-radius:50%;background:var(--moss);animation:pulse 1.2s infinite;}
 .ai-dot:nth-child(2){animation-delay:.2s;}
@@ -615,12 +627,14 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         </div>
       </div>
       <div class="bed-filter-row" id="bed-filter-row">
-        <button class="bed-filter-btn active" onclick="filterSeeds('all',this)">All beds</button>
-        <button class="bed-filter-btn" onclick="filterSeeds('A',this)">Bed A · Tomatoes</button>
-        <button class="bed-filter-btn" onclick="filterSeeds('B',this)">Bed B · Brassicas</button>
-        <button class="bed-filter-btn" onclick="filterSeeds('C',this)">Bed C · Cucurbits</button>
-        <button class="bed-filter-btn" onclick="filterSeeds('D',this)">Bed D · Herbs</button>
+        <button class="bed-filter-btn active" onclick="filterSeeds('all',this)">All</button>
+        <button class="bed-filter-btn" onclick="filterSeeds('starts',this)">🌱 Starts</button>
+        <button class="bed-filter-btn" onclick="filterSeeds('A',this)">Bed A</button>
+        <button class="bed-filter-btn" onclick="filterSeeds('B',this)">Bed B</button>
+        <button class="bed-filter-btn" onclick="filterSeeds('C',this)">Bed C</button>
+        <button class="bed-filter-btn" onclick="filterSeeds('D',this)">Bed D</button>
         <button class="bed-filter-btn" onclick="filterSeeds('any',this)">Unassigned</button>
+        <button class="bed-filter-btn" onclick="filterSeeds('skip',this)">💤 Next year</button>
       </div>
       <div id="seed-list"></div>
     </div>
@@ -1583,6 +1597,17 @@ function renderCare(d) {
   if(mon===8)tasks.push({cls:'info',icon:'🌾',title:'Fall prep',desc:'Sow second arugula + spinach. Order garlic.'});
   if(mon>=9)tasks.push({cls:'normal',icon:'🍂',title:'Season wind-down',desc:'First frost ~Sept 20. Harvest green tomatoes. Top-dress beds.'});
   tasks.push({cls:'normal',icon:'🔍',title:'Scout pests',desc:'Flea beetles · aphids · squash vine borer.'});
+  // Skipped seed reminders — surface when within 21 days of pull-out date
+  const reminderCutoff=21;
+  (db.seeds||[]).filter(s=>s.nextReminder&&s.skipYear).forEach(s=>{
+    const rd=new Date(s.nextReminder);const daysUntil=Math.round((rd-now)/86400000);
+    if(daysUntil>=0&&daysUntil<=reminderCutoff){
+      const libId=seedToLibId(s);const plant=PLANT_IDX[libId];
+      const action=s.storage==='freezer'?'Thaw and prep':plant?.sowMethod==='transplant'?'Start indoors':'Direct sow';
+      const when=daysUntil===0?'today':`in ${daysUntil}d`;
+      tasks.push({cls:'info',icon:'🔔',title:`Time to pull out ${s.name}`,desc:`${action} ${s.name}${s.variety?' ('+s.variety+')':''} — ${when} (${s.nextReminder}).`});
+    }
+  });
   document.getElementById('care-list').innerHTML = tasks.map(t=>
     `<div class="care-task ${t.cls}"><div class="care-icon">${t.icon}</div><div class="care-body"><div class="care-title">${t.title}</div><div class="care-desc">${t.desc}</div></div></div>`
   ).join('');
@@ -2488,18 +2513,83 @@ function confirmSeed(){
   const seed={id:'s'+Date.now(),name,variety:document.getElementById('sr-variety').value.trim(),days:document.getElementById('sr-days').value.trim(),bed:document.getElementById('sr-bed').value,storage:document.getElementById('sr-storage').value,source:document.getElementById('sr-source').value.trim(),notes:document.getElementById('sr-notes').value.trim(),qty:scanQty,addedDate:new Date().toISOString().slice(0,10),thumb:currentScanImageB64?currentScanImageB64.replace(/^data:image\/\w+;base64,/,'').slice(0,8000):'',thumbType:currentScanImageB64?'image/jpeg':''};
   db.seeds=db.seeds||[];db.seeds.unshift(seed);saveDB(db);closeModal('scan-modal');resetScan();renderSeeds();
 }
-function filterSeeds(bed,btn){activeSeedFilter=bed;document.querySelectorAll('.bed-filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderSeeds();}
+function filterSeeds(val,btn){activeSeedFilter=val;document.querySelectorAll('.bed-filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderSeeds();}
+function calcNextReminder(seed){
+  const libId=seedToLibId(seed);const plant=PLANT_IDX[libId];const now=new Date();const yr=now.getFullYear();
+  let month,day;
+  if(plant){if(plant.sowMethod==='transplant'){month=3;day=1;}else if(plant.frostTol==='hardy'||plant.frostTol==='veryhardy'){month=4;day=15;}else{month=5;day=10;}}
+  else{month=3;day=1;}
+  let d=new Date(yr,month-1,day);if(d<=now)d=new Date(yr+1,month-1,day);
+  return d.toISOString().slice(0,10);
+}
+function storageTipForSeed(seed){
+  const tips={fridge:'Sealed paper envelope in fridge (35–40°F). Remove 24h before sowing.',freezer:'Airtight container in freezer. Thaw 24h before sowing.',cool:'Sealed envelope in cool, dark spot (40–60°F). Avoid humidity.',ambient:'Sealed container, dry dark shelf. Use within 1–2 seasons.'};
+  return tips[seed.storage]||'Keep dry and cool in a sealed envelope.';
+}
+function seedTimingBadge(seed){
+  const now=new Date();const libId=seedToLibId(seed);const plant=PLANT_IDX[libId];
+  let winStart;
+  if(plant){if(plant.frostTol==='tender'||plant.frostTol==='verytender')winStart=new Date(now.getFullYear(),4,15);else if(plant.frostTol==='halfhardy')winStart=new Date(now.getFullYear(),3,25);else winStart=new Date(now.getFullYear(),3,1);}
+  else{winStart=new Date(now.getFullYear(),4,15);}
+  const winEnd=new Date(now.getFullYear(),8,1);
+  if(now>=winStart&&now<=winEnd)return'<span class="seed-timing-now">🟢 Plant now</span>';
+  if(now<winStart){const d=Math.round((winStart-now)/86400000);return d<=14?`<span class="seed-timing-soon">🟡 ${d}d to go</span>`:`<span class="seed-timing-wait">⏳ ~${Math.round(d/7)}wk</span>`;}
+  return'<span class="seed-timing-wait">⏳ Past window</span>';
+}
+function seedPlantingRec(seed){
+  const libId=seedToLibId(seed);const plant=PLANT_IDX[libId];const parts=[];
+  if(seed.bed&&seed.bed!=='any')parts.push(BED_INFO[seed.bed]?.label||seed.bed);
+  else if(plant?.bestBeds?.length)parts.push('Best: Bed '+plant.bestBeds.join('/'));
+  if(plant){parts.push(plant.sqFt+' sq ft/plant');if(plant.spacing)parts.push(plant.spacing);}
+  if(plant?.notes){const s=plant.notes.split('.')[0];if(s?.length>5)parts.push(s);}
+  return parts.join(' · ');
+}
+function skipSeed(id){const seed=(db.seeds||[]).find(s=>s.id===id);if(!seed)return;seed.skipYear=new Date().getFullYear();seed.nextReminder=calcNextReminder(seed);saveDB(db);renderSeeds();}
+function unskipSeed(id){const seed=(db.seeds||[]).find(s=>s.id===id);if(!seed)return;delete seed.skipYear;delete seed.nextReminder;saveDB(db);renderSeeds();}
 function renderSeeds(){
-  const seeds=db.seeds||[];const filtered=activeSeedFilter==='all'?seeds:seeds.filter(s=>s.bed===activeSeedFilter);
-  const total=seeds.length;document.getElementById('seed-count-label').textContent=`${total} packet${total!==1?'s':''} · ${seeds.reduce((a,s)=>a+(s.qty||1),0)} total`;
-  if(!filtered.length){document.getElementById('seed-list').innerHTML=`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">${activeSeedFilter==='all'?'No seeds yet.\nTap "Scan packet" to add your first.':'No seeds assigned to this bed.'}</div></div>`;
-    if(activeSeedFilter==='all'){document.getElementById('seed-list').insertAdjacentHTML('beforeend',`<div class="scan-zone" onclick="openScanModal()"><div class="scan-icon">📷</div><div class="scan-text">SCAN YOUR FIRST SEED PACKET</div><div class="scan-sub">AI reads the packet and fills in all the details</div></div>`);}
-    return;}
-  document.getElementById('seed-list').innerHTML=filtered.map(s=>{
+  const seeds=db.seeds||[];
+  const total=seeds.length;
+  document.getElementById('seed-count-label').textContent=`${total} packet${total!==1?'s':''} · ${seeds.reduce((a,s)=>a+(s.qty||1),0)} total`;
+  const liveStarts=seeds.filter(s=>s.storage==='live');
+  const skipped=seeds.filter(s=>s.skipYear&&s.storage!=='live');
+  const normalSeeds=seeds.filter(s=>s.storage!=='live'&&!s.skipYear);
+  function buildCard(s,isStart,isSkipped){
     const bed=BED_INFO[s.bed]||BED_INFO.any;const store=STORAGE_INFO[s.storage]||STORAGE_INFO.cool;
-    const thumbHtml=s.thumb?`<img class="seed-thumb" src="data:${s.thumbType};base64,${s.thumb}" alt="">`:`<div class="seed-thumb-ph">${bed.emoji}</div>`;
-    return`<div class="seed-card"><div class="seed-card-header">${thumbHtml}<div style="flex:1;min-width:0;"><div class="seed-name">${s.name}</div><div class="seed-variety">${s.variety||'—'}</div><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;"><span class="seed-bed-tag ${bed.cls}">${bed.label}</span>${s.days?`<span class="plant-pill pill-ink">⏱ ${s.days}d</span>`:''}<span class="plant-pill pill-gold">×${s.qty||1}</span></div></div><button onclick="deleteSeed('${s.id}')" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:4px;flex-shrink:0;">×</button></div><div class="seed-body"><div class="seed-meta-row"><span class="storage-badge ${store.cls}">${store.icon} ${store.label}</span>${s.source?`<span class="plant-pill pill-sage">${s.source}</span>`:''}</div>${s.notes?`<div class="seed-detail">${s.notes}</div>`:''}</div></div>`;
-  }).join('');
+    const thumbHtml=s.thumb?`<img class="seed-thumb" src="data:${s.thumbType};base64,${s.thumb}" alt="">`:`<div class="seed-thumb-ph">${isStart?'🌱':bed.emoji}</div>`;
+    const timingBadge=isStart?seedTimingBadge(s):'';
+    let bodyContent;
+    if(isStart){
+      const rec=seedPlantingRec(s);
+      bodyContent=`<div class="seed-meta-row"><span class="storage-badge store-live">🌱 Live start</span>${s.source?`<span class="plant-pill pill-sage">${s.source}</span>`:''}</div>${rec?`<div class="seed-detail seed-planting-rec">📍 ${rec}</div>`:''} ${s.notes?`<div class="seed-detail" style="margin-top:4px;">${s.notes}</div>`:''}`;
+    }else if(isSkipped){
+      const tip=storageTipForSeed(s);
+      const reminderTag=s.nextReminder?`<div style="margin-top:5px;"><span class="seed-reminder-tag">🔔 Remind me ${s.nextReminder}</span></div>`:'';
+      bodyContent=`<div class="seed-meta-row"><span class="storage-badge ${store.cls}">${store.icon} ${store.label}</span>${s.source?`<span class="plant-pill pill-sage">${s.source}</span>`:''}</div><div class="seed-detail">${tip}</div>${reminderTag}<div style="margin-top:8px;"><button class="seed-skip-btn seed-unskip-btn" onclick="unskipSeed('${s.id}')">↩ Back in rotation</button></div>`;
+    }else{
+      bodyContent=`<div class="seed-meta-row"><span class="storage-badge ${store.cls}">${store.icon} ${store.label}</span>${s.source?`<span class="plant-pill pill-sage">${s.source}</span>`:''}</div>${s.notes?`<div class="seed-detail">${s.notes}</div>`:''}<div style="margin-top:8px;"><button class="seed-skip-btn" onclick="skipSeed('${s.id}')">💤 Not this year</button></div>`;
+    }
+    return`<div class="seed-card${isSkipped?' skipped':''}"><div class="seed-card-header">${thumbHtml}<div style="flex:1;min-width:0;"><div class="seed-name">${s.name}</div><div class="seed-variety">${s.variety||'—'}</div><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;"><span class="seed-bed-tag ${bed.cls}">${bed.label}</span>${s.days?`<span class="plant-pill pill-ink">⏱ ${s.days}d</span>`:''}<span class="plant-pill pill-gold">×${s.qty||1}</span>${timingBadge}</div></div><button onclick="deleteSeed('${s.id}')" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:4px;flex-shrink:0;">×</button></div><div class="seed-body">${bodyContent}</div></div>`;
+  }
+  const el=document.getElementById('seed-list');
+  if(activeSeedFilter==='starts'){
+    if(!liveStarts.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌱</div><div class="empty-text">No plant starts in inventory.\nAdd a start with storage set to "Plant soon".</div></div>`;return;}
+    el.innerHTML=liveStarts.map(s=>buildCard(s,true,false)).join('');return;
+  }
+  if(activeSeedFilter==='skip'){
+    if(!skipped.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">💤</div><div class="empty-text">No seeds saved for next year yet.\nTap "Not this year" on any seed packet.</div></div>`;return;}
+    el.innerHTML=skipped.map(s=>buildCard(s,false,true)).join('');return;
+  }
+  if(activeSeedFilter!=='all'){
+    const filtered=seeds.filter(s=>s.bed===activeSeedFilter&&!s.skipYear&&s.storage!=='live');
+    if(!filtered.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">No seeds assigned to this bed.</div></div>`;return;}
+    el.innerHTML=filtered.map(s=>buildCard(s,false,false)).join('');return;
+  }
+  if(!seeds.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">No seeds yet.\nTap "Scan packet" to add your first.</div></div><div class="scan-zone" onclick="openScanModal()"><div class="scan-icon">📷</div><div class="scan-text">SCAN YOUR FIRST SEED PACKET</div><div class="scan-sub">AI reads the packet and fills in all the details</div></div>`;return;}
+  let html='';
+  if(liveStarts.length)html+=`<div class="seed-section-divider">🌱 Plant starts <span style="font-weight:400;opacity:.6;">(${liveStarts.length})</span></div>`+liveStarts.map(s=>buildCard(s,true,false)).join('');
+  if(normalSeeds.length)html+=`<div class="seed-section-divider">🌾 Seed packets <span style="font-weight:400;opacity:.6;">(${normalSeeds.length})</span></div>`+normalSeeds.map(s=>buildCard(s,false,false)).join('');
+  if(skipped.length)html+=`<div class="seed-section-divider">💤 Saved for next year <span style="font-weight:400;opacity:.6;">(${skipped.length})</span></div>`+skipped.map(s=>buildCard(s,false,true)).join('');
+  el.innerHTML=html||`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">No seeds yet.</div></div>`;
 }
 function deleteSeed(id){if(!confirm('Remove from inventory?'))return;db.seeds=db.seeds.filter(s=>s.id!==id);saveDB(db);renderSeeds();}
 
