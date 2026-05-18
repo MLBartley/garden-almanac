@@ -581,6 +581,19 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <div class="spacer"></div>
         <button class="btn-sm" onclick="openScanModal()">📷 Scan packet</button>
       </div>
+      <button class="btn-sm" id="storage-guide-btn" onclick="toggleStorageGuide()" style="width:100%;margin-bottom:8px;text-align:left;padding:7px 11px;">📖 Storage &amp; winter sowing guide ▾</button>
+      <div id="storage-guide" style="display:none;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);padding:13px 14px;margin-bottom:12px;font-size:.82rem;line-height:1.65;color:var(--ink);">
+        <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.12em;margin-bottom:10px;">SEED STORAGE — ZONE 5B GUIDE</div>
+        <div style="display:grid;gap:9px;">
+          <div><strong>🏠 Cool / Dark</strong> &nbsp;<span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">45–65°F</span><br>Pantry, basement, cool garage corner. 2–4 years viability. Garage is fine through the growing season but temperature swings reduce multi-year viability — not ideal for seeds you're keeping past next year.</div>
+          <div><strong>🧊 Fridge</strong> &nbsp;<span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">35–40°F</span><br>4–6 year viability. Seal in an airtight bag with a silica packet. Always let the sealed bag come to room temperature before opening — prevents condensation on the seeds.</div>
+          <div><strong>❄️ Freezer</strong> &nbsp;<span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">&lt; 32°F, 5–10+ years</span><br>Seeds must be completely dry before freezing — moisture forms ice crystals that kill the embryo. Zip-lock + silica packet inside a sealed jar. Same warm-before-opening rule applies.</div>
+          <div style="border-top:1px solid var(--rule);padding-top:9px;"><strong>🌱 Winter Sowing</strong> &nbsp;<span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">OUTDOOR METHOD</span><br>Sow in a covered clear container (milk jug cut and taped back) set outdoors — not a garage. The method requires real outdoor temperature cycling and natural light cues.<br><br>
+          <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">TIMING · </span>Set out when outdoor temps are consistently below 40°F (Bozeman: late Oct–Nov). Seeds cold-stratify over winter and germinate naturally in spring when soil inside the container reaches 35–40°F — typically March–April.<br><br>
+          <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">COLD TOLERANCE · </span>Container handles down to −20°F. Dormant seeds survive hard freezes; it's germinated seedlings in open soil that are vulnerable.<br><br>
+          <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">PLACEMENT · </span>Face north-facing or in shade. South-facing catches too much February sun, warms the container prematurely, and triggers germination before the last frost — seedlings then get hit by a hard freeze with no roots established.</div>
+        </div>
+      </div>
       <div class="bed-filter-row" id="bed-filter-row">
         <button class="bed-filter-btn active" onclick="filterSeeds('all',this)">All beds</button>
         <button class="bed-filter-btn" onclick="filterSeeds('A',this)">Bed A · Tomatoes</button>
@@ -1216,30 +1229,91 @@ function defaultDB() {
     sowLogs:[], hardenLogs:[], oyaLogs:{}, harvestLog:[], plantingList:[], settings:{} };
 }
 function defaultSeeds() {
-  const src='Triple Divide Organic Seeds 2026', d='2026-05-18', t='', tt='';
+  const td='Triple Divide Organic Seeds 2026', bc='Baker Creek Heirloom Seeds 2026',
+        st='Sow True Seed 2026', rg="Renee's Garden 2026", fm='Ferry Morse 2026',
+        d='2026-05-18', t='', tt='';
   return [
-    {id:'seed-td-1',name:'Shallot',variety:'Homestead Gold',days:'100',bed:'B',storage:'cool',source:src,qty:1,addedDate:d,thumb:t,thumbType:tt,
+    // ── TRIPLE DIVIDE ORGANIC SEEDS
+    {id:'seed-td-1',name:'Shallot',variety:'Homestead Gold',days:'100',bed:'B',storage:'cool',source:td,qty:1,addedDate:d,thumb:t,thumbType:tt,
      notes:'Seed-grown shallot. Zone 5b: ideally start indoors Jan–Feb for full bulbs. Sow now for small/green shallot harvest, or save for fall planting. Long-day type.'},
-    {id:'seed-td-2',name:'Corn',variety:'Ashworth Sweet',days:'68',bed:'A',storage:'cool',source:src,qty:1,addedDate:d,thumb:t,thumbType:tt,
-     notes:'Short-season OP sweet corn (68d) — ideal for Zone 5b. Plant in a 3×3+ block for wind pollination. Sow 1" deep, 10–12" apart, after last frost. Plant NOW for late-Aug harvest.'},
-    {id:'seed-td-3',name:'Carrot',variety:'Purple Pop',days:'75',bed:'B',storage:'cool',source:src,qty:1,addedDate:d,thumb:t,thumbType:tt,
+    {id:'seed-td-2',name:'Corn',variety:'Ashworth Sweet',days:'68',bed:'A',storage:'cool',source:td,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Best sweet corn for Zone 5b (68d). Plant in 3×3+ block for wind pollination. Sow 1" deep, 10–12" apart, after last frost. Plant NOW for late-Aug harvest. THREE SISTERS corn component.'},
+    {id:'seed-td-3',name:'Carrot',variety:'Purple Pop',days:'75',bed:'B',storage:'cool',source:td,qty:1,addedDate:d,thumb:t,thumbType:tt,
      notes:'Direct sow only — no transplanting. Thin to 3". Keep consistently moist until germination (10–14 days). Purple skin, orange interior.'},
-    {id:'seed-td-4',name:'Leek',variety:'Bleu de Solaise',days:'120',bed:'B',storage:'cool',source:src,qty:1,addedDate:d,thumb:t,thumbType:tt,
-     notes:'French heirloom — leaves turn blue-purple in cold. Ideally started Feb indoors for Zone 5b. Direct sow now for smaller fall leeks. Mound soil to blanch stems.'},
-    {id:'seed-td-5',name:'Kale',variety:'Blue Curled Scotch',days:'60',bed:'B',storage:'cool',source:src,qty:1,addedDate:d,thumb:t,thumbType:tt,
+    {id:'seed-td-4',name:'Leek',variety:'Bleu de Solaise',days:'120',bed:'B',storage:'cool',source:td,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'French heirloom — leaves turn blue-purple in cold. Best started Feb indoors for Zone 5b. Direct sow now for smaller fall leeks. Mound soil to blanch stems.'},
+    {id:'seed-td-5',name:'Kale',variety:'Blue Curled Scotch',days:'60',bed:'B',storage:'cool',source:td,qty:1,addedDate:d,thumb:t,thumbType:tt,
      notes:'Classic curly heirloom kale. Direct sow or transplant now. Frost sweetens flavor — harvest outer leaves continuously into November.'},
-    {id:'seed-td-6',name:'French Sorrel',variety:'Perennial Greens',days:'60',bed:'any',storage:'cool',source:src,qty:1,addedDate:d,thumb:t,thumbType:tt,
-     notes:'PERENNIAL — plant in a permanent spot (herb section recommended). Lemon-flavored leaves, excellent in salads and soups. Tolerates partial shade. Deadhead to prevent aggressive self-seeding.'},
-    {id:'seed-td-7',name:'Arugula',variety:'Rocket',days:'40',bed:'D',storage:'cool',source:src,qty:1,addedDate:d,thumb:t,thumbType:tt,
+    {id:'seed-td-6',name:'French Sorrel',variety:'Perennial Greens',days:'60',bed:'any',storage:'cool',source:td,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'PERENNIAL — plant in a permanent ground bed spot, 18" per plant. Lemon-flavored leaves. Tolerates partial shade. Deadhead to prevent aggressive self-seeding. Multiple plants in different areas is fine.'},
+    {id:'seed-td-7',name:'Arugula',variety:'Rocket',days:'40',bed:'D',storage:'cool',source:td,qty:1,addedDate:d,thumb:t,thumbType:tt,
      notes:'Classic arugula. Bed D aspen shade delays bolting. Succession sow every 3 weeks. Cut-and-come-again.'},
-    {id:'seed-td-8',name:'Arugula',variety:'Ice Bred',days:'45',bed:'D',storage:'cool',source:src,qty:1,addedDate:d,thumb:t,thumbType:tt,
+    {id:'seed-td-8',name:'Arugula',variety:'Ice Bred',days:'45',bed:'D',storage:'cool',source:td,qty:1,addedDate:d,thumb:t,thumbType:tt,
      notes:'Cold-tolerant selection — best for early spring and fall sowings. Bed D shade extends summer season.'},
-    {id:'seed-td-9',name:'Arugula',variety:'Surrey',days:'40',bed:'D',storage:'cool',source:src,qty:1,addedDate:d,thumb:t,thumbType:tt,
-     notes:'Milder arugula variety. Good for summer succession when other varieties get too spicy. Succession sow every 3 weeks.'},
-    {id:'seed-td-10',name:'Kale',variety:'White Russian',days:'55',bed:'B',storage:'cool',source:src,qty:1,addedDate:d,thumb:t,thumbType:tt,
+    {id:'seed-td-9',name:'Arugula',variety:'Surrey',days:'40',bed:'D',storage:'cool',source:td,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Milder variety — good for summer succession when Rocket gets too spicy in heat. Succession sow every 3 weeks.'},
+    {id:'seed-td-10',name:'Kale',variety:'White Russian',days:'55',bed:'B',storage:'cool',source:td,qty:1,addedDate:d,thumb:t,thumbType:tt,
      notes:'Extremely cold-hardy, smooth blue-green leaves. Direct sow or transplant now. Can survive into December in Zone 5b with row cover.'},
-    {id:'seed-td-11',name:'Spinach',variety:'Giant Winter',days:'48',bed:'D',storage:'cool',source:src,qty:1,addedDate:d,thumb:t,thumbType:tt,
-     notes:'Large-leafed, very cold-hardy variety. Sow now for spring harvest, again late July–Aug for fall. One of the best overwintering spinaches for Zone 5b.'},
+    {id:'seed-td-11',name:'Spinach',variety:'Giant Winter',days:'48',bed:'D',storage:'cool',source:td,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Large-leafed, very cold-hardy. Sow now for spring harvest, again late July–Aug for fall. One of the best overwintering spinaches for Zone 5b.'},
+    // ── BAKER CREEK HEIRLOOM SEEDS
+    {id:'seed-bc-01',name:'Corn',variety:"Martain's Jewels Sweet",days:'80',bed:'A',storage:'cool',source:bc,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:"⚠️ Cross-pollinates with Ashworth sweet corn — kernels will mix if both tasseling same time. Ashworth (68d) is better for Zone 5b. Grow this in a different year or stagger sowing by 2+ weeks. DO NOT grow with Earth Tones Dent Corn."},
+    {id:'seed-bc-02',name:'Kale',variety:'Thousandhead',days:'75',bed:'B',storage:'cool',source:bc,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'English heirloom, very productive. Plants reach 4–6 ft — space 18–24" apart. Frost-hardy; harvest continuously. One of the most prolific kales for Zone 5b.'},
+    {id:'seed-bc-03',name:'Peas',variety:'Green Beauty Snap',days:'68',bed:'B',storage:'cool',source:bc,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Snap pea, direct sow now — past ideal window but will produce a July harvest. Needs trellis. Done by mid-summer; follow with a warm-season crop.'},
+    {id:'seed-bc-04',name:'Peas',variety:'Little Marvel Shelling',days:'62',bed:'B',storage:'cool',source:bc,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Classic bush shelling pea (18"), no trellis. Direct sow now for July harvest. Pair with Green Beauty for extended pea season.'},
+    {id:'seed-bc-05',name:'Squash',variety:'New England Sugar Pie',days:'100',bed:'C',storage:'cool',source:bc,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'You have 3 similar sugar pie varieties — choose ONE this season. 100d: start indoors now, transplant ~June 1 for margin before Sept 20 frost. Vines sprawl — plant at bed edge.'},
+    {id:'seed-bc-06',name:'Arugula',variety:'(Baker Creek)',days:'40',bed:'D',storage:'cool',source:bc,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Use for succession rotation alongside Rocket, Ice Bred, Surrey. Bed D aspen shade delays bolting significantly. Sow every 3 weeks.'},
+    {id:'seed-bc-07',name:'Cucumber',variety:'Parisian Pickling',days:'53',bed:'C',storage:'cool',source:bc,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'French cornichon style. Direct sow or transplant after last frost. Harvest at 1–3" for best pickling. Train on trellis to save space in Bed C.'},
+    {id:'seed-bc-08',name:'Leek',variety:'Autumn Giant',days:'150',bed:'B',storage:'cool',source:bc,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'⚠️ 150-day crop — needs Jan indoor start for full size in Zone 5b. Direct sow now = very small baby leeks by fall (still usable). Best effort this year; start properly indoors next January.'},
+    {id:'seed-bc-09',name:'Quinoa',variety:'Brightest Brilliant',days:'95',bed:'any',storage:'cool',source:bc,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Ornamental and edible grain. Well-suited to Bozeman\'s dry, high-altitude climate. Best in ground beds (not raised). Direct sow after last frost, full sun. Harvest when seeds rattle in pods.'},
+    {id:'seed-bc-10',name:'Barley',variety:'Purple Karma',days:'75',bed:'any',storage:'cool',source:bc,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Ornamental/grain barley. Cold-hardy — can direct sow before last frost. Better in ground beds than raised. Beautiful purple seed heads for cutting or milling.'},
+    {id:'seed-bc-11',name:'Sweet Pea',variety:'Royal Family',days:'',bed:'any',storage:'cool',source:bc,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'⚠️ ORNAMENTAL ONLY — not edible, mildly toxic if eaten. Fragrant climbing vine for cutting garden. Needs trellis. Sow early (handles light frost). Not a food crop.'},
+    {id:'seed-bc-12',name:'Fennel',variety:'Florence (Annual Bulbing)',days:'75',bed:'any',storage:'cool',source:bc,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Annual bulbing fennel — different from the perennial fennel in your herb section. Bolts in heat; sow now for early crop or in July for fall bulbs. Keep away from dill to prevent cross-pollination.'},
+    {id:'seed-bc-13',name:'Basil',variety:'Genovese',days:'68',bed:'A',storage:'cool',source:bc,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Classic pesto basil. Frost-sensitive — transplant after last frost only. Companion for tomatoes in Bed A. Pinch flowers to extend harvest.'},
+    {id:'seed-bc-14',name:'Bok Choy',variety:'Purple Lady',days:'48',bed:'D',storage:'cool',source:bc,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Shade-tolerant, 48d — Bed D aspen cover is ideal. Direct sow or transplant. Beautiful purple color intensifies in cool weather. Harvest before heat causes bolting.'},
+    {id:'seed-bc-15',name:'Marigold',variety:'Disco Mix',days:'',bed:'any',storage:'cool',source:bc,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Companion plant — deters aphids, nematodes, whitefly. Plant at bed edges alongside tomatoes, brassicas, and cucurbits. Annual; direct sow after last frost or transplant starts.'},
+    // ── SOW TRUE SEED
+    {id:'seed-st-01',name:'Carrot',variety:'Rainbow Blend',days:'75',bed:'B',storage:'cool',source:st,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Mix of purple, red, white, yellow, orange. Direct sow only. Thin to 3". Keep consistently moist until germination. Loose, deep soil essential for straight roots.'},
+    {id:'seed-st-02',name:'Beet',variety:'Rainbow Blend',days:'60',bed:'B',storage:'cool',source:st,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Mix of Chioggia, golden, white, and red beets. Soak seeds overnight before sowing. Thin to 4". Greens are edible — harvest outer leaves early.'},
+    // ── RENEE'S GARDEN
+    {id:'seed-rg-01',name:'Corn',variety:'Earth Tones Dent',days:'105',bed:'any',storage:'cool',source:rg,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:"⚠️ DENT CORN — will cross-pollinate with sweet corn (Ashworth, Martain's Jewels) and ruin sweetness. Do NOT grow same season as sweet corn without 600+ ft separation. Save for a dedicated grain/ornamental year."},
+    {id:'seed-rg-02',name:'Pumpkin',variety:'Sugar Pie',days:'100',bed:'A',storage:'cool',source:rg,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'You have 3 sugar pie varieties — choose ONE this season. 100d: start indoors now for June 1 transplant. THREE SISTERS squash component for Bed A, or plant at edge of Bed C.'},
+    {id:'seed-rg-03',name:'Beans',variety:'Scarlet Rattlesnake Pole',days:'68',bed:'A',storage:'cool',source:rg,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Heirloom pole bean, scarlet-striped pods. THREE SISTERS bean component. Direct sow when corn is 4–6" tall (~June 5–10). Nitrogen-fixing. Scarlet flowers attract pollinators.'},
+    // ── FERRY MORSE
+    {id:'seed-fm-01',name:'Leek',variety:'American Flag',days:'130',bed:'B',storage:'cool',source:fm,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Classic reliable leek, 130d. You have 3 leek varieties — American Flag is the most forgiving. Direct sow now for small fall leeks; start properly indoors next Feb for full-size.'},
+    {id:'seed-fm-02',name:'Okra',variety:'Emerald',days:'57',bed:'C',storage:'cool',source:fm,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'⚠️ Very marginal for Zone 5b — needs soil temp 65°F+ and warm nights. Black plastic mulch + row cover in the warmest bed spot. Worth a try but expect limited harvest.'},
+    {id:'seed-fm-03',name:'Basil',variety:'Sweet Italian',days:'68',bed:'A',storage:'cool',source:fm,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Similar to Genovese. Frost-sensitive — transplant after last frost. Companion for tomatoes. You also have Genovese; grow both for comparison or pick one for transplant, save other for succession.'},
+    {id:'seed-fm-04',name:'Cilantro',variety:'(Ferry Morse)',days:'50',bed:'D',storage:'cool',source:fm,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Direct sow Bed D — aspen shade significantly extends the bolt-free window. Succession sow every 3–4 weeks. Let some bolt for coriander seed and self-seeding next year.'},
+    {id:'seed-fm-05',name:'Kale',variety:'Dwarf Blue Curled',days:'60',bed:'B',storage:'cool',source:fm,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Compact version of Blue Curled Scotch (also in inventory). Dwarf habit (~12") suits denser planting. Direct sow or transplant now. Frost-hardy into November.'},
+    {id:'seed-fm-06',name:'Eggplant',variety:'Black Beauty',days:'75',bed:'C',storage:'cool',source:fm,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'⚠️ Most heat-demanding crop in this collection — very marginal for Zone 5b. Use wall-o-water, black plastic mulch, warmest bed spot. Start indoors NOW if not started. Manage expectations.'},
+    {id:'seed-fm-07',name:'Chives',variety:'(Ferry Morse)',days:'80',bed:'D',storage:'cool',source:fm,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Perennial — already established in Bed D. Use these seeds to start new clumps for permanent spots in ground perennial beds or herb section. Slow from seed; start indoors or direct sow in spring.'},
   ];
 }
 function defaultPlants() {
@@ -1948,6 +2022,13 @@ function renderJournal(){
 let currentScanImageB64=null, scanQty=1, activeSeedFilter='all';
 const BED_INFO={A:{label:'Bed A',cls:'bed-a-tag',emoji:'🍅'},B:{label:'Bed B',cls:'bed-b-tag',emoji:'🥦'},C:{label:'Bed C',cls:'bed-c-tag',emoji:'🥒'},D:{label:'Bed D',cls:'bed-d-tag',emoji:'🌿'},any:{label:'Unassigned',cls:'bed-any-tag',emoji:'📦'}};
 const STORAGE_INFO={fridge:{label:'Fridge',cls:'store-fridge',icon:'🧊'},freezer:{label:'Freezer',cls:'store-freezer',icon:'❄️'},cool:{label:'Cool dark',cls:'store-cool',icon:'🏠'},ambient:{label:'Shelf',cls:'store-ambient',icon:'📦'}};
+function toggleStorageGuide(){
+  const g=document.getElementById('storage-guide');
+  const btn=document.getElementById('storage-guide-btn');
+  const open=g.style.display!=='none';
+  g.style.display=open?'none':'block';
+  btn.textContent='📖 Storage & winter sowing guide '+(open?'▾':'▴');
+}
 function openScanModal(){resetScan();openModal('scan-modal');}
 function setScanState(s){['pick','thinking','review','error'].forEach(n=>document.getElementById('scan-state-'+n).style.display=n===s?'block':'none');}
 function resetScan(){setScanState('pick');currentScanImageB64=null;scanQty=1;document.getElementById('packet-file-input').value='';document.getElementById('rescan-btn').textContent='↩ Rescan';}
