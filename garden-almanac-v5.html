@@ -402,6 +402,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 .sq.warn{border-color:#e8a060!important;background:#fff8f0;}
 .sq.empty-sq{background:#fafaf7;}
 .sq.suggested{border:1.5px dashed #7ab07a!important;background:#f4fff4;}
+.sq.recommended{border:1.5px dashed #c4922a!important;background:#fffbf0;}
 .sq.planted{border:2px solid #2a6a2a!important;background:#e2f0e2;}
 .sq-status-badge{position:absolute;top:1px;right:2px;font-size:9px;line-height:1;color:var(--moss);font-weight:700;}
 .sq-label{position:absolute;bottom:1px;left:0;right:0;text-align:center;font-family:'Space Mono',monospace;font-size:6px;color:var(--muted);line-height:1;overflow:hidden;white-space:nowrap;padding:0 2px;text-overflow:ellipsis;}
@@ -681,7 +682,8 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       <div class="section-label">Bed layout <span id="grid-sq-count" style="font-weight:400;color:var(--muted);font-family:'Crimson Pro',serif;font-size:.85rem;text-transform:none;letter-spacing:0;margin-left:4px;"></span></div>
       <div class="grid-wrap"><div class="bed-grid" id="bed-grid"></div></div>
       <div style="display:flex;gap:10px;font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);margin:5px 0 9px;flex-wrap:wrap;align-items:center;">
-        <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px dashed #7ab07a;background:#f4fff4;border-radius:3px;padding:1px 6px;">?</span> Suggested</span>
+        <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px dashed #7ab07a;background:#f4fff4;border-radius:3px;padding:1px 6px;">?</span> From inventory</span>
+        <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px dashed #c4922a;background:#fffbf0;border-radius:3px;padding:1px 6px;">★</span> Buy/source</span>
         <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px solid rgba(0,0,0,.12);background:#f0f8f0;border-radius:3px;padding:1px 6px;">□</span> Planned</span>
         <span style="display:flex;align-items:center;gap:3px;"><span style="border:2px solid #2a6a2a;background:#e2f0e2;border-radius:3px;padding:1px 6px;">✓</span> Planted</span>
       </div>
@@ -2158,11 +2160,17 @@ function renderDesign() {
 
   const totalSq = bed.cols * bed.rows;
   const usedSq = Object.keys(activeBedDesign).length;
-  const confirmedSq = Object.keys(activeBedDesign).filter(i => activeBedStatuses[i] !== 'suggested').length;
-  const suggestedSq = usedSq - confirmedSq;
-  document.getElementById('grid-sq-count').textContent = suggestedSq > 0
-    ? `${confirmedSq} confirmed · ${suggestedSq} suggested / ${totalSq}`
-    : `${usedSq}/${totalSq} sq ft planned`;
+  const confirmedSq = Object.keys(activeBedDesign).filter(i => !['suggested','recommended'].includes(activeBedStatuses[i])).length;
+  const suggestedSq = Object.keys(activeBedDesign).filter(i => activeBedStatuses[i] === 'suggested').length;
+  const recSq = Object.keys(activeBedDesign).filter(i => activeBedStatuses[i] === 'recommended').length;
+  let countLabel = `${confirmedSq}/${totalSq} sq ft planned`;
+  if (suggestedSq > 0 || recSq > 0) {
+    const parts = [`${confirmedSq} confirmed`];
+    if (suggestedSq > 0) parts.push(`${suggestedSq} from inventory`);
+    if (recSq > 0) parts.push(`${recSq} recommended`);
+    countLabel = parts.join(' · ') + ` / ${totalSq}`;
+  }
+  document.getElementById('grid-sq-count').textContent = countLabel;
 
   // Planting window banner (based on bed theme plant)
   renderPWBanner(bed);
@@ -2201,6 +2209,7 @@ function renderDesign() {
     const sq = document.createElement('div');
     let cls = 'sq';
     if (!plant) cls += ' empty-sq';
+    else if (status === 'recommended') cls += ' recommended';
     else if (status === 'suggested') cls += ' suggested';
     else if (status === 'planted') cls += ' planted';
     else cls += ' occupied';
@@ -2208,6 +2217,7 @@ function renderDesign() {
     sq.className = cls;
     if (plant) {
       const badge = status === 'suggested' ? '<div class="sq-status-badge">?</div>'
+                  : status === 'recommended' ? '<div class="sq-status-badge" style="color:#c4922a;">★</div>'
                   : status === 'planted' ? '<div class="sq-status-badge">✓</div>' : '';
       sq.innerHTML = `${plant.emoji}<div class="sq-label">${plant.name.split(' ')[0]}</div>${badge}`;
       sq.onclick = () => openSqModal(i);
@@ -2485,7 +2495,7 @@ function autoPopulateAllBeds() {
     const d = designs[bedKey], s = statuses[bedKey], cap = capacities[bedKey];
     if (!d || cap === undefined) return 0;
     let n = 0;
-    for (let i = 0; i < cap; i++) if (!d[i] || s[i] === 'suggested') n++;
+    for (let i = 0; i < cap; i++) if (!d[i] || s[i] === 'suggested' || s[i] === 'recommended') n++;
     return n;
   }
 
@@ -2494,7 +2504,7 @@ function autoPopulateAllBeds() {
     const d = designs[bedKey], s = statuses[bedKey], cap = capacities[bedKey];
     if (!d || cap === undefined) return sqNeeded;
     for (let i = 0; i < cap && sqNeeded > 0; i++) {
-      if (!d[i] || s[i] === 'suggested') { d[i] = libId; s[i] = 'suggested'; sqNeeded--; }
+      if (!d[i] || s[i] === 'suggested' || s[i] === 'recommended') { d[i] = libId; s[i] = 'suggested'; sqNeeded--; }
     }
     return sqNeeded; // leftover not placed
   }
@@ -2558,6 +2568,9 @@ function autoPopulateAllBeds() {
     }
   });
 
+  // ── Pass 4: fill ALL remaining empty squares with recommended plants ────
+  fillRecommendedPass(designs, statuses, capacities);
+
   // Save
   db.beds.forEach(b => {
     db.bedDesigns[b.key] = designs[b.key];
@@ -2606,6 +2619,112 @@ function placeThreeSisters(designs, statuses, capacities, remainingSqFn) {
       s[idx] = 'suggested';
     }
   }
+}
+
+function fillRecommendedPass(designs, statuses, capacities) {
+  db.beds.forEach(bed => {
+    const key = bed.key;
+    const d = designs[key], s = statuses[key], cap = capacities[key];
+    if (!d || cap === undefined) return;
+
+    // Collect truly empty squares (no plant assigned at all)
+    const empty = [];
+    for (let i = 0; i < cap; i++) {
+      if (!d[i]) empty.push(i);
+    }
+    if (!empty.length) return;
+
+    // IDs already confirmed or suggested from inventory (not recommended)
+    const confirmedIds = new Set(
+      Object.keys(d).filter(i => s[i] && s[i] !== 'recommended').map(i => d[i])
+    );
+
+    // Accumulate all bad-companion IDs from confirmed plants
+    const badIds = new Set();
+    confirmedIds.forEach(id => {
+      (PLANT_IDX[id]?.companions?.bad || []).forEach(b => badIds.add(b));
+    });
+
+    // Candidate plants: must list this bed in bestBeds
+    let pool = PLANT_LIB.filter(p => {
+      if (!p.bestBeds.includes(key)) return false;
+      if (badIds.has(p.id)) return false;
+      // Bags: compact plants only
+      if (bed.type === 'bag' && p.sqFt > 2) return false;
+      // Partial shade: avoid very tender crops that need full sun heat
+      if (bed.shade === 'partial' && p.frostTol === 'verytender') return false;
+      return true;
+    });
+
+    // Fallback: if no pool, use general plants that fit the shade level
+    if (!pool.length) {
+      pool = PLANT_LIB.filter(p => {
+        if (badIds.has(p.id)) return false;
+        if (bed.shade === 'partial') return p.frostTol === 'hardy' || p.frostTol === 'halfhardy';
+        return p.cat === 'veg' || p.cat === 'herb';
+      });
+    }
+    if (!pool.length) return;
+
+    // Sort: plants not already in the bed first (add variety), then by sqFt ascending
+    // so small-sqFt fillers sort behind larger structural plants
+    pool.sort((a, b) => {
+      const aNew = confirmedIds.has(a.id) ? 1 : 0;
+      const bNew = confirmedIds.has(b.id) ? 1 : 0;
+      if (aNew !== bNew) return aNew - bNew;
+      return a.sqFt - b.sqFt;
+    });
+
+    // Build the fill sequence.
+    // Each plant gets a "block" of squares matching its sqFt requirement,
+    // capped so no single plant monopolizes the bed.
+    const plan = [];        // ordered list of plant IDs to place
+    const usedSq = {};      // how many sq this plant has gotten so far
+
+    // Max squares to give any one plant (prevents e.g. all 32 sq going to radish)
+    function maxForPlant(p) {
+      if (p.sqFt >= 4) return Math.ceil(p.sqFt);           // large: exactly what it needs
+      if (p.sqFt >= 1) return Math.ceil(p.sqFt) * 2;       // medium: up to 2 instances
+      return Math.min(Math.round(1 / p.sqFt) * 2, 16);     // small: up to 2 "rows"
+    }
+    // Squares per "serving" (one logical planting of this plant)
+    function servingSize(p) {
+      if (p.sqFt >= 4) return Math.ceil(p.sqFt);
+      if (p.sqFt >= 1) return Math.ceil(p.sqFt);
+      return Math.round(1 / p.sqFt);  // group small plants into a block: 4 sq for carrot, etc.
+    }
+
+    let pi = 0;
+    let safetyMax = pool.length * 4;
+    let iter = 0;
+    while (plan.length < empty.length && iter++ < safetyMax) {
+      const p = pool[pi % pool.length];
+      pi++;
+      const id = p.id;
+      const used = usedSq[id] || 0;
+      const max = maxForPlant(p);
+      if (used >= max) continue;
+      const serving = Math.min(servingSize(p), max - used, empty.length - plan.length);
+      for (let j = 0; j < serving; j++) plan.push(id);
+      usedSq[id] = used + serving;
+    }
+
+    // If pool is exhausted but squares remain, cycle through pool freely
+    if (plan.length < empty.length && pool.length) {
+      let fi = 0;
+      while (plan.length < empty.length) {
+        plan.push(pool[fi % pool.length].id);
+        fi++;
+      }
+    }
+
+    // Apply
+    empty.forEach((sqIdx, j) => {
+      if (!plan[j]) return;
+      d[sqIdx] = plan[j];
+      s[sqIdx] = 'recommended';
+    });
+  });
 }
 
 // ── Plant picker ──
@@ -2706,7 +2825,7 @@ function openSqModal(sqIdx) {
   selectedSqIdx = sqIdx;
   const plant = PLANT_IDX[activeBedDesign[sqIdx]];
   const status = activeBedStatuses[sqIdx] || 'planned';
-  const statusLabel = {suggested:'Suggested from inventory', planned:'Planned', planted:'Planted'}[status] || status;
+  const statusLabel = {suggested:'Suggested from inventory', recommended:'Recommended — not in inventory', planned:'Planned', planted:'Planted'}[status] || status;
   document.getElementById('sqm-title').textContent = `${plant?.emoji || ''} ${plant?.name || 'Plant'}`;
   document.getElementById('sqm-sub').textContent = `Status: ${statusLabel} — tap an action below`;
   openModal('sq-status-modal');
