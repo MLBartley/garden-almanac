@@ -372,6 +372,34 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 .qty-btn{width:30px;height:30px;border:1px solid var(--rule);border-radius:5px;background:white;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .qty-display{font-family:'Space Mono',monospace;font-size:13px;min-width:28px;text-align:center;}
 .scan-preview{width:100%;max-height:180px;object-fit:cover;border-radius:5px;margin-bottom:11px;}
+/* ── DESKTOP LAYOUT (768px+) ── */
+@media (min-width:768px){
+  #app{display:grid;grid-template-columns:152px 1fr;grid-template-rows:var(--header-h) 1fr;grid-template-areas:"nav header" "nav content";max-width:1200px;box-shadow:0 0 80px rgba(0,0,0,.6);}
+  #app-header{grid-area:header;border-left:1px solid rgba(255,255,255,.06);}
+  #scroll-area{grid-area:content;height:100%;}
+  #bottom-nav{grid-area:nav;flex-direction:column;width:auto;height:auto;padding:16px 0 0;border-top:none;border-right:1px solid rgba(255,255,255,.08);align-items:stretch;justify-content:flex-start;gap:2px;}
+  #bottom-nav::before{content:'🌿 Almanac';display:block;color:#9fc9a0;font-family:'Crimson Pro',serif;font-size:.95rem;font-weight:600;letter-spacing:.03em;padding:0 16px 14px;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:6px;}
+  .nav-btn{flex:none;flex-direction:row;justify-content:flex-start;padding:11px 12px 11px 16px;gap:10px;font-size:9px;border-radius:0 6px 6px 0;margin-right:8px;width:auto;}
+  .nav-btn .nav-icon{font-size:1rem;}
+  .nav-btn.active{background:rgba(159,201,160,.12);color:#9fc9a0;}
+  /* Views — more padding on desktop */
+  .view{padding:20px 28px 48px;}
+  /* Forecast wraps instead of scrolls */
+  .forecast-scroll{flex-wrap:wrap;overflow-x:visible;}
+  .fx-day{flex:1;min-width:54px;}
+  /* Bed grid — bigger squares */
+  .sq{width:58px;height:58px;font-size:1.5rem;}
+  .sq-label{font-size:7px;}
+  /* Spring cards 2-up */
+  #germ-list,#harden-list{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .germ-card,.harden-card{margin-bottom:0;}
+  /* Seeds grid */
+  #seed-list{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .seed-card{margin-bottom:0;}
+  /* Today — side by side below weather */
+  #view-today{display:grid;grid-template-columns:1fr 1fr;column-gap:20px;align-content:start;}
+  #frost-alert-banner,#weather-card,.forecast-scroll{grid-column:1/-1;}
+}
 </style>
 </head>
 <body>
@@ -623,9 +651,10 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <div class="scan-zone" onclick="document.getElementById('packet-file-input').click()">
           <div class="scan-icon">📷</div>
           <div class="scan-text">TAP TO TAKE PHOTO</div>
-          <div class="scan-sub">Good light + front of packet works best</div>
+          <div class="scan-sub">AI reads the packet · requires Anthropic API key (⚙)</div>
         </div>
         <input type="file" id="packet-file-input" accept="image/*" capture="environment" style="display:none" onchange="handlePacketPhoto(this)">
+        <button class="btn-sm" style="width:100%;padding:10px;margin-bottom:7px;" onclick="enterManually()">✏ Enter manually →</button>
         <button class="btn-sm" style="width:100%;padding:10px;" onclick="closeModal('scan-modal')">Cancel</button>
       </div>
       <div id="scan-state-thinking" style="display:none;">
@@ -649,7 +678,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
           <div class="ai-field"><div class="ai-field-label">NOTES FROM PACKET</div><textarea id="sr-notes" rows="3" style="resize:none;"></textarea></div>
         </div>
         <div style="display:flex;gap:8px;">
-          <button class="btn-sm" style="flex:1;padding:10px;" onclick="resetScan()">↩ Rescan</button>
+          <button class="btn-sm" style="flex:1;padding:10px;" id="rescan-btn" onclick="resetScan()">↩ Rescan</button>
           <button class="btn-primary" style="flex:2;padding:10px;" onclick="confirmSeed()">Save →</button>
         </div>
       </div>
@@ -1582,7 +1611,8 @@ const BED_INFO={A:{label:'Bed A',cls:'bed-a-tag',emoji:'🍅'},B:{label:'Bed B',
 const STORAGE_INFO={fridge:{label:'Fridge',cls:'store-fridge',icon:'🧊'},freezer:{label:'Freezer',cls:'store-freezer',icon:'❄️'},cool:{label:'Cool dark',cls:'store-cool',icon:'🏠'},ambient:{label:'Shelf',cls:'store-ambient',icon:'📦'}};
 function openScanModal(){resetScan();openModal('scan-modal');}
 function setScanState(s){['pick','thinking','review','error'].forEach(n=>document.getElementById('scan-state-'+n).style.display=n===s?'block':'none');}
-function resetScan(){setScanState('pick');currentScanImageB64=null;scanQty=1;document.getElementById('packet-file-input').value='';}
+function resetScan(){setScanState('pick');currentScanImageB64=null;scanQty=1;document.getElementById('packet-file-input').value='';document.getElementById('rescan-btn').textContent='↩ Rescan';}
+function enterManually(){['sr-name','sr-variety','sr-days','sr-source','sr-notes'].forEach(id=>document.getElementById(id).value='');document.getElementById('sr-bed').value='any';document.getElementById('sr-storage').value='cool';scanQty=1;document.getElementById('sr-qty-display').textContent='1';document.getElementById('scan-review-img').src='';currentScanImageB64=null;document.getElementById('rescan-btn').textContent='↩ Back';setScanState('review');}
 async function handlePacketPhoto(input){
   if(!input.files||!input.files[0])return;
   const b64=await compressImage(input.files[0],800);
