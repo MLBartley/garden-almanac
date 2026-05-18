@@ -562,7 +562,13 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px solid rgba(0,0,0,.12);background:#f0f8f0;border-radius:3px;padding:1px 6px;">□</span> Planned</span>
         <span style="display:flex;align-items:center;gap:3px;"><span style="border:2px solid #2a6a2a;background:#e2f0e2;border-radius:3px;padding:1px 6px;">✓</span> Planted</span>
       </div>
-      <button class="btn-sm" style="width:100%;padding:8px;margin-bottom:12px;" onclick="autoPopulateAllBeds()">✨ Auto-suggest all beds from inventory</button>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">
+        <label style="display:flex;align-items:center;gap:9px;font-size:.83rem;cursor:pointer;padding:7px 10px;background:var(--surface);border:1px solid var(--rule);border-radius:6px;">
+          <input type="checkbox" id="opt-three-sisters" style="width:15px;height:15px;flex-shrink:0;accent-color:var(--moss);">
+          <span>🌽🫘🎃 <strong>Three Sisters</strong> — corn + beans + squash together</span>
+        </label>
+      </div>
+      <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:12px;font-size:.82rem;" onclick="autoPopulateAllBeds()">✨ Auto-suggest all beds from inventory</button>
 
       <!-- Companion panel -->
       <div id="companion-panel-wrap"></div>
@@ -1035,10 +1041,15 @@ const PLANT_LIB = [
    companions:{good:['bean-bush','nasturtium','marigold'],bad:['potato']},
    bestBeds:['C'],spacing:'36–48"',notes:'Let vines sprawl outside the bed. Delicata (95d) and Acorn (85d) work in Bozeman season.'},
   // ── BEANS
-  {id:'bean-bush',emoji:'🫘',name:'Bush Bean (Provider)',cat:'veg',sqFt:0.25,
-   frostTol:'tender',sowMethod:'direct',daysMin:50,daysMax:60,
-   companions:{good:['carrot','cucumber','strawberry','beet'],bad:['onion','fennel','beet']},
-   bestBeds:['C'],spacing:'6"',notes:'Direct sow after LF. Fix nitrogen — follow with heavy feeders next year. Succession sow every 2 weeks.'},
+  {id:'bean-bush',emoji:'🫘',name:'Bush/Pole Bean',cat:'veg',sqFt:0.25,
+   frostTol:'tender',sowMethod:'direct',daysMin:50,daysMax:68,
+   companions:{good:['carrot','cucumber','corn','squash-winter','beet'],bad:['onion','fennel']},
+   bestBeds:['A','C'],spacing:'6"',notes:'Direct sow after LF. Fix nitrogen. THREE SISTERS: plant around corn when corn is 4–6" tall. Succession sow every 2 weeks.'},
+  {id:'corn',emoji:'🌽',name:'Corn',cat:'veg',sqFt:1,
+   frostTol:'tender',sowMethod:'direct',daysMin:68,daysMax:80,
+   companions:{good:['bean-bush','squash-winter'],bad:['tomato-ind','tomato-det']},
+   bestBeds:['A','C'],spacing:'10–12" in 3×3+ block',
+   notes:'Plant in blocks of 9+ for wind pollination. Ashworth (68d) best for Zone 5b. THREE SISTERS: center component — sow beans when corn is 4–6" tall.'},
   // ── LEAFY GREENS
   {id:'lettuce',emoji:'🥗',name:'Lettuce (loose-leaf)',cat:'veg',sqFt:0.25,
    frostTol:'halfhardy',sowMethod:'direct',daysMin:40,daysMax:55,
@@ -2094,8 +2105,8 @@ function seedToLibId(seed) {
   if (n === 'onion') return 'onion';
   if (n === 'garlic') return 'garlic';
   if (n === 'leek' || n === 'shallot') return 'onion';
-  if (n === 'peas') return null; // no pea in PLANT_LIB
-  if (n === 'corn') return null; // no corn in PLANT_LIB
+  if (n === 'peas') return null;
+  if (n === 'corn') return 'corn';
   if (n === 'basil') return 'basil';
   if (n === 'cilantro') return 'cilantro';
   if (n === 'dill') return 'dill';
@@ -2113,7 +2124,6 @@ function autoPopulateAllBeds() {
   db.bedDesigns = db.bedDesigns || {};
   db.bedStatuses = db.bedStatuses || {};
 
-  // Working copies for each bed
   const designs = {}, statuses = {}, capacities = {};
   db.beds.forEach(b => {
     designs[b.key] = {...(db.bedDesigns[b.key] || {})};
@@ -2129,69 +2139,123 @@ function autoPopulateAllBeds() {
     return n;
   }
 
-  function fillBed(bedKey, libId, sqNeeded) {
+  // Fill sqNeeded squares of libId into bedKey; return how many were NOT placed
+  function fillInto(bedKey, libId, sqNeeded) {
     const d = designs[bedKey], s = statuses[bedKey], cap = capacities[bedKey];
-    if (!d || cap === undefined) return;
+    if (!d || cap === undefined) return sqNeeded;
     for (let i = 0; i < cap && sqNeeded > 0; i++) {
       if (!d[i] || s[i] === 'suggested') { d[i] = libId; s[i] = 'suggested'; sqNeeded--; }
     }
+    return sqNeeded; // leftover not placed
   }
 
-  // Build priority-sorted candidate list
-  // Priority 0: live starts with direct bed assignment
-  // Priority 1: seeds with direct bed assignment
-  // Priority 2: live starts with bed:'any' that fit a bed's bestBeds
-  // Priority 3: seeds with bed:'any' that fit a bed's bestBeds
-  const candidates = [];
-  (db.seeds || []).forEach(seed => {
+  const threeSistersOn = document.getElementById('opt-three-sisters')?.checked;
+  const threeSistersIds = new Set(['corn', 'bean-bush', 'squash-winter']);
+
+  // ── Pass 1: live starts (direct bed assignment) ──────────────────────
+  // Live starts MUST all get placed. If their assigned bed is full, overflow to
+  // whatever full-sun bed has the most remaining space.
+  const liveStarts = (db.seeds || []).filter(s => s.storage === 'live');
+  liveStarts.forEach(seed => {
     const libId = seedToLibId(seed);
     if (!libId) return;
-    const plant = PLANT_IDX[libId];
-    if (!plant) return;
-    const isLive = seed.storage === 'live';
+    if (threeSistersOn && threeSistersIds.has(libId)) return;
+    const plant = PLANT_IDX[libId]; if (!plant) return;
     const qty = seed.qty || 1;
-    // Area: for live starts use exact qty×sqFt; for seeds allocate reasonable patch
-    let sqNeeded;
-    if (isLive) {
-      sqNeeded = Math.max(1, Math.round(plant.sqFt * qty));
-    } else {
-      if (plant.sqFt >= 4) sqNeeded = plant.sqFt;
-      else if (plant.sqFt >= 1) sqNeeded = Math.max(2, Math.round(plant.sqFt * 2));
-      else sqNeeded = 4; // small plants: reasonable patch
-    }
+    let sqNeeded = Math.max(1, Math.round(plant.sqFt * qty));
+
     if (seed.bed !== 'any') {
-      candidates.push({libId, bedKey: seed.bed, sqNeeded, priority: isLive ? 0 : 1});
-    } else {
-      candidates.push({libId, bedKey: null, sqNeeded, priority: isLive ? 2 : 3, bestBeds: plant.bestBeds});
+      sqNeeded = fillInto(seed.bed, libId, sqNeeded);
+    }
+    // Overflow: if live start still has unplaced squares, spill to any bed with space
+    if (sqNeeded > 0) {
+      const overflow = Object.keys(capacities)
+        .filter(k => seed.bed === 'any' || k !== seed.bed)
+        .sort((a, b) => remainingSq(b) - remainingSq(a));
+      for (const bk of overflow) {
+        if (sqNeeded <= 0) break;
+        sqNeeded = fillInto(bk, libId, sqNeeded);
+      }
     }
   });
 
-  candidates.sort((a, b) => a.priority - b.priority);
+  // ── Pass 2: Three Sisters group (after live starts, before seeds) ────
+  if (threeSistersOn) {
+    placeThreeSisters(designs, statuses, capacities, remainingSq);
+  }
 
-  candidates.forEach(({libId, bedKey, sqNeeded, bestBeds}) => {
-    if (bedKey) {
-      if (capacities[bedKey] !== undefined) fillBed(bedKey, libId, sqNeeded);
-    } else if (bestBeds && bestBeds.length) {
-      // Pick bed with most remaining space from the plant's preferred beds
-      const valid = bestBeds.filter(k => capacities[k] !== undefined);
+  // ── Pass 3: seeds (direct bed, then bed:'any') ───────────────────────
+  const seedItems = (db.seeds || []).filter(s => s.storage !== 'live');
+  seedItems.forEach(seed => {
+    const libId = seedToLibId(seed);
+    if (!libId) return;
+    if (threeSistersOn && threeSistersIds.has(libId)) return;
+    const plant = PLANT_IDX[libId]; if (!plant) return;
+    // Allocate a reasonable patch per seed packet
+    let sqNeeded;
+    if (plant.sqFt >= 4) sqNeeded = plant.sqFt;
+    else if (plant.sqFt >= 1) sqNeeded = Math.max(2, Math.round(plant.sqFt * 2));
+    else sqNeeded = 4;
+
+    if (seed.bed !== 'any') {
+      fillInto(seed.bed, libId, sqNeeded);
+    } else {
+      // Route to the best-fit bed (most remaining space among plant's preferred beds)
+      const valid = (plant.bestBeds || []).filter(k => capacities[k] !== undefined);
       if (!valid.length) return;
       const target = valid.reduce((best, k) => remainingSq(k) > remainingSq(best) ? k : best, valid[0]);
-      fillBed(target, libId, sqNeeded);
+      fillInto(target, libId, sqNeeded);
     }
   });
 
-  // Save all beds
+  // Save
   db.beds.forEach(b => {
     db.bedDesigns[b.key] = designs[b.key];
     db.bedStatuses[b.key] = statuses[b.key];
   });
   saveDB(db);
-
-  // Refresh current bed view
   activeBedDesign = {...designs[activeBedKey]};
   activeBedStatuses = {...statuses[activeBedKey]};
   buildBedSelector();
   renderDesign();
+}
+
+function placeThreeSisters(designs, statuses, capacities, remainingSqFn) {
+  // Find corn/beans/squash seeds in inventory
+  const cornSeed = (db.seeds||[]).find(s => s.name.toLowerCase()==='corn' && !(s.notes||'').includes('DENT'));
+  const hasBeans = (db.seeds||[]).some(s => ['beans','bean'].includes(s.name.toLowerCase()));
+  const hasSquash = (db.seeds||[]).some(s => ['squash','pumpkin'].includes(s.name.toLowerCase()));
+
+  if (!cornSeed) return; // need corn at minimum
+
+  // Pick the full-sun bed with most remaining space
+  const sunBeds = ['A','C','B'].filter(k => capacities[k] !== undefined);
+  const bedKey = sunBeds.reduce((best, k) => remainingSqFn(k) > remainingSqFn(best) ? k : best, sunBeds[0]);
+  const bed = db.beds.find(b => b.key === bedKey);
+  if (!bed) return;
+
+  const cols = bed.cols, rows = bed.rows;
+  const d = designs[bedKey], s = statuses[bedKey];
+  const half = Math.floor(cols / 2);
+
+  // Layout:  rows 0–1: left-half=corn, right-half=beans
+  //          row 2 (if present and squash available): squash
+  for (let row = 0; row < Math.min(2, rows); row++) {
+    for (let col = 0; col < cols; col++) {
+      const idx = row * cols + col;
+      if (d[idx] && s[idx] !== 'suggested') continue; // don't overwrite confirmed
+      d[idx] = col < half ? 'corn' : 'bean-bush';
+      s[idx] = 'suggested';
+    }
+  }
+  if (rows > 2 && hasSquash) {
+    for (let col = 0; col < cols; col++) {
+      const idx = 2 * cols + col;
+      if (d[idx] && s[idx] !== 'suggested') continue;
+      d[idx] = 'squash-winter';
+      s[idx] = 'suggested';
+    }
+  }
 }
 
 // ── Plant picker ──
