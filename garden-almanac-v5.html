@@ -408,10 +408,22 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 .qty-btn{width:30px;height:30px;border:1px solid var(--rule);border-radius:5px;background:white;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .qty-display{font-family:'Space Mono',monospace;font-size:13px;min-width:28px;text-align:center;}
 .scan-preview{width:100%;max-height:180px;object-fit:cover;border-radius:5px;margin-bottom:11px;}
+/* ── TODAY BAR ── */
+#today-bar{background:#16211a;border-bottom:1px solid rgba(255,255,255,.07);display:flex;align-items:center;height:40px;padding:0 14px;gap:10px;flex-shrink:0;cursor:pointer;user-select:none;}
+#today-bar.tbar-urgent{background:#3a1508;}
+.tbar-wx{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.tbar-icon{font-size:1rem;line-height:1;}
+.tbar-temp{font-family:'Space Mono',monospace;font-size:11px;color:white;font-weight:600;}
+.tbar-hilo{font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,255,255,.45);}
+.tbar-sep{width:1px;height:18px;background:rgba(255,255,255,.1);flex-shrink:0;}
+.tbar-alert{display:flex;align-items:center;gap:5px;flex:1;min-width:0;}
+.tbar-alert-text{font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,255,255,.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tbar-hint{font-family:'Space Mono',monospace;font-size:8px;color:rgba(255,255,255,.25);margin-left:auto;flex-shrink:0;}
 /* ── DESKTOP LAYOUT (768px+) ── */
 @media (min-width:768px){
-  #app{display:grid;grid-template-columns:152px 1fr;grid-template-rows:var(--header-h) 1fr;grid-template-areas:"nav header" "nav content";max-width:1200px;box-shadow:0 0 80px rgba(0,0,0,.6);}
+  #app{display:grid;grid-template-columns:152px 1fr;grid-template-rows:var(--header-h) 40px 1fr;grid-template-areas:"nav header" "nav todaybar" "nav content";max-width:1200px;box-shadow:0 0 80px rgba(0,0,0,.6);}
   #app-header{grid-area:header;border-left:1px solid rgba(255,255,255,.06);}
+  #today-bar{grid-area:todaybar;border-left:1px solid rgba(255,255,255,.06);}
   #scroll-area{grid-area:content;min-height:0;overflow-y:auto;}
   #bottom-nav{grid-area:nav;flex-direction:column;width:auto;height:auto;padding:16px 0 0;border-top:none;border-right:1px solid rgba(255,255,255,.08);align-items:stretch;justify-content:flex-start;gap:2px;}
   #bottom-nav::before{content:'🌿 Almanac';display:block;color:#9fc9a0;font-family:'Crimson Pro',serif;font-size:.95rem;font-weight:600;letter-spacing:.03em;padding:0 16px 14px;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:6px;}
@@ -449,10 +461,24 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
     <button class="sync-btn" onclick="openModal('settings-modal')" title="Settings" style="margin-left:2px;">⚙</button>
   </div>
 
+  <div id="today-bar" onclick="switchToToday()">
+    <div class="tbar-wx">
+      <span class="tbar-icon">🌡</span>
+      <span class="tbar-temp" id="tbar-temp">--°</span>
+      <span class="tbar-hilo" id="tbar-hilo">--/--°</span>
+    </div>
+    <div class="tbar-sep"></div>
+    <div class="tbar-alert">
+      <span id="tbar-alert-icon">🌿</span>
+      <span class="tbar-alert-text" id="tbar-alert-text">Loading weather…</span>
+    </div>
+    <span class="tbar-hint">TAP FOR DETAIL ›</span>
+  </div>
+
   <div id="scroll-area">
 
     <!-- TODAY -->
-    <div class="view active" id="view-today">
+    <div class="view" id="view-today">
       <div id="frost-alert-banner"></div>
       <div id="weather-card">
         <div class="wx-main">
@@ -483,7 +509,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
     </div>
 
     <!-- JOURNAL -->
-    <div class="view" id="view-journal">
+    <div class="view active" id="view-journal">
       <div class="journal-compose">
         <div class="journal-compose-header">NEW ENTRY · <span id="compose-date"></span></div>
         <div class="mood-row">
@@ -676,8 +702,8 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
   </div>
 
   <div id="bottom-nav">
-    <button class="nav-btn active" onclick="switchView('today',this)"><span class="nav-icon">☀️</span>TODAY</button>
-    <button class="nav-btn" onclick="switchView('journal',this)"><span class="nav-icon">📓</span>JOURNAL</button>
+    <button class="nav-btn" onclick="switchView('today',this)"><span class="nav-icon">☀️</span>TODAY</button>
+    <button class="nav-btn active" onclick="switchView('journal',this)"><span class="nav-icon">📓</span>JOURNAL</button>
     <button class="nav-btn" onclick="switchView('spring',this)"><span class="nav-icon">🌱</span>SPRING</button>
     <button class="nav-btn" onclick="switchView('design',this)"><span class="nav-icon">🗺</span>DESIGN</button>
     <button class="nav-btn" onclick="switchView('seeds',this)"><span class="nav-icon">🌾</span>SEEDS</button>
@@ -1303,6 +1329,7 @@ async function loadWeather() {
     renderForecast(d);
     renderCare(d);
     renderFrostAlert(d);
+    renderTodayBar(d);
     renderDesign(); // refresh timing with weather
   } catch { document.getElementById('wx-desc').textContent='Weather unavailable'; }
 }
@@ -1487,6 +1514,31 @@ function renderFrostAlert(d) {
     <div class="frost-days">${pillsHtml}</div>
     ${actionsHtml}
   </div>`;
+}
+
+function renderTodayBar(d) {
+  const c=d.current;
+  const lo=Math.round(d.daily.temperature_2m_min[0]),hi=Math.round(d.daily.temperature_2m_max[0]);
+  const rain=d.daily.precipitation_sum[0],rainChance=d.daily.precipitation_probability_max[0];
+  const wind=Math.round(c.wind_speed_10m);
+  const [icon]=WMO[c.weather_code]||['🌡'];
+  const temp=Math.round(c.temperature_2m);
+  document.getElementById('tbar-temp').textContent=temp+'°F';
+  document.getElementById('tbar-hilo').textContent=`${hi}/${lo}°`;
+  document.getElementById('tbar-alert-icon').textContent=icon;
+  let alertIcon='💧',alertText='Check oya levels',urgent=false;
+  if(lo<=28){alertIcon='🥶';alertText=`Hard frost tonight — ${lo}°F`;urgent=true;}
+  else if(lo<=36){alertIcon='🌡️';alertText=`Frost risk tonight — ${lo}°F`;urgent=true;}
+  else if(wind>=20){alertIcon='💨';alertText=`Wind ${wind} mph — secure cages`;urgent=true;}
+  else if(hi>=85){alertIcon='☀️';alertText=`Heat ${hi}°F — water early AM`;urgent=true;}
+  else if(rain>0.3||rainChance>70){alertIcon='🌧';alertText=`Rain likely — skip irrigation`;}
+  document.getElementById('tbar-alert-icon').textContent=alertIcon;
+  document.getElementById('tbar-alert-text').textContent=alertText;
+  document.getElementById('today-bar').className=urgent?'tbar-urgent':'';
+}
+function switchToToday(){
+  const btn=document.querySelector('[onclick*="\'today\'"]');
+  if(btn)switchView('today',btn);
 }
 
 // ════════════════════════════════════════
