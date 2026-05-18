@@ -1352,19 +1352,48 @@ function renderCare(d) {
   const rain=d.daily.precipitation_sum[0], rainChance=d.daily.precipitation_probability_max[0];
   const wind=Math.round(c.wind_speed_10m), hum=c.relative_humidity_2m;
   const now=new Date(), mon=now.getMonth()+1, dy=now.getDate();
+
+  // Scan bed designs for what's actually planted
+  const plantedByLib={}; // libId -> {plant, beds:[]}
+  ['A','B','C','D'].forEach(key=>{
+    const design=(db.bedDesigns&&db.bedDesigns[key])||{};
+    Object.values(design).forEach(libId=>{
+      const p=PLANT_IDX[libId];if(!p)return;
+      if(!plantedByLib[libId])plantedByLib[libId]={plant:p,beds:[]};
+      if(!plantedByLib[libId].beds.includes(key))plantedByLib[libId].beds.push(key);
+    });
+  });
+  const planted=Object.values(plantedByLib);
+  const tender=planted.filter(p=>p.plant.frostTol==='tender'||p.plant.frostTol==='verytender');
+  const halfhardy=planted.filter(p=>p.plant.frostTol==='halfhardy');
+  const harvestable=planted.filter(p=>['zucchini','cucumber','bean-bush','squash-winter','beet','carrot','lettuce','spinach','arugula'].includes(p.plant.id));
+
+  const tenderLabel=(list,withBed)=>list.map(p=>`${p.plant.emoji} ${p.plant.name.replace(/ \(.*\)/,'')}${withBed?' (Bed '+p.beds.join('/')+')'  :''}`).join(', ');
+
   const tasks=[];
-  if(lo<=28)tasks.push({cls:'urgent',icon:'🥶',title:'Hard frost tonight',desc:`Low of ${lo}°F. Cover tomatoes and peppers. Fill oya pots before covering.`});
-  else if(lo<=36)tasks.push({cls:'urgent',icon:'🌡️',title:'Frost risk tonight',desc:`Low of ${lo}°F. Cover tender transplants.`});
+  if(lo<=28){
+    const names=tender.length?tenderLabel(tender,true):'tender transplants';
+    tasks.push({cls:'urgent',icon:'🥶',title:'Hard frost tonight',desc:`Low of ${lo}°F. Cover ${names}. Fill oya pots before covering.`});
+  } else if(lo<=36){
+    const names=tender.length?tenderLabel(tender,false):halfhardy.length?tenderLabel(halfhardy,false):'tender transplants';
+    tasks.push({cls:'urgent',icon:'🌡️',title:'Frost risk tonight',desc:`Low of ${lo}°F. Cover ${names}.`});
+  }
   if(rain>0.3||rainChance>70)tasks.push({cls:'info',icon:'🌧',title:'Skip oya top-off',desc:`${rain>0?rain+'" rain':rainChance+'% chance'}. Let nature handle irrigation.`});
   else if(hi>=82)tasks.push({cls:'urgent',icon:'💧',title:'Top off all oya pots',desc:`High of ${hi}°F. Refill all 8 oya pots.`});
-  else tasks.push({cls:'normal',icon:'💧',title:'Check oya levels',desc:`No significant rain. Refill if soil feels dry at 2".`});
-  if(wind>=20)tasks.push({cls:'urgent',icon:'💨',title:`Wind ${wind} mph`,desc:`Secure cages. Hold off on transplanting.`});
-  if(hum>=80&&hi>=65)tasks.push({cls:'info',icon:'🍄',title:'Fungal watch',desc:`Warm + humid. Watch for mildew and blight.`});
-  if(hi>=85)tasks.push({cls:'urgent',icon:'☀️',title:'Heat stress',desc:`${hi}°F. Water early AM only.`});
+  else tasks.push({cls:'normal',icon:'💧',title:'Check oya levels',desc:'No significant rain. Refill if soil feels dry at 2".'});
+  if(wind>=20)tasks.push({cls:'urgent',icon:'💨',title:`Wind ${wind} mph`,desc:'Secure cages. Hold off on transplanting.'});
+  if(hum>=80&&hi>=65)tasks.push({cls:'info',icon:'🍄',title:'Fungal watch',desc:'Warm + humid. Watch for mildew and blight.'});
+  if(hi>=85){
+    const sensitive=tender.length?tenderLabel(tender,false):'heat-sensitive plants';
+    tasks.push({cls:'urgent',icon:'☀️',title:'Heat stress',desc:`${hi}°F. Water early AM. Check ${sensitive}.`});
+  }
   if(mon===3||mon===4)tasks.push({cls:'normal',icon:'🌱',title:'Seed start window',desc:'Start tomatoes, peppers, brassicas 6–8 weeks before May 15.'});
   if(mon===5&&dy<=14)tasks.push({cls:'normal',icon:'🌿',title:'Harden off transplants',desc:'Move seedlings outside 1–2 hrs/day, increasing daily.'});
-  if(mon===5&&dy>=15)tasks.push({cls:'normal',icon:'🌿',title:'Safe to transplant',desc:'Past last frost — transplant tomatoes, peppers, squash. Direct sow beans.'});
-  if(mon>=6&&mon<=8)tasks.push({cls:'normal',icon:'🥬',title:'Daily harvest check',desc:'Zucchini and beans especially.'});
+  if(mon===5&&dy>=15&&!tender.length)tasks.push({cls:'normal',icon:'🌿',title:'Safe to transplant',desc:'Past last frost — transplant tomatoes, peppers, squash. Direct sow beans.'});
+  if(mon>=6&&mon<=8){
+    const names=harvestable.length?harvestable.map(p=>`${p.plant.emoji} ${p.plant.name.split(' ')[0]}`).join(', '):'zucchini and beans';
+    tasks.push({cls:'normal',icon:'🥬',title:'Daily harvest check',desc:`Check: ${names}.`});
+  }
   if(mon===8)tasks.push({cls:'info',icon:'🌾',title:'Fall prep',desc:'Sow second arugula + spinach. Order garlic.'});
   if(mon>=9)tasks.push({cls:'normal',icon:'🍂',title:'Season wind-down',desc:'First frost ~Sept 20. Harvest green tomatoes. Top-dress beds.'});
   tasks.push({cls:'normal',icon:'🔍',title:'Scout pests',desc:'Flea beetles · aphids · squash vine borer.'});
@@ -1978,8 +2007,20 @@ function renderPlants(){
   const byLoc=p=>plantLocFilter==='all'||(p.location||'').includes(plantLocFilter);
   const n=db.plants.filter(p=>p.category==='native'&&byLoc(p));
   const e=db.plants.filter(p=>p.category==='edible'&&byLoc(p));
-  document.getElementById('native-plant-list').innerHTML=n.length?n.map(plantCard).join(''):`<div style="color:var(--muted);font-size:.85rem;padding:10px 0;">${plantLocFilter==='all'?'No native plants logged yet.':'None in this location.'}</div>`;
-  document.getElementById('edible-plant-list').innerHTML=e.length?e.map(plantCard).join(''):`<div style="color:var(--muted);font-size:.85rem;padding:10px 0;">${plantLocFilter==='all'?'No perennial edibles logged yet.':'None in this location.'}</div>`;
+
+  function statusGroups(list,emptyMsg){
+    const est=list.filter(p=>!p.status||p.status==='established');
+    const noted=list.filter(p=>p.status==='noted');
+    const planned=list.filter(p=>p.status==='planned');
+    if(!list.length)return`<div style="color:var(--muted);font-size:.85rem;padding:10px 0;">${emptyMsg}</div>`;
+    let html=est.map(plantCard).join('');
+    if(noted.length)html+=`<div class="section-label" style="margin-top:16px;">Observed in yard <span style="font-weight:400;opacity:.6;">(${noted.length})</span></div>`+noted.map(plantCard).join('');
+    if(planned.length)html+=`<div class="section-label" style="margin-top:16px;">Planned <span style="font-weight:400;opacity:.6;">(${planned.length})</span></div>`+planned.map(plantCard).join('');
+    return html;
+  }
+
+  document.getElementById('native-plant-list').innerHTML=statusGroups(n,plantLocFilter==='all'?'No native plants logged yet.':'None in this location.');
+  document.getElementById('edible-plant-list').innerHTML=statusGroups(e,plantLocFilter==='all'?'No perennial edibles logged yet.':'None in this location.');
 }
 
 // ════════════════════════════════════════
@@ -2513,6 +2554,18 @@ const VEG_DB=[
 
 const BED_LABELS={A:'Bed A — South, full sun',B:'Bed B — South, full sun',C:'Bed C — South, full sun',D:'Bed D — West, partial shade',herb:'Herb section — Ground level'};
 const BED_CAP={A:28,B:28,C:28,D:20,herb:16};
+// Maps VEG_DB keys → PLANT_LIB ids for Design tab auto-population
+const VEG_TO_LIB={
+  tomato:'tomato-ind',cherry_tomato:'tomato-det',tomatillo:null,pepper:'pepper',eggplant:null,potato:null,
+  broccoli:'brassica-broc',kale:'brassica-kale',cabbage:null,cauliflower:null,kohlrabi:'kohlrabi',
+  brussels_sprouts:null,bok_choy:null,arugula:'arugula',lettuce:'lettuce',spinach:'spinach',
+  chard:null,asian_greens:null,carrot:'carrot',beet:'beet',radish:'radish',turnip:null,parsnip:null,
+  zucchini:'zucchini',cucumber:'cucumber',winter_squash:'squash-winter',summer_squash:'zucchini',
+  pumpkin:null,melon:null,corn:null,pole_bean:'bean-bush',bush_bean:'bean-bush',pea:null,fava_bean:null,
+  onion:'onion',leek:null,scallion:'chives',garlic:'garlic',
+  basil:'basil',cilantro:'cilantro',dill:'dill',chamomile:null,oregano:null,rosemary:null,
+  parsley:'parsley',mint:null,
+};
 
 let springTab='season';
 function setSpringTab(tab,btn){
@@ -2620,7 +2673,9 @@ function renderRecommendations(){
   ['A','B','C','D','herb'].filter(b=>grouped[b]?.length).forEach(b=>{
     const bItems=grouped[b];
     const allDone=bItems.every(i=>i.accepted);
-    html+=`<div class="plan-bed-block"><div class="plan-bed-hd">${b==='herb'?'🌿':'🌱'} ${BED_LABELS[b]}${!allDone?`<button onclick="acceptBed('${b}')" style="margin-left:auto;font-family:'Space Mono',monospace;font-size:7px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:white;cursor:pointer;">Accept all →</button>`:''}</div>`;
+    const anyDone=bItems.some(i=>i.accepted);
+    const btnStyle='margin-left:4px;font-family:\'Space Mono\',monospace;font-size:7px;padding:3px 8px;border-radius:5px;cursor:pointer;border:1px solid rgba(255,255,255,.3);';
+    html+=`<div class="plan-bed-block"><div class="plan-bed-hd">${b==='herb'?'🌿':'🌱'} ${BED_LABELS[b]}<span style="margin-left:auto;display:flex;gap:4px;">${!allDone?`<button onclick="acceptBed('${b}')" style="${btnStyle}background:rgba(255,255,255,.15);color:white;">Accept all →</button>`:''}${anyDone&&b!=='herb'?`<button onclick="pushToDesign('${b}')" style="${btnStyle}background:rgba(74,124,90,.4);color:#9fc9a0;">→ Design</button>`:''}</span></div>`;
     bItems.forEach(i=>{
       const v=VEG_DB.find(x=>x.k===i.vegKey)||{e:'🌱',note:''};
       const method=i.type==='start'?'transplant':'direct sow';
@@ -2648,6 +2703,34 @@ function acceptRec(id){
 function acceptBed(bed){
   const year=new Date().getFullYear();
   (db.plantingList||[]).filter(i=>i.year===year&&i.bedRec===bed&&!i.accepted).forEach(i=>acceptRec(i.id));
+}
+function pushToDesign(bedKey){
+  const year=new Date().getFullYear();
+  const accepted=(db.plantingList||[]).filter(i=>i.year===year&&i.accepted&&i.bedRec===bedKey);
+  if(!accepted.length)return;
+  const bed=db.beds.find(b=>b.key===bedKey);if(!bed)return;
+  const totalSq=bed.cols*bed.rows;
+  db.bedDesigns=db.bedDesigns||{};
+  const design={...(db.bedDesigns[bedKey]||{})};
+  accepted.forEach(item=>{
+    const libId=VEG_TO_LIB[item.vegKey];
+    const lib=libId&&PLANT_IDX[libId];
+    if(!lib)return;
+    const sqNeeded=Math.round((lib.sqFt||1)*item.qty);
+    let placed=0;
+    for(let i=0;i<totalSq&&placed<sqNeeded;i++){
+      if(!design[i]){design[i]=libId;placed++;}
+    }
+  });
+  db.bedDesigns[bedKey]=design;
+  saveDB(db);
+  const navBtn=document.querySelector('[onclick*="\'design\'"]');
+  if(navBtn)switchView('design',navBtn);
+  setTimeout(()=>{
+    const bedBtns=document.querySelectorAll('.bed-sel-btn');
+    const idx=['A','B','C','D'].indexOf(bedKey);
+    if(bedBtns[idx])selectBed(bedKey,bedBtns[idx]);
+  },60);
 }
 
 // ════════════════════════════════════════
