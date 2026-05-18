@@ -379,7 +379,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 @media (min-width:768px){
   #app{display:grid;grid-template-columns:152px 1fr;grid-template-rows:var(--header-h) 1fr;grid-template-areas:"nav header" "nav content";max-width:1200px;box-shadow:0 0 80px rgba(0,0,0,.6);}
   #app-header{grid-area:header;border-left:1px solid rgba(255,255,255,.06);}
-  #scroll-area{grid-area:content;height:100%;}
+  #scroll-area{grid-area:content;min-height:0;overflow-y:auto;}
   #bottom-nav{grid-area:nav;flex-direction:column;width:auto;height:auto;padding:16px 0 0;border-top:none;border-right:1px solid rgba(255,255,255,.08);align-items:stretch;justify-content:flex-start;gap:2px;}
   #bottom-nav::before{content:'🌿 Almanac';display:block;color:#9fc9a0;font-family:'Crimson Pro',serif;font-size:.95rem;font-weight:600;letter-spacing:.03em;padding:0 16px 14px;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:6px;}
   .nav-btn{flex:none;flex-direction:row;justify-content:flex-start;padding:11px 12px 11px 16px;gap:10px;font-size:9px;border-radius:0 6px 6px 0;margin-right:8px;width:auto;}
