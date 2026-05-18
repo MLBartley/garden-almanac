@@ -1198,6 +1198,10 @@ function loadDB() {
         if (missing.length) d.plants = d.plants.concat(missing); }
       if (!d.harvestLog) d.harvestLog = [];
       if (!d.plantingList) d.plantingList = [];
+      // Additive migration: add any new defaultSeeds() IDs not yet in local data
+      { const knownSeedIds = new Set((d.seeds||[]).map(s=>s.id));
+        const missSeeds = defaultSeeds().filter(s=>!knownSeedIds.has(s.id));
+        if(missSeeds.length) d.seeds=(d.seeds||[]).concat(missSeeds); }
       saveDB(d);
       return d;
     }
@@ -1208,8 +1212,35 @@ function loadDB() {
 }
 function saveDB(db) { localStorage.setItem(DB_KEY, JSON.stringify(db)); }
 function defaultDB() {
-  return { journal:[], plants:defaultPlants(), beds:defaultBeds(), seeds:[], bedDesigns:{},
+  return { journal:[], plants:defaultPlants(), beds:defaultBeds(), seeds:defaultSeeds(), bedDesigns:{},
     sowLogs:[], hardenLogs:[], oyaLogs:{}, harvestLog:[], plantingList:[], settings:{} };
+}
+function defaultSeeds() {
+  const src='Triple Divide Organic Seeds 2026', d='2026-05-18', t='', tt='';
+  return [
+    {id:'seed-td-1',name:'Shallot',variety:'Homestead Gold',days:'100',bed:'B',storage:'cool',source:src,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Seed-grown shallot. Zone 5b: ideally start indoors Jan–Feb for full bulbs. Sow now for small/green shallot harvest, or save for fall planting. Long-day type.'},
+    {id:'seed-td-2',name:'Corn',variety:'Ashworth Sweet',days:'68',bed:'A',storage:'cool',source:src,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Short-season OP sweet corn (68d) — ideal for Zone 5b. Plant in a 3×3+ block for wind pollination. Sow 1" deep, 10–12" apart, after last frost. Plant NOW for late-Aug harvest.'},
+    {id:'seed-td-3',name:'Carrot',variety:'Purple Pop',days:'75',bed:'B',storage:'cool',source:src,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Direct sow only — no transplanting. Thin to 3". Keep consistently moist until germination (10–14 days). Purple skin, orange interior.'},
+    {id:'seed-td-4',name:'Leek',variety:'Bleu de Solaise',days:'120',bed:'B',storage:'cool',source:src,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'French heirloom — leaves turn blue-purple in cold. Ideally started Feb indoors for Zone 5b. Direct sow now for smaller fall leeks. Mound soil to blanch stems.'},
+    {id:'seed-td-5',name:'Kale',variety:'Blue Curled Scotch',days:'60',bed:'B',storage:'cool',source:src,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Classic curly heirloom kale. Direct sow or transplant now. Frost sweetens flavor — harvest outer leaves continuously into November.'},
+    {id:'seed-td-6',name:'French Sorrel',variety:'Perennial Greens',days:'60',bed:'any',storage:'cool',source:src,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'PERENNIAL — plant in a permanent spot (herb section recommended). Lemon-flavored leaves, excellent in salads and soups. Tolerates partial shade. Deadhead to prevent aggressive self-seeding.'},
+    {id:'seed-td-7',name:'Arugula',variety:'Rocket',days:'40',bed:'D',storage:'cool',source:src,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Classic arugula. Bed D aspen shade delays bolting. Succession sow every 3 weeks. Cut-and-come-again.'},
+    {id:'seed-td-8',name:'Arugula',variety:'Ice Bred',days:'45',bed:'D',storage:'cool',source:src,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Cold-tolerant selection — best for early spring and fall sowings. Bed D shade extends summer season.'},
+    {id:'seed-td-9',name:'Arugula',variety:'Surrey',days:'40',bed:'D',storage:'cool',source:src,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Milder arugula variety. Good for summer succession when other varieties get too spicy. Succession sow every 3 weeks.'},
+    {id:'seed-td-10',name:'Kale',variety:'White Russian',days:'55',bed:'B',storage:'cool',source:src,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Extremely cold-hardy, smooth blue-green leaves. Direct sow or transplant now. Can survive into December in Zone 5b with row cover.'},
+    {id:'seed-td-11',name:'Spinach',variety:'Giant Winter',days:'48',bed:'D',storage:'cool',source:src,qty:1,addedDate:d,thumb:t,thumbType:tt,
+     notes:'Large-leafed, very cold-hardy variety. Sow now for spring harvest, again late July–Aug for fall. One of the best overwintering spinaches for Zone 5b.'},
+  ];
 }
 function defaultPlants() {
   return [
