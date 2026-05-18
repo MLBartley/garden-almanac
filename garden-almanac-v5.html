@@ -562,7 +562,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px solid rgba(0,0,0,.12);background:#f0f8f0;border-radius:3px;padding:1px 6px;">□</span> Planned</span>
         <span style="display:flex;align-items:center;gap:3px;"><span style="border:2px solid #2a6a2a;background:#e2f0e2;border-radius:3px;padding:1px 6px;">✓</span> Planted</span>
       </div>
-      <button class="btn-sm" style="width:100%;padding:8px;margin-bottom:12px;" onclick="autoPopulateBed()">✨ Auto-suggest from seed &amp; start inventory</button>
+      <button class="btn-sm" style="width:100%;padding:8px;margin-bottom:12px;" onclick="autoPopulateAllBeds()">✨ Auto-suggest all beds from inventory</button>
 
       <!-- Companion panel -->
       <div id="companion-panel-wrap"></div>
@@ -1756,13 +1756,27 @@ let activeBedStatuses = {}; // {sqIndex: 'suggested'|'planned'|'planted'}
 let selectedSqIdx = null;
 let ppCategory = 'all';
 
+function buildBedSelector() {
+  document.getElementById('bed-select-row').innerHTML = db.beds.map(b => {
+    const design = (db.bedDesigns && db.bedDesigns[b.key]) ? db.bedDesigns[b.key] : {};
+    const statuses = (db.bedStatuses && db.bedStatuses[b.key]) ? db.bedStatuses[b.key] : {};
+    const uniqueIds = [...new Set(Object.values(design))];
+    const confirmedIds = [...new Set(Object.keys(design).filter(i => statuses[i] !== 'suggested').map(i => design[i]))];
+    const preview = uniqueIds.slice(0, 4).map(id => PLANT_IDX[id]?.emoji || '').join('');
+    const invCount = (db.seeds || []).filter(s => s.bed === b.key).length;
+    let sub;
+    if (confirmedIds.length > 0) sub = `${preview} ${confirmedIds.length} type${confirmedIds.length>1?'s':''} confirmed`;
+    else if (uniqueIds.length > 0) sub = `${preview} ${uniqueIds.length} suggested`;
+    else if (invCount > 0) sub = `${invCount} item${invCount>1?'s':''} in inventory`;
+    else sub = 'No plan yet';
+    return `<button class="bed-sel-btn ${b.key===activeBedKey?'active':''}" onclick="selectBed('${b.key}',this)">
+      <span class="bsb-name">${b.name}</span>${b.dims}<br><span style="font-size:8px;opacity:.7;">${sub}</span>
+    </button>`;
+  }).join('');
+}
+
 function initDesignTab() {
-  // Build bed selector
-  document.getElementById('bed-select-row').innerHTML = db.beds.map(b =>
-    `<button class="bed-sel-btn ${b.key===activeBedKey?'active':''}" onclick="selectBed('${b.key}',this)">
-      <span class="bsb-name">${b.name}</span>${b.dims}<br><span style="font-size:8px;opacity:.7;">${b.theme}</span>
-    </button>`
-  ).join('');
+  buildBedSelector();
   renderDesign();
 }
 
@@ -1854,19 +1868,45 @@ function renderDesign() {
 
   // Ground planting suggestions
   renderGroundSuggestions();
+
+  // Refresh bed selector labels to reflect current design state
+  buildBedSelector();
 }
 
 function renderPWBanner(bed) {
-  // Pick representative plant for this bed
-  const repPlants = {A:'tomato-ind', B:'brassica-broc', C:'zucchini', D:'chives'};
-  const rep = PLANT_IDX[repPlants[bed.key]];
+  const tenderOrder = ['verytender', 'tender', 'halfhardy', 'hardy'];
+  let rep = null;
+
+  // Most tender plant currently in this bed's design
+  const uniqueIds = [...new Set(Object.values(activeBedDesign))];
+  if (uniqueIds.length) {
+    let bestIdx = Infinity;
+    uniqueIds.forEach(id => {
+      const p = PLANT_IDX[id]; if (!p) return;
+      const idx = tenderOrder.indexOf(p.frostTol);
+      if (idx !== -1 && idx < bestIdx) { bestIdx = idx; rep = p; }
+    });
+  }
+
+  // Fall back to most tender live start in inventory for this bed
+  if (!rep) {
+    const liveStarts = (db.seeds || []).filter(s => s.storage === 'live' && s.bed === bed.key);
+    for (const s of liveStarts) {
+      const libId = seedToLibId(s);
+      const p = libId ? PLANT_IDX[libId] : null;
+      if (!p) continue;
+      const idx = tenderOrder.indexOf(p.frostTol);
+      if (!rep || idx < tenderOrder.indexOf(rep.frostTol)) rep = p;
+    }
+  }
+
   if (!rep) { document.getElementById('pw-banner').innerHTML = ''; return; }
   const timing = getPlantingStatus(rep, wxData);
   document.getElementById('pw-banner').innerHTML = `
     <div class="pw-banner ${timing.pwCls}">
       <div class="pw-icon">${timing.pwIcon}</div>
       <div class="pw-text">
-        <div class="pw-title">${bed.theme}: ${timing.label}</div>
+        <div class="pw-title">${rep.emoji} ${rep.name}: ${timing.label}</div>
         <div class="pw-sub">${timing.sublabel}</div>
       </div>
     </div>`;
@@ -2069,54 +2109,88 @@ function seedToLibId(seed) {
   return null;
 }
 
-function autoPopulateBed() {
-  const bedKey = activeBedKey;
-  const bed = db.beds.find(b => b.key === bedKey);
-  if (!bed) return;
-  const totalSq = bed.cols * bed.rows;
-
-  // Seeds/starts assigned to this specific bed
-  const bedSeeds = (db.seeds || []).filter(s => s.bed === bedKey);
-  if (!bedSeeds.length) {
-    alert(`No seeds or starts are assigned to Bed ${bedKey} in your inventory.`);
-    return;
-  }
-
+function autoPopulateAllBeds() {
   db.bedDesigns = db.bedDesigns || {};
   db.bedStatuses = db.bedStatuses || {};
-  const design = {...(db.bedDesigns[bedKey] || {})};
-  const statuses = {...(db.bedStatuses[bedKey] || {})};
 
-  // Don't overwrite confirmed (planned/planted) squares — only fill empty or re-suggest empty slots
-  const toPlace = [];
-  bedSeeds.forEach(seed => {
+  // Working copies for each bed
+  const designs = {}, statuses = {}, capacities = {};
+  db.beds.forEach(b => {
+    designs[b.key] = {...(db.bedDesigns[b.key] || {})};
+    statuses[b.key] = {...(db.bedStatuses[b.key] || {})};
+    capacities[b.key] = b.cols * b.rows;
+  });
+
+  function remainingSq(bedKey) {
+    const d = designs[bedKey], s = statuses[bedKey], cap = capacities[bedKey];
+    if (!d || cap === undefined) return 0;
+    let n = 0;
+    for (let i = 0; i < cap; i++) if (!d[i] || s[i] === 'suggested') n++;
+    return n;
+  }
+
+  function fillBed(bedKey, libId, sqNeeded) {
+    const d = designs[bedKey], s = statuses[bedKey], cap = capacities[bedKey];
+    if (!d || cap === undefined) return;
+    for (let i = 0; i < cap && sqNeeded > 0; i++) {
+      if (!d[i] || s[i] === 'suggested') { d[i] = libId; s[i] = 'suggested'; sqNeeded--; }
+    }
+  }
+
+  // Build priority-sorted candidate list
+  // Priority 0: live starts with direct bed assignment
+  // Priority 1: seeds with direct bed assignment
+  // Priority 2: live starts with bed:'any' that fit a bed's bestBeds
+  // Priority 3: seeds with bed:'any' that fit a bed's bestBeds
+  const candidates = [];
+  (db.seeds || []).forEach(seed => {
     const libId = seedToLibId(seed);
     if (!libId) return;
     const plant = PLANT_IDX[libId];
     if (!plant) return;
+    const isLive = seed.storage === 'live';
     const qty = seed.qty || 1;
-    const sqNeeded = Math.max(1, Math.round((plant.sqFt || 1) * qty));
-    toPlace.push({libId, sqNeeded});
-  });
-
-  toPlace.forEach(({libId, sqNeeded}) => {
-    let placed = 0;
-    for (let i = 0; i < totalSq && placed < sqNeeded; i++) {
-      const existingStatus = statuses[i];
-      // Only fill squares that are empty or currently just suggested
-      if (!design[i] || existingStatus === 'suggested') {
-        design[i] = libId;
-        statuses[i] = 'suggested';
-        placed++;
-      }
+    // Area: for live starts use exact qty×sqFt; for seeds allocate reasonable patch
+    let sqNeeded;
+    if (isLive) {
+      sqNeeded = Math.max(1, Math.round(plant.sqFt * qty));
+    } else {
+      if (plant.sqFt >= 4) sqNeeded = plant.sqFt;
+      else if (plant.sqFt >= 1) sqNeeded = Math.max(2, Math.round(plant.sqFt * 2));
+      else sqNeeded = 4; // small plants: reasonable patch
+    }
+    if (seed.bed !== 'any') {
+      candidates.push({libId, bedKey: seed.bed, sqNeeded, priority: isLive ? 0 : 1});
+    } else {
+      candidates.push({libId, bedKey: null, sqNeeded, priority: isLive ? 2 : 3, bestBeds: plant.bestBeds});
     }
   });
 
-  db.bedDesigns[bedKey] = design;
-  db.bedStatuses[bedKey] = statuses;
+  candidates.sort((a, b) => a.priority - b.priority);
+
+  candidates.forEach(({libId, bedKey, sqNeeded, bestBeds}) => {
+    if (bedKey) {
+      if (capacities[bedKey] !== undefined) fillBed(bedKey, libId, sqNeeded);
+    } else if (bestBeds && bestBeds.length) {
+      // Pick bed with most remaining space from the plant's preferred beds
+      const valid = bestBeds.filter(k => capacities[k] !== undefined);
+      if (!valid.length) return;
+      const target = valid.reduce((best, k) => remainingSq(k) > remainingSq(best) ? k : best, valid[0]);
+      fillBed(target, libId, sqNeeded);
+    }
+  });
+
+  // Save all beds
+  db.beds.forEach(b => {
+    db.bedDesigns[b.key] = designs[b.key];
+    db.bedStatuses[b.key] = statuses[b.key];
+  });
   saveDB(db);
-  activeBedDesign = {...design};
-  activeBedStatuses = {...statuses};
+
+  // Refresh current bed view
+  activeBedDesign = {...designs[activeBedKey]};
+  activeBedStatuses = {...statuses[activeBedKey]};
+  buildBedSelector();
   renderDesign();
 }
 
