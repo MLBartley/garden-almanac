@@ -393,6 +393,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 .store-freezer{background:#e8f0f8;color:#1a3a60;}
 .store-cool{background:#f5edd8;color:#8a6010;}
 .store-ambient{background:#e8e4d8;color:#6a5840;}
+.store-live{background:#e2f0e4;color:#2a6a2a;font-weight:600;}
 .ai-thinking{display:flex;align-items:center;gap:9px;padding:13px;background:#f0f5f0;border:1px solid #c4d4c5;border-radius:var(--radius);margin-bottom:11px;}
 .ai-dot{width:7px;height:7px;border-radius:50%;background:var(--moss);animation:pulse 1.2s infinite;}
 .ai-dot:nth-child(2){animation-delay:.2s;}
@@ -1211,6 +1212,8 @@ function loadDB() {
         if (missing.length) d.plants = d.plants.concat(missing); }
       if (!d.harvestLog) d.harvestLog = [];
       if (!d.plantingList) d.plantingList = [];
+      // Overwrite Amalthia Farm starts with current complete list
+      d.seeds=(d.seeds||[]).filter(s=>!(s.source||'').includes('Amalthia Farm'));
       // Additive migration: add any new defaultSeeds() IDs not yet in local data
       { const knownSeedIds = new Set((d.seeds||[]).map(s=>s.id));
         const missSeeds = defaultSeeds().filter(s=>!knownSeedIds.has(s.id));
@@ -1299,6 +1302,43 @@ function defaultSeeds() {
      notes:'You have 3 sugar pie varieties — choose ONE this season. 100d: start indoors now for June 1 transplant. THREE SISTERS squash component for Bed A, or plant at edge of Bed C.'},
     {id:'seed-rg-03',name:'Beans',variety:'Scarlet Rattlesnake Pole',days:'68',bed:'A',storage:'cool',source:rg,qty:1,addedDate:d,thumb:t,thumbType:tt,
      notes:'Heirloom pole bean, scarlet-striped pods. THREE SISTERS bean component. Direct sow when corn is 4–6" tall (~June 5–10). Nitrogen-fixing. Scarlet flowers attract pollinators.'},
+    // ── AMALTHIA FARM STARTS 2026 (live transplants)
+    {id:'seed-af-01',name:'Kale',variety:'Curly',days:'55',bed:'B',storage:'live',source:'Amalthia Farm 2026',qty:4,addedDate:'2026-05-18',thumb:'',thumbType:'',
+     notes:'Live start — plant in Bed B now. Harvest outer leaves continuously. Frost sweetens flavor; productive into November in Zone 5b.'},
+    {id:'seed-af-02',name:'Kale',variety:'Lacinato (Dinosaur)',days:'55',bed:'B',storage:'live',source:'Amalthia Farm 2026',qty:4,addedDate:'2026-05-18',thumb:'',thumbType:'',
+     notes:'Live start — plant in Bed B now. Dark crinkled leaves, excellent cooked. More cold-hardy than curly kale.'},
+    {id:'seed-af-03',name:'Broccoli',variety:'(Amalthia Farm)',days:'50',bed:'B',storage:'live',source:'Amalthia Farm 2026',qty:4,addedDate:'2026-05-18',thumb:'',thumbType:'',
+     notes:'Live start — plant in Bed B now. Space 18" apart (2 sq ft each). Harvest main head then side shoots continue all season. Use row cover for flea beetles.'},
+    {id:'seed-af-04',name:'Pepper',variety:'Serrano',days:'75',bed:'A',storage:'live',source:'Amalthia Farm 2026',qty:1,addedDate:'2026-05-18',thumb:'',thumbType:'',
+     notes:'Live start — hot pepper, Zone 5b marginal. Wall-o-water or row cover for first 2 weeks. Warmest spot in Bed A. Serrano is faster-maturing than bell — good choice for short season.'},
+    {id:'seed-af-05',name:'Chard',variety:'Rainbow',days:'35',bed:'B',storage:'live',source:'Amalthia Farm 2026',qty:4,addedDate:'2026-05-18',thumb:'',thumbType:'',
+     notes:'Live start — plant in Bed B. Cut-and-come-again; harvest outer stalks continuously. Tolerates both heat and frost — one of the longest-producing crops in the garden.'},
+    {id:'seed-af-06',name:'Bok Choy',variety:'(Amalthia Farm)',days:'35',bed:'D',storage:'live',source:'Amalthia Farm 2026',qty:4,addedDate:'2026-05-18',thumb:'',thumbType:'',
+     notes:'Live start — plant in Bed D. Shade-tolerant; aspen cover is ideal. Harvest whole head at base or cut outer leaves. Will bolt in summer heat — harvest before then.'},
+    {id:'seed-af-07',name:'Tomato',variety:'Pink Berkeley Tie Dye',days:'80',bed:'A',storage:'live',source:'Amalthia Farm 2026',qty:2,addedDate:'2026-05-18',thumb:'',thumbType:'',
+     notes:'Live start — indeterminate. Plant in Bed A with cage or stake at transplant. Multicolored beefsteak-style. 80d from transplant — targets late-Aug harvest. Wall-o-water for first 2 weeks if nights still cold.'},
+    {id:'seed-af-08',name:'Tomato',variety:'Roma',days:'75',bed:'A',storage:'live',source:'Amalthia Farm 2026',qty:2,addedDate:'2026-05-18',thumb:'',thumbType:'',
+     notes:'Live start — determinate paste tomato. Plant in Bed A. Sets all fruit at once — excellent for canning/sauce. 75d. Good choice for Zone 5b short season.'},
+    {id:'seed-af-09',name:'Tomato',variety:'Cherokee Purple',days:'80',bed:'A',storage:'live',source:'Amalthia Farm 2026',qty:2,addedDate:'2026-05-18',thumb:'',thumbType:'',
+     notes:'Live start — indeterminate heirloom beefsteak. Plant in Bed A with cage/stake. Deep burgundy-purple, rich flavor. 80d — targets late-Aug. Wall-o-water for first 2 weeks.'},
+    {id:'seed-af-10',name:'Tomatillo',variety:'(Amalthia Farm)',days:'70',bed:'A',storage:'live',source:'Amalthia Farm 2026',qty:5,addedDate:'2026-05-18',thumb:'',thumbType:'',
+     notes:'⚠️ Live starts — 5 plants is very prolific; 2–3 is usually enough. MUST have 2+ plants for cross-pollination. Consider keeping 3 in Bed A and planting 2 in ground beds — each plant can yield 5+ lbs. Sprawling habit, needs staking or cage.'},
+    {id:'seed-af-11',name:'Dill',variety:'(Amalthia Farm)',days:'45',bed:'B',storage:'live',source:'Amalthia Farm 2026',qty:2,addedDate:'2026-05-18',thumb:'',thumbType:'',
+     notes:'Live start — note dill dislikes transplanting and bolts quickly from starts. Use for foliage now; let it self-seed for a permanent dill patch in future years. Companion for brassicas in Bed B.'},
+    {id:'seed-af-12',name:'Basil',variety:'(Amalthia Farm)',days:'30',bed:'A',storage:'live',source:'Amalthia Farm 2026',qty:2,addedDate:'2026-05-18',thumb:'',thumbType:'',
+     notes:'Live start — plant in Bed A alongside tomatoes. Pinch flower buds as they appear. Very frost-sensitive; do not plant until nights are reliably above 45°F.'},
+    {id:'seed-af-13',name:'Oregano',variety:'(Amalthia Farm)',days:'30',bed:'any',storage:'live',source:'Amalthia Farm 2026',qty:2,addedDate:'2026-05-18',thumb:'',thumbType:'',
+     notes:'Live start — perennial in Zone 5b if in a sheltered spot. Consider planting in herb section rather than a rotation bed. Harvest before flowering for best flavor. Cut back by half in late fall.'},
+    {id:'seed-af-14',name:'Mint',variety:'(Amalthia Farm)',days:'',bed:'any',storage:'live',source:'Amalthia Farm 2026',qty:1,addedDate:'2026-05-18',thumb:'',thumbType:'',
+     notes:'⚠️ HERB SECTION OR CONTAINERS ONLY — do not plant directly in raised beds. Spreads aggressively by rhizome and will take over. Container in ground or sunken pot barrier in herb section. Perennial.'},
+    {id:'seed-af-15',name:'Chamomile',variety:'(Amalthia Farm)',days:'60',bed:'any',storage:'live',source:'Amalthia Farm 2026',qty:1,addedDate:'2026-05-18',thumb:'',thumbType:'',
+     notes:'Live start — German chamomile is annual; Roman chamomile is perennial. Either works in herb section. Self-seeds prolifically once established. Harvest flowers as they fully open.'},
+    {id:'seed-af-16',name:'Marjoram',variety:'(Amalthia Farm)',days:'30',bed:'any',storage:'live',source:'Amalthia Farm 2026',qty:1,addedDate:'2026-05-18',thumb:'',thumbType:'',
+     notes:'Live start — tender perennial, treat as annual in Zone 5b or bring indoors for winter. Herb section or Bed D. Similar to oregano but sweeter. Harvest before flowering.'},
+    {id:'seed-af-17',name:'Parsley',variety:'(Amalthia Farm)',days:'30',bed:'D',storage:'live',source:'Amalthia Farm 2026',qty:3,addedDate:'2026-05-18',thumb:'',thumbType:'',
+     notes:'Live start — biennial. Plant in Bed D (shade-tolerant). Harvest outer stems continuously. Host plant for black swallowtail butterfly larvae — leave some if you see caterpillars.'},
+    {id:'seed-af-18',name:'Rosemary',variety:'(Amalthia Farm)',days:'',bed:'any',storage:'live',source:'Amalthia Farm 2026',qty:1,addedDate:'2026-05-18',thumb:'',thumbType:'',
+     notes:'Live start — borderline hardy for Zone 5b. Plant in sunniest, most sheltered spot (herb section south-facing if possible). Mulch heavily before first frost. Consider bringing indoors Nov–Mar or treat as annual.'},
     // ── FERRY MORSE
     {id:'seed-fm-01',name:'Leek',variety:'American Flag',days:'130',bed:'B',storage:'cool',source:fm,qty:1,addedDate:d,thumb:t,thumbType:tt,
      notes:'Classic reliable leek, 130d. You have 3 leek varieties — American Flag is the most forgiving. Direct sow now for small fall leeks; start properly indoors next Feb for full-size.'},
@@ -2021,7 +2061,7 @@ function renderJournal(){
 // ════════════════════════════════════════
 let currentScanImageB64=null, scanQty=1, activeSeedFilter='all';
 const BED_INFO={A:{label:'Bed A',cls:'bed-a-tag',emoji:'🍅'},B:{label:'Bed B',cls:'bed-b-tag',emoji:'🥦'},C:{label:'Bed C',cls:'bed-c-tag',emoji:'🥒'},D:{label:'Bed D',cls:'bed-d-tag',emoji:'🌿'},any:{label:'Unassigned',cls:'bed-any-tag',emoji:'📦'}};
-const STORAGE_INFO={fridge:{label:'Fridge',cls:'store-fridge',icon:'🧊'},freezer:{label:'Freezer',cls:'store-freezer',icon:'❄️'},cool:{label:'Cool dark',cls:'store-cool',icon:'🏠'},ambient:{label:'Shelf',cls:'store-ambient',icon:'📦'}};
+const STORAGE_INFO={fridge:{label:'Fridge',cls:'store-fridge',icon:'🧊'},freezer:{label:'Freezer',cls:'store-freezer',icon:'❄️'},cool:{label:'Cool dark',cls:'store-cool',icon:'🏠'},ambient:{label:'Shelf',cls:'store-ambient',icon:'📦'},live:{label:'Plant soon',cls:'store-live',icon:'🌱'}};
 function toggleStorageGuide(){
   const g=document.getElementById('storage-guide');
   const btn=document.getElementById('storage-guide-btn');
