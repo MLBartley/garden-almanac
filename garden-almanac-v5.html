@@ -1035,6 +1035,10 @@ function loadDB() {
         const fresh = defaultBeds();
         d.beds = d.beds.map((b,i) => Object.assign({}, fresh[i] || b, {current: b.current, bedDesigns: b.bedDesigns}));
       }
+      // Additive migration: add any new defaultPlants() IDs not yet in local data
+      { const knownIds = new Set(d.plants.map(p => p.id));
+        const missing = defaultPlants().filter(p => !knownIds.has(p.id));
+        if (missing.length) d.plants = d.plants.concat(missing); }
       saveDB(d);
       return d;
     }
@@ -1066,6 +1070,44 @@ function defaultPlants() {
     {id:'p5',category:'edible',common:'Chives',latin:'Allium schoenoprasum',emoji:'🌿',location:'Bed D',bloom:'June',notes:'Tolerates partial shade well. Divide clumps every 2–3 years in spring.',added:'2024-05'},
     {id:'p6',category:'edible',common:'Thyme',latin:'Thymus vulgaris',emoji:'🍃',location:'Bed D',bloom:'July',notes:'Prefers full sun — place in sunniest spot of Bed D (east end, morning sun). Hardy to Zone 4.',added:'2024-05'},
     {id:'p7',category:'edible',common:'Oregano',latin:'Origanum vulgare',emoji:'🌱',location:'Bed D',bloom:'August',notes:'Tolerates partial shade. Spreads — divide or cut back annually. Cut to ground in spring.',added:'2024-05'},
+    // ── NATIVE GROUNDCOVERS + LOW PERENNIALS
+    {id:'p20',category:'native',common:'Wild Strawberry',latin:'Fragaria virginiana',emoji:'🍓',location:'Native yard',bloom:'May',notes:'Spreads by runners — excellent native groundcover. Fruit small but flavorful. Important for pollinators.',added:'2023-05'},
+    {id:'p21',category:'native',common:'Common Violet',latin:'Viola canadensis',emoji:'💜',location:'Native yard',bloom:'May',notes:'Self-seeds readily. Larval host for fritillary butterflies. Tolerates partial shade.',added:'2023-05'},
+    {id:'p22',category:'native',common:'Prairie Smoke',latin:'Geum triflorum',emoji:'🌸',location:'Native yard',bloom:'May',notes:'One of the first natives to bloom. Feathery seed heads are the real show — do not deadhead.',added:'2023-05'},
+    {id:'p23',category:'native',common:'Blue Flax',latin:'Linum lewisii',emoji:'💙',location:'Native yard',bloom:'May',notes:'Self-seeds freely. Blooms for weeks. Very drought-tolerant once established. Cut back after bloom to prevent excessive seeding.',added:'2022-05'},
+    {id:'p24',category:'native',common:'Sulphur Buckwheat',latin:'Eriogonum umbellatum',emoji:'🌼',location:'Native yard',bloom:'June',notes:'Extremely drought-tolerant. Excellent for dry, rocky spots. Important early-season nectar source. Leaves often turn red in fall.',added:'2023-05'},
+    {id:'p25',category:'native',common:'Towering Rockcress',latin:'Boechera perennans',emoji:'🌿',location:'Native yard',bloom:'May',notes:'Tall native biennial/perennial. White flowers in May. Let self-seed for continuous succession.',added:'2023-05'},
+    {id:'p26',category:'native',common:'Sticky Geranium',latin:'Geranium viscosissimum',emoji:'🌸',location:'Native yard',bloom:'June',notes:'Long-blooming native geranium. Covered in fine sticky hairs. Excellent for pollinators and very tough in Zone 5b.',added:'2023-05'},
+    {id:'p27',category:'native',common:'Roundleaf Allium',latin:'Allium rotundum',emoji:'🧅',location:'Native yard',bloom:'June',notes:'Native ornamental onion. Tolerates drought. Attractive to pollinators. Leaves die back in summer.',added:'2023-05'},
+    // ── NATIVE TALL PERENNIALS
+    {id:'p28',category:'native',common:'Cutleaf Coneflower',latin:'Rudbeckia laciniata',emoji:'🌻',location:'Native yard',bloom:'July',notes:'Tall, bold native. Thrives in moisture-retentive spots. Goldfinches love the seeds — leave heads through winter.',added:'2023-05'},
+    {id:'p29',category:'native',common:'Echinacea',latin:'Echinacea angustifolia',emoji:'🌸',location:'Native yard',bloom:'July',notes:'Native plains coneflower, extremely tough. Slower to establish than E. purpurea. Deep taproot — do not move once established. Leave seed heads for birds.',added:'2023-05'},
+    {id:'p30',category:'native',common:'Black-Eyed Susan',latin:'Rudbeckia hirta',emoji:'🌻',location:'Native yard',bloom:'July',notes:'Prolific self-seeder. Treated as biennial but naturalizes well. Drought-tolerant and long-blooming.',added:'2022-05'},
+    {id:'p31',category:'native',common:'Showy Milkweed',latin:'Asclepias speciosa',emoji:'🦋',location:'Native yard',bloom:'June',notes:'Essential monarch butterfly host. Spreads by rhizome — give it room. Fragrant pink flower clusters. Comes up late — mark location.',added:'2023-05'},
+    {id:'p32',category:'native',common:'Goldenrod',latin:'Solidago canadensis',emoji:'🌼',location:'Native yard',bloom:'August',notes:'Critical late-season nectar source. Can spread aggressively — divide every 2-3 years. Does NOT cause hay fever (insect-pollinated).',added:'2022-05'},
+    {id:'p33',category:'native',common:'Palmer\'s Penstemon',latin:'Penstemon palmeri',emoji:'💜',location:'Native yard',bloom:'June',notes:'Large pink/white tubular flowers, very fragrant. Short-lived perennial — allow to self-seed. Excellent for hummingbirds.',added:'2023-05'},
+    {id:'p34',category:'native',common:'Columbine',latin:'Aquilegia coerulea',emoji:'💙',location:'Native yard',bloom:'May',notes:'Colorado blue columbine. Self-seeds and hybridizes freely. Hummingbird magnet. Tolerates partial shade.',added:'2022-05'},
+    {id:'p35',category:'native',common:'Nodding Onion',latin:'Allium cernuum',emoji:'🌸',location:'Native yard',bloom:'July',notes:'Delicate drooping pink flowers. Self-seeds readily. Excellent pollinator plant. Deer-resistant.',added:'2023-05'},
+    {id:'p36',category:'native',common:'Yarrow',latin:'Achillea millefolium',emoji:'🌿',location:'Native yard',bloom:'June',notes:'Spreads by rhizome and seed — can be aggressive. Feathery foliage. Excellent for pollinators. Drought-tolerant.',added:'2022-05'},
+    {id:'p37',category:'native',common:'Colorado 4 O\'Clock',latin:'Mirabilis multiflora',emoji:'🌺',location:'Native yard',bloom:'July',notes:'Stunning magenta flowers that open late afternoon. Sprawling habit — needs space. Very drought-tolerant once established.',added:'2023-05'},
+    {id:'p38',category:'native',common:'Anise Hyssop',latin:'Agastache foeniculum',emoji:'💜',location:'Native yard',bloom:'July',notes:'Prolific self-seeder — manage seedlings. Beloved by bees and hummingbirds. Anise-scented foliage. Tolerates partial shade.',added:'2022-05'},
+    {id:'p39',category:'native',common:'Rocky Mountain Iris',latin:'Iris missouriensis',emoji:'💜',location:'Native yard',bloom:'May',notes:'Native iris, blooms briefly in May-June. Spreads by rhizome. Requires moist soil in spring. Toxic to dogs.',added:'2023-05'},
+    {id:'p40',category:'native',common:'Blanket Flower',latin:'Gaillardia aristata',emoji:'🌻',location:'Native yard',bloom:'June',notes:'Long-blooming native, June through frost. Very drought-tolerant. Short-lived — allow to self-seed for persistence.',added:'2022-05'},
+    {id:'p41',category:'native',common:'Yucca',latin:'Yucca glauca',emoji:'🌵',location:'Native yard',bloom:'June',notes:'Bold architectural plant. Pollinated exclusively by yucca moth. Extremely drought-tolerant. Cut flower stalks after bloom.',added:'2023-05'},
+    {id:'p42',category:'native',common:'Mountain Mint',latin:'Pycnanthemum virginianum',emoji:'🌿',location:'Native yard',bloom:'July',notes:'Incredibly attractive to pollinators — best plant in the yard for bee diversity when in bloom. Spreads by rhizome.',added:'2023-05'},
+    {id:'p43',category:'native',common:'Lead Plant',latin:'Amorpha canescens',emoji:'💜',location:'Native yard',bloom:'July',notes:'Nitrogen-fixing shrub, very tough and drought-tolerant. Purple spikes with orange anthers. Excellent for pollinators.',added:'2023-05'},
+    // ── NATIVE SHRUBS
+    {id:'p44',category:'native',common:'Golden Currant',latin:'Ribes aureum',emoji:'🌼',location:'Native yard + Herb section',bloom:'April',notes:'4 plants total — 2 in native yard, 2 in perennial herb section. One of the first shrubs to bloom — critical early nectar source. Edible yellow/black fruit. Hummingbirds visit fragrant flowers.',added:'2022-05'},
+    {id:'p45',category:'native',common:'Mock Orange',latin:'Philadelphus lewisii',emoji:'🌼',location:'Native yard',bloom:'June',notes:'Idaho state flower, native to MT. Intensely fragrant white flowers. Prune right after bloom — do not prune in spring.',added:'2022-05'},
+    {id:'p46',category:'native',common:'Elderberry',latin:'Sambucus racemosa',emoji:'🌿',location:'Native yard',bloom:'May',notes:'Red elderberry native to MT. Fast-growing shrub. Fruit attracts birds. Cut to ground every few years to rejuvenate.',added:'2023-05'},
+    {id:'p47',category:'native',common:'Shrubby Cinquefoil',latin:'Dasiphora fruticosa',emoji:'🌼',location:'Native yard',bloom:'June',notes:'Blooms continuously June through frost — outstanding performer. Very tough, Zone 3. Great low-maintenance shrub.',added:'2022-05'},
+    {id:'p48',category:'native',common:'Buffalo Berry',latin:'Shepherdia argentea',emoji:'🍊',location:'Native yard',bloom:'April',notes:'Silver-leaved native shrub. Nitrogen-fixing. Tart orange berries excellent for jam. Thorny — good wildlife cover. Dioecious — need male + female.',added:'2023-05'},
+    // ── PERENNIAL HERB SECTION (not a raised bed)
+    {id:'p49',category:'edible',common:'Lavender',latin:'Lavandula angustifolia',emoji:'💜',location:'Herb section',bloom:'July',notes:'Perennial in Zone 5b with good drainage and winter mulch. Cut back by 1/3 in spring — do not cut into woody stems. Excellent for pollinators.',added:'2023-05'},
+    {id:'p50',category:'edible',common:'Culinary Sage',latin:'Salvia officinalis',emoji:'🌿',location:'Herb section',bloom:'June',notes:'Perennial in Zone 5b. Cut back in spring before new growth. Prune after bloom. Drought-tolerant once established.',added:'2023-05'},
+    {id:'p51',category:'edible',common:'Fennel',latin:'Foeniculum vulgare',emoji:'🌿',location:'Herb section',bloom:'July',notes:'Perennial in Zone 5. Can reseed aggressively — deadhead before seed sets. Keep away from dill (cross-pollinates). Host plant for swallowtail butterflies.',added:'2023-05'},
+    {id:'p52',category:'edible',common:'French Tarragon',latin:'Artemisia dracunculus var. sativa',emoji:'🌿',location:'Herb section',bloom:'—',notes:'True French tarragon — must be propagated by division, not seed. Divide every 2-3 years to maintain vigor. Does not overwinter well in Zone 5 without mulch.',added:'2023-05'},
+    {id:'p53',category:'edible',common:'Parsley',latin:'Petroselinum crispum',emoji:'🌿',location:'Herb section',bloom:'Year 2',notes:'Biennial — harvested in year 1, flowers and sets seed in year 2. Sow new plants each spring. Host plant for black swallowtail butterfly larvae.',added:'2024-05'},
   ];
 }
 function defaultBeds() {
