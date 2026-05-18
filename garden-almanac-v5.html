@@ -91,6 +91,49 @@ html,body{height:100%;overflow:hidden;font-family:'Crimson Pro',Georgia,serif;ba
 .ws-do{background:rgba(126,200,126,.25);color:#9fc9a0;}
 .ws-soon{background:rgba(196,146,42,.22);color:#c4922a;}
 .ws-sow{background:rgba(91,143,168,.22);color:#8bbfd8;}
+/* ── YEAR TAB ── */
+.cl-month-hd{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--moss);padding:10px 0 5px;border-top:1px solid var(--rule);margin-top:4px;}
+.cl-month-hd:first-child{border-top:none;margin-top:0;padding-top:2px;}
+.cl-month-hd.current{color:var(--clay);}
+.cl-task{display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--rule);}
+.cl-task:last-child{border-bottom:none;}
+.cl-task input[type=checkbox]{width:16px;height:16px;flex-shrink:0;margin-top:2px;accent-color:var(--moss);cursor:pointer;}
+.cl-task-text{font-size:.85rem;line-height:1.4;flex:1;}
+.cl-task.done .cl-task-text{text-decoration:line-through;color:var(--muted);}
+.cl-cat{font-size:13px;flex-shrink:0;opacity:.7;}
+.hist-bed-block{background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:12px 13px;margin-bottom:9px;}
+.hist-bed-hd{font-weight:600;font-size:.92rem;margin-bottom:6px;}
+.hist-plant-row{display:flex;align-items:center;gap:6px;font-size:.82rem;padding:2px 0;}
+.hist-empty{color:var(--muted);font-size:.82rem;font-style:italic;}
+.rotation-card{background:#f5f0e8;border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-bottom:8px;}
+.rotation-family{font-family:'Space Mono',monospace;font-size:8px;color:var(--moss);margin-bottom:4px;letter-spacing:.08em;text-transform:uppercase;}
+.tumbler-card{background:var(--ink);color:var(--paper);border-radius:var(--radius);padding:13px 14px;margin-bottom:12px;}
+.tumbler-stat{font-family:'Space Mono',monospace;font-size:8px;color:var(--lichen);margin-bottom:3px;}
+.tumbler-stat strong{color:#9fc9a0;}
+.tumbler-ready{font-family:'Space Mono',monospace;font-size:8px;padding:3px 9px;border-radius:8px;display:inline-block;margin-top:6px;}
+.tr-green{background:rgba(126,200,126,.2);color:#9fc9a0;}
+.tr-yellow{background:rgba(196,146,42,.2);color:#c4922a;}
+.tr-gray{background:rgba(255,255,255,.1);color:var(--lichen);}
+.comp-log-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--rule);font-size:.82rem;}
+.comp-log-row:last-child{border-bottom:none;}
+.comp-badge{font-family:'Space Mono',monospace;font-size:7px;padding:2px 7px;border-radius:8px;flex-shrink:0;}
+.cb-turn{background:#e8f0e8;color:var(--moss);}
+.cb-add{background:#f5edd8;color:#8a6010;}
+.cb-harvest{background:#fde8d8;color:var(--clay);}
+.amend-row{display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid var(--rule);font-size:.82rem;}
+.amend-row:last-child{border-bottom:none;}
+.amend-bed-tag{font-family:'Space Mono',monospace;font-size:8px;padding:2px 7px;border-radius:6px;background:var(--surface);color:var(--muted);flex-shrink:0;margin-top:1px;}
+.wish-item{display:flex;align-items:flex-start;gap:9px;padding:8px 0;border-bottom:1px solid var(--rule);font-size:.85rem;}
+.wish-item:last-child{border-bottom:none;}
+.wish-name{font-weight:600;line-height:1.3;}
+.wish-note{font-size:.77rem;color:var(--muted);margin-top:1px;}
+.seed-save-card{background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-bottom:8px;}
+.ss-name{font-weight:600;font-size:.92rem;}
+.ss-meta{font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-top:3px;}
+.yoy-card{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-bottom:8px;}
+.yoy-date{font-family:'Space Mono',monospace;font-size:8px;color:var(--moss);margin-bottom:4px;letter-spacing:.06em;}
+.yoy-text{font-size:.83rem;line-height:1.5;}
+.bag-badge{font-family:'Space Mono',monospace;font-size:7px;padding:1px 6px;border-radius:6px;background:#f5edd8;color:#8a6010;margin-left:4px;}
 /* frost alert banner */
 #frost-alert-banner{display:none;margin-bottom:10px;}
 .frost-banner{border-radius:var(--radius);padding:13px 14px;border:1.5px solid;}
@@ -656,6 +699,9 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <button class="bed-filter-btn" onclick="filterSeeds('C',this)">Bed C</button>
         <button class="bed-filter-btn" onclick="filterSeeds('D',this)">Bed D</button>
         <button class="bed-filter-btn" onclick="filterSeeds('any',this)">Unassigned</button>
+        <button class="bed-filter-btn" onclick="filterSeeds('A1',this)">Bag A</button>
+        <button class="bed-filter-btn" onclick="filterSeeds('B1',this)">Bag B</button>
+        <button class="bed-filter-btn" onclick="filterSeeds('C1',this)">Bag C</button>
         <button class="bed-filter-btn" onclick="filterSeeds('skip',this)">💤 Next year</button>
       </div>
       <div id="seed-list"></div>
@@ -748,25 +794,96 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       </div>
     </div>
 
-    <!-- TIMELINE -->
-    <div class="view" id="view-timeline">
-      <div class="section-label">Year at a glance</div>
-      <div class="timeline-year-strip">
-        <div class="tys dormant-s">JAN</div><div class="tys dormant-s">FEB</div>
-        <div class="tys active-s">MAR</div><div class="tys active-s">APR</div>
-        <div class="tys active-s">MAY</div><div class="tys peak-s">JUN</div>
-        <div class="tys peak-s">JUL</div><div class="tys harvest-s">AUG</div>
-        <div class="tys harvest-s">SEP</div><div class="tys wind-s">OCT</div>
-        <div class="tys dormant-s">NOV</div><div class="tys dormant-s">DEC</div>
+    <!-- YEAR -->
+    <div class="view" id="view-year">
+      <div class="plant-view-toggle" style="overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
+        <button class="pvt-btn active" onclick="setYearTab('almanac',this)">Almanac</button>
+        <button class="pvt-btn" onclick="setYearTab('checklist',this)">Checklists</button>
+        <button class="pvt-btn" onclick="setYearTab('beds',this)">Bed History</button>
+        <button class="pvt-btn" onclick="setYearTab('compost',this)">Compost</button>
+        <button class="pvt-btn" onclick="setYearTab('plan',this)">Next Season</button>
       </div>
-      <div style="font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);display:flex;gap:9px;margin-bottom:13px;flex-wrap:wrap;">
-        <span style="color:#8a6010">● peak</span><span style="color:#8a3010">● harvest</span>
-        <span style="color:var(--moss)">● growth</span><span style="color:#6a5840">● wind-down</span>
+
+      <!-- ── ALMANAC ── -->
+      <div id="yr-almanac">
+        <div class="section-label" style="margin-top:0;">Year at a glance</div>
+        <div class="timeline-year-strip">
+          <div class="tys dormant-s">JAN</div><div class="tys dormant-s">FEB</div>
+          <div class="tys active-s">MAR</div><div class="tys active-s">APR</div>
+          <div class="tys active-s">MAY</div><div class="tys peak-s">JUN</div>
+          <div class="tys peak-s">JUL</div><div class="tys harvest-s">AUG</div>
+          <div class="tys harvest-s">SEP</div><div class="tys wind-s">OCT</div>
+          <div class="tys dormant-s">NOV</div><div class="tys dormant-s">DEC</div>
+        </div>
+        <div style="font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);display:flex;gap:9px;margin-bottom:13px;flex-wrap:wrap;">
+          <span style="color:#8a6010">● peak</span><span style="color:#8a3010">● harvest</span>
+          <span style="color:var(--moss)">● growth</span><span style="color:#6a5840">● wind-down</span>
+        </div>
+        <div class="section-label">Upcoming</div>
+        <div id="timeline-list"></div>
+        <div class="section-label">Full almanac</div>
+        <div id="full-calendar"></div>
       </div>
-      <div class="section-label">Upcoming</div>
-      <div id="timeline-list"></div>
-      <div class="section-label">Full almanac</div>
-      <div id="full-calendar"></div>
+
+      <!-- ── CHECKLISTS ── -->
+      <div id="yr-checklist" style="display:none;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding-top:4px;">
+          <button class="btn-sm" onclick="stepClYear(-1)">‹</button>
+          <span id="cl-year-label" style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;flex:1;text-align:center;"></span>
+          <button class="btn-sm" onclick="stepClYear(1)">›</button>
+        </div>
+        <div id="cl-content"></div>
+      </div>
+
+      <!-- ── BED HISTORY ── -->
+      <div id="yr-beds" style="display:none;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-top:4px;">
+          <button class="btn-sm" onclick="stepHistYear(-1)">‹</button>
+          <span id="hist-year-label" style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;flex:1;text-align:center;"></span>
+          <button class="btn-sm" onclick="stepHistYear(1)">›</button>
+        </div>
+        <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:14px;" onclick="snapshotBedHistory()">📸 Snapshot this season's beds</button>
+        <div id="hist-content"></div>
+        <div class="section-label">Crop rotation guide</div>
+        <div id="rotation-guide"></div>
+      </div>
+
+      <!-- ── COMPOST ── -->
+      <div id="yr-compost" style="display:none;">
+        <div class="section-label" style="margin-top:0;">🌀 Compost tumbler</div>
+        <div id="tumbler-status"></div>
+        <div style="display:flex;gap:8px;margin-bottom:14px;">
+          <button class="btn-sm" style="flex:1;padding:9px;" onclick="logTumblerTurn()">↺ Log turn</button>
+          <button class="btn-sm" style="flex:1;padding:9px;" onclick="openModal('compost-add-modal')">+ Add material</button>
+          <button class="btn-sm" style="flex:1;padding:9px;" onclick="logTumblerHarvest()">🌱 Harvested</button>
+        </div>
+        <div id="tumbler-log"></div>
+        <div class="section-label">🌱 Bed amendments</div>
+        <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:12px;" onclick="openModal('amendment-modal')">+ Log amendment</button>
+        <div id="amendment-list"></div>
+        <div class="section-label">💡 Recommendations</div>
+        <div id="amend-recs"></div>
+      </div>
+
+      <!-- ── NEXT SEASON ── -->
+      <div id="yr-plan" style="display:none;">
+        <div class="section-label" style="margin-top:0;">This week last year</div>
+        <div id="yoy-entries"></div>
+        <div class="section-label">Wishlist</div>
+        <div id="wishlist-content"></div>
+        <div style="display:flex;gap:6px;align-items:stretch;margin:10px 0 6px;">
+          <input id="wl-name" placeholder="What to grow or get…" style="flex:1;border:1px solid var(--rule);border-radius:4px;padding:7px 11px;font-family:'Crimson Pro',serif;font-size:.93rem;background:white;outline:none;">
+          <select id="wl-type" style="border:1px solid var(--rule);border-radius:4px;padding:7px 9px;font-family:'Space Mono',monospace;font-size:10px;background:white;outline:none;-webkit-appearance:none;">
+            <option value="seed">Seed</option><option value="plant">Plant</option>
+            <option value="tool">Tool</option><option value="other">Other</option>
+          </select>
+          <button class="btn-primary" style="padding:7px 12px;" onclick="addWishlistItem()">+ Add</button>
+        </div>
+        <input id="wl-notes" placeholder="Notes (optional)…" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:7px 11px;font-family:'Crimson Pro',serif;font-size:.93rem;background:white;outline:none;margin-bottom:14px;">
+        <div class="section-label">Seed saving log</div>
+        <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:12px;" onclick="openModal('seed-save-modal')">+ Log seed save</button>
+        <div id="seed-save-content"></div>
+      </div>
     </div>
 
   </div>
@@ -778,7 +895,81 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
     <button class="nav-btn" onclick="switchView('spring',this)"><span class="nav-icon">🌱</span>SPRING</button>
     <button class="nav-btn" onclick="switchView('design',this)"><span class="nav-icon">🗺</span>DESIGN</button>
     <button class="nav-btn" onclick="switchView('seeds',this)"><span class="nav-icon">🌾</span>SEEDS</button>
-    <button class="nav-btn" onclick="switchView('timeline',this)"><span class="nav-icon">📅</span>PLAN</button>
+    <button class="nav-btn" onclick="switchView('year',this)"><span class="nav-icon">📅</span>YEAR</button>
+  </div>
+
+  <!-- AMENDMENT MODAL -->
+  <div class="modal-overlay" id="amendment-modal">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-title">Log bed amendment</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px;">
+        <div class="ai-field">
+          <div class="ai-field-label">BED</div>
+          <select id="am-bed" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:8px 10px;font-family:'Crimson Pro',serif;font-size:.95rem;background:white;outline:none;">
+            <option value="">Select bed…</option>
+            <option value="A">Bed A</option><option value="B">Bed B</option>
+            <option value="C">Bed C</option><option value="D">Bed D</option>
+            <option value="A1">Bag A</option><option value="B1">Bag B</option><option value="C1">Bag C</option>
+            <option value="all">All beds</option>
+          </select>
+        </div>
+        <div class="ai-field">
+          <div class="ai-field-label">AMENDMENT TYPE</div>
+          <select id="am-type" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:8px 10px;font-family:'Crimson Pro',serif;font-size:.95rem;background:white;outline:none;">
+            <option value="">Select type…</option>
+            <option>Compost</option><option>Worm castings</option><option>Fertilizer</option>
+            <option>Lime</option><option>Sulfur</option><option>Bone meal</option>
+            <option>Blood meal</option><option>Kelp meal</option><option>Mulch</option><option>Other</option>
+          </select>
+        </div>
+        <div class="ai-field"><div class="ai-field-label">AMOUNT</div><input type="text" id="am-amount" placeholder="e.g. 2 inches, 5 lbs…"></div>
+        <div class="ai-field"><div class="ai-field-label">NOTES</div><input type="text" id="am-notes" placeholder="Optional notes…"></div>
+      </div>
+      <button class="btn-primary" style="width:100%;padding:11px;margin-top:14px;" onclick="saveAmendment()">Save amendment</button>
+      <button class="btn-sm" style="width:100%;padding:10px;margin-top:6px;" onclick="closeModal('amendment-modal')">Cancel</button>
+    </div>
+  </div>
+
+  <!-- COMPOST ADD MODAL -->
+  <div class="modal-overlay" id="compost-add-modal">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-title">Add material to tumbler</div>
+      <div style="margin-top:14px;">
+        <div class="ai-field"><div class="ai-field-label">WHAT DID YOU ADD?</div>
+          <textarea id="ca-notes" placeholder="e.g. Kitchen scraps, coffee grounds, garden waste…" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:9px 11px;font-family:'Crimson Pro',serif;font-size:.95rem;background:white;outline:none;resize:none;min-height:80px;"></textarea>
+        </div>
+      </div>
+      <button class="btn-primary" style="width:100%;padding:11px;margin-top:14px;" onclick="saveCompostAdd()">Log addition</button>
+      <button class="btn-sm" style="width:100%;padding:10px;margin-top:6px;" onclick="closeModal('compost-add-modal')">Cancel</button>
+    </div>
+  </div>
+
+  <!-- SEED SAVE MODAL -->
+  <div class="modal-overlay" id="seed-save-modal">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-title">Log saved seeds</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px;">
+        <div class="ai-field"><div class="ai-field-label">PLANT NAME</div><input type="text" id="ss-name" placeholder="e.g. Mortgage Lifter Tomato…"></div>
+        <div class="ai-field"><div class="ai-field-label">SOURCE PLANT / NOTES</div><input type="text" id="ss-source" placeholder="e.g. Best fruit from Bed A…"></div>
+        <div class="ai-field"><div class="ai-field-label">HARVEST DATE</div><input type="date" id="ss-date"></div>
+        <div class="ai-field"><div class="ai-field-label">QUANTITY (approx)</div><input type="text" id="ss-qty" placeholder="e.g. 50 seeds, 1 packet…"></div>
+        <div class="ai-field">
+          <div class="ai-field-label">STORAGE METHOD</div>
+          <select id="ss-storage" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:8px 10px;font-family:'Crimson Pro',serif;font-size:.95rem;background:white;outline:none;">
+            <option value="cool">Cool &amp; dry (envelope in tin)</option>
+            <option value="fridge">Fridge</option>
+            <option value="freezer">Freezer</option>
+            <option value="dark">Dark &amp; dry</option>
+          </select>
+        </div>
+        <div class="ai-field"><div class="ai-field-label">NOTES</div><input type="text" id="ss-notes" placeholder="Viability notes, germination tips…"></div>
+      </div>
+      <button class="btn-primary" style="width:100%;padding:11px;margin-top:14px;" onclick="saveSeedSave()">Save seed record</button>
+      <button class="btn-sm" style="width:100%;padding:10px;margin-top:6px;" onclick="closeModal('seed-save-modal')">Cancel</button>
+    </div>
   </div>
 
   <!-- PLANT PICKER MODAL -->
@@ -1295,6 +1486,22 @@ function loadDB() {
       { const knownSeedIds = new Set((d.seeds||[]).map(s=>s.id));
         const missSeeds = defaultSeeds().filter(s=>!knownSeedIds.has(s.id));
         if(missSeeds.length) d.seeds=(d.seeds||[]).concat(missSeeds); }
+      // Additive migration: add Bag A/B/C if not present
+      ['A1','B1','C1'].forEach((key,i)=>{
+        if(!d.beds.find(b=>b.key===key)){
+          const letters=['A','B','C'];
+          d.beds.push({id:'bed'+key,key,name:'Bag '+letters[i],dims:'25-gal bag',cols:2,rows:2,type:'bag',
+            theme:'Overwinter container',oya:0,shade:'full',
+            notes:'25-gallon cloth grow bag, south end of Bed '+letters[i]+'. Full sun. For tender perennials needing overwintering indoors. Move inside before Oct 1.',
+            history:[],current:[]});
+        }
+      });
+      if(!d.bedHistory)d.bedHistory={};
+      if(!d.amendments)d.amendments=[];
+      if(!d.compostLog)d.compostLog=[];
+      if(!d.wishlist)d.wishlist=[];
+      if(!d.seedSaving)d.seedSaving=[];
+      if(!d.checklists)d.checklists={};
       saveDB(d);
       return d;
     }
@@ -1306,7 +1513,8 @@ function loadDB() {
 function saveDB(db) { localStorage.setItem(DB_KEY, JSON.stringify(db)); }
 function defaultDB() {
   return { journal:[], plants:defaultPlants(), beds:defaultBeds(), seeds:defaultSeeds(), bedDesigns:{}, bedStatuses:{},
-    sowLogs:[], hardenLogs:[], oyaLogs:{}, harvestLog:[], plantingList:[], settings:{} };
+    sowLogs:[], hardenLogs:[], oyaLogs:{}, harvestLog:[], plantingList:[], settings:{},
+    bedHistory:{}, amendments:[], compostLog:[], wishlist:[], seedSaving:[], checklists:{} };
 }
 function defaultSeeds() {
   const td='Triple Divide Organic Seeds 2026', bc='Baker Creek Heirloom Seeds 2026',
@@ -1521,6 +1729,18 @@ function defaultBeds() {
      theme:'Perennial Herb Strip — west side, partial shade',oya:2,shade:'partial',
      notes:'West side of house. Partial shade from 4 backyard aspens — nearly full sun until aspens leaf out (~May 15), then 4–6 hrs direct sun. Best for shade-tolerant herbs: chives, oregano, parsley, cilantro, mint. Place thyme and sage at the east end for maximum sun. Avoid basil here.',
      history:[],current:[{name:'Chives',color:'#9b59b6',stage:'growing'},{name:'Thyme',color:'#4a7c5a',stage:'growing'},{name:'Oregano',color:'#2d7a3a',stage:'growing'}]},
+    {id:'bedA1',key:'A1',name:'Bag A',dims:'25-gal bag',cols:2,rows:2,type:'bag',
+     theme:'Overwinter container',oya:0,shade:'full',
+     notes:'25-gallon cloth grow bag, south end of Bed A. Full sun. For tender perennials needing overwintering indoors. Move inside before Oct 1.',
+     history:[],current:[]},
+    {id:'bedB1',key:'B1',name:'Bag B',dims:'25-gal bag',cols:2,rows:2,type:'bag',
+     theme:'Overwinter container',oya:0,shade:'full',
+     notes:'25-gallon cloth grow bag, south end of Bed B. Full sun. For tender perennials needing overwintering indoors. Move inside before Oct 1.',
+     history:[],current:[]},
+    {id:'bedC1',key:'C1',name:'Bag C',dims:'25-gal bag',cols:2,rows:2,type:'bag',
+     theme:'Overwinter container',oya:0,shade:'full',
+     notes:'25-gallon cloth grow bag, south end of Bed C. Full sun. For tender perennials needing overwintering indoors. Move inside before Oct 1.',
+     history:[],current:[]},
   ];
 }
 
@@ -2515,7 +2735,7 @@ function renderJournal(){
 //  SEEDS
 // ════════════════════════════════════════
 let currentScanImageB64=null, scanQty=1, activeSeedFilter='all';
-const BED_INFO={A:{label:'Bed A',cls:'bed-a-tag',emoji:'🍅'},B:{label:'Bed B',cls:'bed-b-tag',emoji:'🥦'},C:{label:'Bed C',cls:'bed-c-tag',emoji:'🥒'},D:{label:'Bed D',cls:'bed-d-tag',emoji:'🌿'},any:{label:'Unassigned',cls:'bed-any-tag',emoji:'📦'}};
+const BED_INFO={A:{label:'Bed A',cls:'bed-a-tag',emoji:'🍅'},B:{label:'Bed B',cls:'bed-b-tag',emoji:'🥦'},C:{label:'Bed C',cls:'bed-c-tag',emoji:'🥒'},D:{label:'Bed D',cls:'bed-d-tag',emoji:'🌿'},A1:{label:'Bag A',cls:'bed-a-tag',emoji:'🫙'},B1:{label:'Bag B',cls:'bed-b-tag',emoji:'🫙'},C1:{label:'Bag C',cls:'bed-c-tag',emoji:'🫙'},any:{label:'Unassigned',cls:'bed-any-tag',emoji:'📦'}};
 const STORAGE_INFO={fridge:{label:'Fridge',cls:'store-fridge',icon:'🧊'},freezer:{label:'Freezer',cls:'store-freezer',icon:'❄️'},cool:{label:'Cool dark',cls:'store-cool',icon:'🏠'},ambient:{label:'Shelf',cls:'store-ambient',icon:'📦'},live:{label:'Plant soon',cls:'store-live',icon:'🌱'}};
 function toggleStorageGuide(){
   const g=document.getElementById('storage-guide');
@@ -2698,6 +2918,105 @@ function renderPlants(){
 }
 
 // ════════════════════════════════════════
+// ════════════════════════════════════════
+//  MONTHLY CHECKLISTS — Zone 5b Bozeman
+// ════════════════════════════════════════
+const MONTHLY_TASKS={
+  1:{label:'January',tasks:[
+    {id:'j1',cat:'📋',text:'Finalize seed orders — High Mowing, Baker Creek, Fedco, Triple Divide'},
+    {id:'j2',cat:'🌾',text:'Inventory existing seeds — check viability, discard if over 3 years old'},
+    {id:'j3',cat:'📐',text:'Plan crop rotation for all beds based on last season notes'},
+    {id:'j4',cat:'🫙',text:'Check overwintered bags (A/B/C) indoors — minimal water, no fertilizer'},
+    {id:'j5',cat:'🔧',text:'Service and sharpen garden tools; check hose fittings'},
+  ]},
+  2:{label:'February',tasks:[
+    {id:'f1',cat:'🌱',text:'Start peppers indoors Feb 1–15 (10–12 weeks before May 15 last frost)'},
+    {id:'f2',cat:'🌱',text:'Start eggplant and any slow-growing herbs (rosemary, lavender) indoors'},
+    {id:'f3',cat:'💡',text:'Set up grow lights — 14–16 hrs/day for seedlings'},
+    {id:'f4',cat:'🫙',text:'Begin slowly increasing water to overwintered bag plants as days lengthen'},
+    {id:'f5',cat:'📋',text:'Draft bed plan layout — rotate families from prior year'},
+  ]},
+  3:{label:'March',tasks:[
+    {id:'m1',cat:'🌱',text:'Start tomatoes indoors Mar 1–15 (8–10 weeks before May 15)'},
+    {id:'m2',cat:'🌱',text:'Start brassicas indoors: broccoli, cabbage, cauliflower (6–8 weeks)'},
+    {id:'m3',cat:'🌱',text:'Start celery and celeriac indoors (12+ weeks to transplant)'},
+    {id:'m4',cat:'✂️',text:'Cut back perennial herbs (thyme, oregano, sage) to promote new growth'},
+    {id:'m5',cat:'🪴',text:'Start repotting overwintered bag plants into fresh mix if root-bound'},
+    {id:'m6',cat:'🔧',text:'Check drip irrigation / oya pots — repair or replace before season'},
+  ]},
+  4:{label:'April',tasks:[
+    {id:'a1',cat:'🥬',text:'Direct sow cold-tolerant crops outdoors Apr 1–15: spinach, arugula, lettuce, peas'},
+    {id:'a2',cat:'🥕',text:'Direct sow radishes, turnips, and kohlrabi — 30-day crops before frost'},
+    {id:'a3',cat:'🌿',text:'Begin hardening off brassica transplants: 1 hr/day outside, increasing weekly'},
+    {id:'a4',cat:'🌱',text:'Start cucumbers and squash indoors Apr 15 (4 weeks before transplant)'},
+    {id:'a5',cat:'🫙',text:'Move overwintered bags to sheltered outdoor spot on warm days (above 45°F)'},
+    {id:'a6',cat:'🧪',text:'Test soil in beds — amend with compost if not done in fall'},
+  ]},
+  5:{label:'May',tasks:[
+    {id:'my1',cat:'❄️',text:'Last frost May 15 — do NOT transplant tender crops before this date'},
+    {id:'my2',cat:'🌱',text:'After May 15: transplant tomatoes, peppers, eggplant, basil'},
+    {id:'my3',cat:'🌱',text:'After May 15: direct sow beans, cucumbers, squash, corn'},
+    {id:'my4',cat:'🫙',text:'Move grow bags (A/B/C) outside to permanent south-facing positions after May 15'},
+    {id:'my5',cat:'💧',text:'Install oya pots in beds — bury to neck, fill every 2–3 days'},
+    {id:'my6',cat:'🥕',text:'Direct sow carrots and beets when soil hits 50°F'},
+    {id:'my7',cat:'🌿',text:'Continue hardening off remaining transplants through May 10'},
+  ]},
+  6:{label:'June',tasks:[
+    {id:'jn1',cat:'💧',text:'Switch to oya-primary irrigation — fill all pots, check every 2–3 days'},
+    {id:'jn2',cat:'🪴',text:'Stake tomatoes and install cages; pinch suckers on indeterminate varieties'},
+    {id:'jn3',cat:'🌾',text:'Succession sow: arugula, lettuce, radishes every 2–3 weeks'},
+    {id:'jn4',cat:'✂️',text:'Pinch basil flowers to extend leaf production'},
+    {id:'jn5',cat:'🐛',text:'Scout for pests: cabbage worm on brassicas, aphids on anything'},
+    {id:'jn6',cat:'🌸',text:'Penstemon and flax blooming — peak early native pollinator season'},
+  ]},
+  7:{label:'July',tasks:[
+    {id:'jl1',cat:'🧄',text:'Harvest garlic early July when lower leaves begin dying back (6–8 leaves dead)'},
+    {id:'jl2',cat:'🥬',text:'Sow fall brassicas indoors Jul 15: broccoli, cabbage, kale (10 weeks to Sept 15)'},
+    {id:'jl3',cat:'🍅',text:'Watch for blossom drop on tomatoes if nights drop below 55°F'},
+    {id:'jl4',cat:'💧',text:'Deep water during heat spells — check oya pots daily above 85°F'},
+    {id:'jl5',cat:'✂️',text:'Deadhead spent flowers on natives to extend bloom; leave seed heads on coneflower'},
+    {id:'jl6',cat:'🌾',text:'Harvest peas and beans daily — prevents plant from shutting down'},
+  ]},
+  8:{label:'August',tasks:[
+    {id:'au1',cat:'🥬',text:'Direct sow fall arugula and spinach Aug 1–15 in Bed D (45 days to harvest)'},
+    {id:'au2',cat:'🧄',text:'Order hardneck garlic for October planting — Chesnok Red, Music, Georgian Crystal'},
+    {id:'au3',cat:'🍅',text:'Remove excess tomato foliage to focus energy on ripening fruit'},
+    {id:'au4',cat:'🫙',text:'Assess grow bag plants for overwinter potential — reduce watering to slow growth'},
+    {id:'au5',cat:'📋',text:'Start planning next year wishlist — what worked, what to try, rotation plan'},
+    {id:'au6',cat:'🌾',text:'Save seeds from open-pollinated varieties at peak ripeness'},
+  ]},
+  9:{label:'September',tasks:[
+    {id:'s1',cat:'❄️',text:'First frost watch ~Sept 20 — keep row cover and frost cloth ready'},
+    {id:'s2',cat:'🫙',text:'Bring grow bags indoors before Oct 1 — move to frost-free location'},
+    {id:'s3',cat:'🧄',text:'Plant garlic mid-Sept to Oct 1 — 4–6" deep, 6" apart, 2" straw mulch'},
+    {id:'s4',cat:'🥬',text:'Harvest remaining warm-season crops before frost; row cover extends brassicas'},
+    {id:'s5',cat:'🌱',text:'Transplant fall brassica starts (from July sow) after Aug 15'},
+    {id:'s6',cat:'🌾',text:'Asters blooming — critical late-season nectar for pollinators; do not cut'},
+  ]},
+  10:{label:'October',tasks:[
+    {id:'o1',cat:'🧄',text:'Finish garlic planting by Oct 15 — top-dress beds with 2–3" compost'},
+    {id:'o2',cat:'🫙',text:'Empty and clean oya pots — store inverted to prevent freeze cracking'},
+    {id:'o3',cat:'🍂',text:'Sheet mulch any grass creep areas with cardboard + 4" wood chips'},
+    {id:'o4',cat:'✂️',text:'Cut back annuals; leave native stems standing for overwintering insects'},
+    {id:'o5',cat:'🔧',text:'Winterize drip irrigation — drain all lines before hard freeze'},
+    {id:'o6',cat:'🌾',text:'Harvest remaining root vegetables before soil freezes hard'},
+  ]},
+  11:{label:'November',tasks:[
+    {id:'n1',cat:'📝',text:'Year-end garden review — journal what worked, what failed, what to rotate'},
+    {id:'n2',cat:'🌾',text:'Check seed saving log — packet and store saved seeds in cool dry location'},
+    {id:'n3',cat:'🫙',text:'Establish winter care routine for grow bag plants — low water, no fertilizer'},
+    {id:'n4',cat:'🔧',text:'Clean, oil, and store all tools in shed or garage'},
+    {id:'n5',cat:'📚',text:'Begin reviewing seed catalogs — Baker Creek, Seed Savers, High Mowing'},
+  ]},
+  12:{label:'December',tasks:[
+    {id:'d1',cat:'📚',text:'Seed catalog season — compile wish list across catalogs'},
+    {id:'d2',cat:'📋',text:'Draft next year bed plan — finalize rotation based on journal notes'},
+    {id:'d3',cat:'🫙',text:'Mid-winter check on overwintered bags — water only if completely dry'},
+    {id:'d4',cat:'🔧',text:'Repair or replace any broken tools, cages, or trellises before spring'},
+    {id:'d5',cat:'🌱',text:'Order any seeds that sell out early (heirloom varieties, specialty crops)'},
+  ]},
+};
+
 //  TIMELINE
 // ════════════════════════════════════════
 const CAL=[
@@ -3557,10 +3876,11 @@ function switchView(id,btn){
   if(id==='design') initDesignTab();
   if(id==='spring'){renderSpring();populateVegDatalist();}
   if(id==='plants') renderPlants();
+  if(id==='year') renderYear();
 }
 function openModal(id){
   const today=new Date().toISOString().slice(0,10);
-  const fields={'log-sow-modal':'ls-date','log-harden-modal':'lh-date','log-harvest-modal':'hv-date'};
+  const fields={'log-sow-modal':'ls-date','log-harden-modal':'lh-date','log-harvest-modal':'hv-date','seed-save-modal':'ss-date'};
   if(fields[id]){const f=document.getElementById(fields[id]);if(f&&!f.value)f.value=today;}
   if(id==='settings-modal'){
     document.getElementById('settings-api-key').value=getApiKey();
@@ -3713,7 +4033,326 @@ function renderWeekSprint() {
   el.innerHTML=`<div class="week-sprint"><div class="ws-header"><span>THIS WEEK IN THE GARDEN</span><span style="opacity:.6;">${dateStr}</span></div>${items.slice(0,6).map(i=>`<div class="ws-item"><div class="ws-icon">${i.icon}</div><div class="ws-text">${i.text}</div><div class="ws-badge ${i.cls}">${i.badge}</div></div>`).join('')}</div>`;
 }
 
-function renderAll(){renderJournal();renderPlants();renderTimeline();renderSeeds();renderSpring();renderReadyToPlant();renderWeekSprint();}
+// ════════════════════════════════════════
+//  YEAR TAB
+// ════════════════════════════════════════
+let activeYearTab='almanac';
+let clYear=new Date().getFullYear();
+let histYear=new Date().getFullYear();
+
+function setYearTab(tab,btn){
+  activeYearTab=tab;
+  document.querySelectorAll('#view-year .pvt-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  ['almanac','checklist','beds','compost','plan'].forEach(t=>{
+    const el=document.getElementById('yr-'+t);
+    if(el)el.style.display=t===tab?'':'none';
+  });
+  renderYearTabContent(tab);
+}
+function renderYearTabContent(tab){
+  if(tab==='almanac')renderTimeline();
+  else if(tab==='checklist')renderChecklists();
+  else if(tab==='beds')renderBedHistory();
+  else if(tab==='compost')renderCompost();
+  else if(tab==='plan')renderNextSeason();
+}
+function renderYear(){renderYearTabContent(activeYearTab);}
+
+// ── CHECKLISTS ──
+function stepClYear(d){clYear+=d;const el=document.getElementById('cl-year-label');if(el)el.textContent=clYear;renderChecklists();}
+function toggleChecklist(yr,monthKey,taskId,el){
+  if(!db.checklists)db.checklists={};
+  if(!db.checklists[yr])db.checklists[yr]={};
+  if(!db.checklists[yr][monthKey])db.checklists[yr][monthKey]={};
+  const current=db.checklists[yr][monthKey][taskId];
+  db.checklists[yr][monthKey][taskId]=!current;
+  saveDB(db);
+  el.closest('.cl-task').classList.toggle('done',!current);
+}
+function renderChecklists(){
+  const el=document.getElementById('cl-content');if(!el)return;
+  const labelEl=document.getElementById('cl-year-label');if(labelEl)labelEl.textContent=clYear;
+  const now=new Date();const curMonth=now.getMonth()+1;
+  const yearChecks=(db.checklists||{})[clYear]||{};
+  let html='';
+  for(let m=1;m<=12;m++){
+    const mo=MONTHLY_TASKS[m];if(!mo)continue;
+    const isCurrent=clYear===now.getFullYear()&&m===curMonth;
+    const monthChecks=yearChecks[String(m)]||{};
+    const done=mo.tasks.filter(t=>monthChecks[t.id]).length;
+    html+=`<div class="cl-month-hd${isCurrent?' current':''}">
+      ${mo.label.toUpperCase()} <span style="margin-left:8px;font-size:8px;opacity:.6;">${done}/${mo.tasks.length}</span>
+    </div>`;
+    html+=mo.tasks.map(t=>{
+      const checked=!!monthChecks[t.id];
+      return `<div class="cl-task${checked?' done':''}">
+        <input type="checkbox" ${checked?'checked':''} onchange="toggleChecklist(${clYear},'${m}','${t.id}',this)">
+        <div class="cl-task-text">${t.cat} ${t.text}</div>
+      </div>`;
+    }).join('');
+  }
+  el.innerHTML=html;
+}
+
+// ── BED HISTORY ──
+function stepHistYear(d){histYear+=d;const el=document.getElementById('hist-year-label');if(el)el.textContent=histYear;renderBedHistory();}
+function snapshotBedHistory(){
+  const yr=new Date().getFullYear();
+  if(!db.bedHistory)db.bedHistory={};
+  db.bedHistory[yr]={};
+  db.beds.forEach(b=>{
+    if(b.type==='bag')return;
+    const design=db.bedDesigns[b.key]||{};
+    const plants=Object.values(design).filter(Boolean).reduce((acc,id)=>{
+      if(!acc[id])acc[id]=0;acc[id]++;return acc;
+    },{});
+    db.bedHistory[yr][b.key]={plants,theme:b.theme,dims:b.dims};
+  });
+  saveDB(db);
+  renderBedHistory();
+}
+const FAMILY_MAP={
+  nightshade:['tomato','pepper','eggplant','tomatillo'],
+  brassica:['broccoli','cabbage','kale','cauliflower','kohlrabi','arugula','radish','turnip'],
+  root:['carrot','beet','parsnip','celeriac'],
+  allium:['onion','garlic','leek','chive','shallot'],
+  legume:['bean','pea'],
+  cucurbit:['cucumber','squash','zucchini','melon','pumpkin'],
+  leafy:['lettuce','spinach','chard','sorrel','celery'],
+  grass:['corn'],
+};
+function getFamily(libId){
+  const p=PLANT_IDX[libId];if(!p)return null;
+  const n=(p.name+' '+(p.variety||'')).toLowerCase();
+  for(const[fam,words]of Object.entries(FAMILY_MAP)){
+    if(words.some(w=>n.includes(w)))return fam;
+  }
+  return 'other';
+}
+function renderBedHistory(){
+  const labelEl=document.getElementById('hist-year-label');if(labelEl)labelEl.textContent=histYear;
+  const histEl=document.getElementById('hist-content');
+  const rotEl=document.getElementById('rotation-guide');
+  if(!histEl||!rotEl)return;
+  const snapshot=(db.bedHistory||{})[histYear];
+  if(!snapshot){
+    histEl.innerHTML=`<div class="card" style="text-align:center;color:var(--muted);font-size:.88rem;padding:18px;">No snapshot for ${histYear}.<br>Use "Snapshot this season's beds" to record what's growing.</div>`;
+    rotEl.innerHTML='';return;
+  }
+  let html='';
+  const beds=db.beds.filter(b=>b.type!=='bag');
+  beds.forEach(b=>{
+    const data=snapshot[b.key];if(!data)return;
+    const plantEntries=Object.entries(data.plants||{});
+    const plantList=plantEntries.map(([id,count])=>{
+      const p=PLANT_IDX[id];return p?`${p.emoji} ${p.name}${count>1?' ×'+count:''}`:id;
+    }).join(', ')||'<em style="color:var(--muted)">Empty</em>';
+    html+=`<div class="hist-bed-block"><div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.1em;color:var(--muted);margin-bottom:5px;">${(BED_INFO[b.key]||{}).label||b.key} — ${data.dims||''}</div><div style="font-size:.88rem;">${plantList}</div></div>`;
+  });
+  histEl.innerHTML=html||'<div class="card" style="color:var(--muted);text-align:center;padding:14px;">No beds recorded for '+histYear+'.</div>';
+  // Rotation guide from prior year
+  const prevSnapshot=(db.bedHistory||{})[histYear-1];
+  if(!prevSnapshot){rotEl.innerHTML=`<div class="rotation-card"><div style="font-size:.82rem;color:var(--muted);">Rotation guide available after two consecutive seasons are snapshotted.</div></div>`;return;}
+  const rotHints={
+    nightshade:'Follow with legumes or roots — heavy feeders deplete N.',
+    brassica:'Follow with nightshades or cucurbits — brassica clubroot resets.',
+    allium:'Good almost anywhere — suppresses some soilborne pests.',
+    legume:'Follow with heavy feeders (nightshades, brassicas) — fixes N.',
+    cucurbit:'Follow with alliums or leafy — light feeders.',
+    root:'Follow with leafy or legumes — leave loose soil.',
+    leafy:'Light feeder — can follow most families.',
+    grass:'Follow with legumes — corn depletes N heavily.',
+    other:'Rotate away from same family every year.',
+  };
+  let rotHtml='';
+  beds.forEach(b=>{
+    const prev=prevSnapshot[b.key];if(!prev)return;
+    const families=[...new Set(Object.keys(prev.plants||{}).map(id=>getFamily(id)).filter(Boolean))];
+    if(!families.length)return;
+    const hint=rotHints[families[0]]||rotHints.other;
+    rotHtml+=`<div class="rotation-card"><div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.1em;color:var(--muted);">${(BED_INFO[b.key]||{}).label||b.key}</div><div style="font-size:.8rem;margin-top:4px;"><strong>${families.join(', ')}</strong> in ${histYear-1}</div><div style="font-size:.78rem;color:var(--muted);margin-top:3px;">${hint}</div></div>`;
+  });
+  rotEl.innerHTML=rotHtml||'<div class="rotation-card" style="color:var(--muted);font-size:.82rem;">No rotation conflicts detected.</div>';
+}
+
+// ── COMPOST ──
+function logTumblerTurn(){
+  if(!db.compostLog)db.compostLog=[];
+  db.compostLog.unshift({id:'cl-'+Date.now(),type:'turn',date:new Date().toISOString(),notes:''});
+  saveDB(db);renderCompost();
+}
+function logTumblerHarvest(){
+  if(!db.compostLog)db.compostLog=[];
+  db.compostLog.unshift({id:'cl-'+Date.now(),type:'harvest',date:new Date().toISOString(),notes:'Compost harvested'});
+  saveDB(db);renderCompost();
+}
+function saveCompostAdd(){
+  const notes=document.getElementById('ca-notes')?.value.trim()||'';
+  if(!notes)return;
+  if(!db.compostLog)db.compostLog=[];
+  db.compostLog.unshift({id:'cl-'+Date.now(),type:'add',date:new Date().toISOString(),notes});
+  saveDB(db);closeModal('compost-add-modal');document.getElementById('ca-notes').value='';renderCompost();
+}
+function saveAmendment(){
+  const bed=document.getElementById('am-bed')?.value||'';
+  const type=document.getElementById('am-type')?.value||'';
+  const amount=document.getElementById('am-amount')?.value.trim()||'';
+  const notes=document.getElementById('am-notes')?.value.trim()||'';
+  if(!bed||!type)return;
+  if(!db.amendments)db.amendments=[];
+  db.amendments.unshift({id:'am-'+Date.now(),bed,type,amount,notes,date:new Date().toISOString()});
+  saveDB(db);closeModal('amendment-modal');
+  ['am-amount','am-notes'].forEach(f=>{const el=document.getElementById(f);if(el)el.value='';});
+  renderCompost();
+}
+function deleteAmendment(id){db.amendments=(db.amendments||[]).filter(a=>a.id!==id);saveDB(db);renderCompost();}
+function renderCompost(){
+  renderTumblerStatus();renderTumblerLog();renderAmendmentList();renderAmendRecs();
+}
+function renderTumblerStatus(){
+  const el=document.getElementById('tumbler-status');if(!el)return;
+  const log=(db.compostLog||[]);
+  const lastAdd=log.find(e=>e.type==='add');
+  const lastTurn=log.find(e=>e.type==='turn');
+  const lastHarvest=log.find(e=>e.type==='harvest');
+  let readyHtml='';
+  if(lastAdd){
+    const daysSince=Math.floor((Date.now()-new Date(lastAdd.date))/(1000*60*60*24));
+    const daysLeft=Math.max(0,42-daysSince);
+    const cls=daysLeft===0?'tr-green':daysLeft<14?'tr-yellow':'tr-gray';
+    const label=daysLeft===0?'Ready to harvest!':daysLeft<14?`~${daysLeft} days to ready`:`~${daysLeft} days to ready`;
+    readyHtml=`<div class="tumbler-ready ${cls}">${label}</div>`;
+  }
+  const fmt=d=>d?new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric'}):'Never';
+  el.innerHTML=`<div class="tumbler-card">
+    <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.12em;color:#9fc9a0;margin-bottom:8px;">🌀 TUMBLER STATUS</div>
+    <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:8px;">
+      <div class="tumbler-stat"><div style="font-size:.7rem;opacity:.6;">Last turned</div><strong>${fmt(lastTurn?.date)}</strong></div>
+      <div class="tumbler-stat"><div style="font-size:.7rem;opacity:.6;">Last addition</div><strong>${fmt(lastAdd?.date)}</strong></div>
+      <div class="tumbler-stat"><div style="font-size:.7rem;opacity:.6;">Last harvest</div><strong>${fmt(lastHarvest?.date)}</strong></div>
+    </div>
+    ${readyHtml}
+  </div>`;
+}
+function renderTumblerLog(){
+  const el=document.getElementById('tumbler-log');if(!el)return;
+  const log=(db.compostLog||[]).slice(0,12);
+  if(!log.length){el.innerHTML='<div style="color:var(--muted);font-size:.85rem;padding:10px 0;">No log entries yet.</div>';return;}
+  const clsMap={turn:'cb-turn',add:'cb-add',harvest:'cb-harvest'};
+  const labelMap={turn:'↺ TURN',add:'+ ADD',harvest:'🌱 HARVEST'};
+  el.innerHTML=log.map(e=>`<div class="comp-log-row">
+    <span class="comp-badge ${clsMap[e.type]||''}">${labelMap[e.type]||e.type.toUpperCase()}</span>
+    <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);margin-left:6px;">${new Date(e.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
+    ${e.notes?`<span style="font-size:.8rem;color:var(--ink);margin-left:8px;flex:1;">${e.notes}</span>`:''}
+  </div>`).join('');
+}
+function renderAmendmentList(){
+  const el=document.getElementById('amendment-list');if(!el)return;
+  const list=(db.amendments||[]).slice(0,20);
+  if(!list.length){el.innerHTML='<div style="color:var(--muted);font-size:.85rem;padding:10px 0;">No amendments logged yet.</div>';return;}
+  el.innerHTML=list.map(a=>`<div class="amend-row">
+    <span class="amend-bed-tag">${a.bed}</span>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:.88rem;font-weight:600;">${a.type}${a.amount?' — '+a.amount:''}</div>
+      ${a.notes?`<div style="font-size:.78rem;color:var(--muted);">${a.notes}</div>`:''}
+      <div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-top:2px;">${new Date(a.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>
+    </div>
+    <button onclick="deleteAmendment('${a.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:2px 6px;">✕</button>
+  </div>`).join('');
+}
+function renderAmendRecs(){
+  const el=document.getElementById('amend-recs');if(!el)return;
+  const HUNGRY=['tomato','pepper','eggplant','corn','squash','cucumber'];
+  const FIXER=['bean','pea'];
+  let recs=[];
+  db.beds.filter(b=>b.type!=='bag').forEach(b=>{
+    const design=db.bedDesigns[b.key]||{};
+    const ids=Object.values(design).filter(Boolean);
+    const names=ids.map(id=>(PLANT_IDX[id]?.name||'').toLowerCase());
+    const hasHungry=names.some(n=>HUNGRY.some(h=>n.includes(h)));
+    const hasFixer=names.some(n=>FIXER.some(h=>n.includes(h)));
+    const bi=BED_INFO[b.key]||{};
+    if(hasHungry)recs.push(`<div class="card" style="padding:11px 13px;"><span style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;">${bi.label||b.key}</span><br><span style="font-size:.84rem;">Heavy feeders detected — top-dress with 1–2" compost in May and again in July. Consider fish emulsion mid-season.</span></div>`);
+    else if(hasFixer)recs.push(`<div class="card" style="padding:11px 13px;"><span style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;">${bi.label||b.key}</span><br><span style="font-size:.84rem;">Legumes present — minimal N fertilizer needed. These beds will improve soil for next year's heavy feeders.</span></div>`);
+  });
+  el.innerHTML=recs.length?recs.join(''):'<div class="card" style="color:var(--muted);font-size:.85rem;padding:11px 13px;">Design your beds to generate tailored amendment recommendations.</div>';
+}
+
+// ── NEXT SEASON ──
+function renderNextSeason(){renderYOY();renderWishlist();renderSeedSaving();}
+function renderYOY(){
+  const el=document.getElementById('yoy-entries');if(!el)return;
+  const now=new Date();
+  const wkAgo=new Date(now);wkAgo.setFullYear(wkAgo.getFullYear()-1);
+  const low=new Date(wkAgo);low.setDate(low.getDate()-7);
+  const high=new Date(wkAgo);high.setDate(high.getDate()+7);
+  const entries=(db.journal||[]).filter(e=>{const d=new Date(e.date||e.id);return d>=low&&d<=high;});
+  if(!entries.length){el.innerHTML=`<div class="card" style="color:var(--muted);text-align:center;padding:14px;font-size:.85rem;">No journal entries from this week last year.</div>`;return;}
+  el.innerHTML=entries.map(e=>`<div class="yoy-card">
+    <div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:4px;">${new Date(e.date||e.id).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'})}</div>
+    <div style="font-size:.9rem;line-height:1.5;">${e.text||e.body||''}</div>
+  </div>`).join('');
+}
+function addWishlistItem(){
+  const name=document.getElementById('wl-name')?.value.trim()||'';
+  const type=document.getElementById('wl-type')?.value||'seed';
+  const notes=document.getElementById('wl-notes')?.value.trim()||'';
+  if(!name)return;
+  if(!db.wishlist)db.wishlist=[];
+  db.wishlist.unshift({id:'wl-'+Date.now(),name,type,notes,addedDate:new Date().toISOString()});
+  saveDB(db);
+  ['wl-name','wl-notes'].forEach(f=>{const el=document.getElementById(f);if(el)el.value='';});
+  renderWishlist();
+}
+function deleteWishlistItem(id){db.wishlist=(db.wishlist||[]).filter(w=>w.id!==id);saveDB(db);renderWishlist();}
+function renderWishlist(){
+  const el=document.getElementById('wishlist-content');if(!el)return;
+  const list=db.wishlist||[];
+  if(!list.length){el.innerHTML='<div style="color:var(--muted);font-size:.85rem;padding:8px 0 4px;">Add plants, tools, or ideas for next season.</div>';return;}
+  const typeIcon={seed:'🌾',plant:'🪴',tool:'🔧',other:'📌'};
+  el.innerHTML=list.map(w=>`<div class="wish-item">
+    <span style="font-size:1rem;">${typeIcon[w.type]||'📌'}</span>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:.9rem;font-weight:600;">${w.name}</div>
+      ${w.notes?`<div style="font-size:.78rem;color:var(--muted);">${w.notes}</div>`:''}
+    </div>
+    <button onclick="deleteWishlistItem('${w.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:2px 6px;">✕</button>
+  </div>`).join('');
+}
+function saveSeedSave(){
+  const name=document.getElementById('ss-name')?.value.trim()||'';
+  const source=document.getElementById('ss-source')?.value.trim()||'';
+  const date=document.getElementById('ss-date')?.value||'';
+  const qty=document.getElementById('ss-qty')?.value.trim()||'';
+  const storage=document.getElementById('ss-storage')?.value||'cool';
+  const notes=document.getElementById('ss-notes')?.value.trim()||'';
+  if(!name)return;
+  if(!db.seedSaving)db.seedSaving=[];
+  db.seedSaving.unshift({id:'ss-'+Date.now(),name,source,date,qty,storage,notes});
+  saveDB(db);closeModal('seed-save-modal');
+  ['ss-name','ss-source','ss-qty','ss-notes'].forEach(f=>{const el=document.getElementById(f);if(el)el.value='';});
+  renderSeedSaving();
+}
+function deleteSeedSave(id){db.seedSaving=(db.seedSaving||[]).filter(s=>s.id!==id);saveDB(db);renderSeedSaving();}
+function renderSeedSaving(){
+  const el=document.getElementById('seed-save-content');if(!el)return;
+  const list=db.seedSaving||[];
+  if(!list.length){el.innerHTML='<div style="color:var(--muted);font-size:.85rem;padding:8px 0 4px;">Log seeds you\'ve saved for replanting next season.</div>';return;}
+  const storageLabel={cool:'Cool & dry',freezer:'Freezer',fridge:'Fridge',dark:'Dark & dry'};
+  el.innerHTML=list.map(s=>`<div class="seed-save-card">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:.92rem;">${s.name}${s.source?` <span style="font-size:.78rem;color:var(--muted);font-weight:400;">from ${s.source}</span>`:''}</div>
+        <div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-top:3px;">${s.date?new Date(s.date+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):''} ${s.qty?'· '+s.qty+' seeds':''} · ${storageLabel[s.storage]||s.storage}</div>
+        ${s.notes?`<div style="font-size:.8rem;color:var(--muted);margin-top:3px;">${s.notes}</div>`:''}
+      </div>
+      <button onclick="deleteSeedSave('${s.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:2px 6px;flex-shrink:0;">✕</button>
+    </div>
+  </div>`).join('');
+}
+
+function renderAll(){renderJournal();renderPlants();renderTimeline();renderSeeds();renderSpring();renderReadyToPlant();renderWeekSprint();renderYear();}
 
 // ── INIT ──
 updateHeaderDate();loadWeather();renderAll();checkSyncStatus();
