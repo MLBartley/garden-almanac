@@ -30,9 +30,10 @@ html,body{height:100%;overflow:hidden;font-family:'Crimson Pro',Georgia,serif;ba
 .sync-ok{background:rgba(74,124,90,.2);color:#4a7c5a;}
 .sync-off{background:rgba(181,98,42,.15);color:var(--clay);}
 #scroll-area{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;}
-#bottom-nav{background:var(--ink);display:flex;align-items:stretch;flex-shrink:0;border-top:1px solid rgba(255,255,255,.06);height:calc(var(--nav-h) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);}
-.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:none;border:none;color:#5a6b5c;cursor:pointer;font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.04em;}
-.nav-btn .nav-icon{font-size:1.25rem;line-height:1;}
+#bottom-nav{background:var(--ink);display:flex;align-items:stretch;flex-shrink:0;border-top:1px solid rgba(255,255,255,.06);height:calc(var(--nav-h) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);overflow-x:auto;scrollbar-width:none;}
+#bottom-nav::-webkit-scrollbar{display:none;}
+.nav-btn{flex:0 0 auto;min-width:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:none;border:none;color:#5a6b5c;cursor:pointer;font-family:'Space Mono',monospace;font-size:7px;letter-spacing:.04em;padding:0 4px;}
+.nav-btn .nav-icon{font-size:1.2rem;line-height:1;}
 .nav-btn.active{color:#9fc9a0;}
 .view{display:none;padding:16px 16px 32px;}
 .view.active{display:block;}
@@ -425,9 +426,9 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
   #app-header{grid-area:header;border-left:1px solid rgba(255,255,255,.06);}
   #today-bar{grid-area:todaybar;border-left:1px solid rgba(255,255,255,.06);}
   #scroll-area{grid-area:content;min-height:0;overflow-y:auto;}
-  #bottom-nav{grid-area:nav;flex-direction:column;width:auto;height:auto;padding:16px 0 0;border-top:none;border-right:1px solid rgba(255,255,255,.08);align-items:stretch;justify-content:flex-start;gap:2px;}
-  #bottom-nav::before{content:'🌿 Almanac';display:block;color:#9fc9a0;font-family:'Crimson Pro',serif;font-size:.95rem;font-weight:600;letter-spacing:.03em;padding:0 16px 14px;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:6px;}
-  .nav-btn{flex:none;flex-direction:row;justify-content:flex-start;padding:11px 12px 11px 16px;gap:10px;font-size:9px;border-radius:0 6px 6px 0;margin-right:8px;width:auto;}
+  #bottom-nav{grid-area:nav;flex-direction:column;width:auto;height:auto;padding:16px 0 0;border-top:none;border-right:1px solid rgba(255,255,255,.08);align-items:stretch;justify-content:flex-start;gap:2px;overflow-x:visible;overflow-y:auto;}
+  #bottom-nav::before{content:'🌿 Almanac';display:block;color:#9fc9a0;font-family:'Crimson Pro',serif;font-size:.95rem;font-weight:600;letter-spacing:.03em;padding:0 16px 14px;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:6px;flex-shrink:0;}
+  .nav-btn{flex:none;min-width:auto;flex-direction:row;justify-content:flex-start;padding:11px 12px 11px 16px;gap:10px;font-size:9px;border-radius:0 6px 6px 0;margin-right:8px;width:auto;}
   .nav-btn .nav-icon{font-size:1rem;}
   .nav-btn.active{background:rgba(159,201,160,.12);color:#9fc9a0;}
   /* Views — more padding on desktop */
@@ -704,6 +705,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
   <div id="bottom-nav">
     <button class="nav-btn" onclick="switchView('today',this)"><span class="nav-icon">☀️</span>TODAY</button>
     <button class="nav-btn active" onclick="switchView('journal',this)"><span class="nav-icon">📓</span>JOURNAL</button>
+    <button class="nav-btn" onclick="switchView('plants',this)"><span class="nav-icon">🌿</span>PLANTS</button>
     <button class="nav-btn" onclick="switchView('spring',this)"><span class="nav-icon">🌱</span>SPRING</button>
     <button class="nav-btn" onclick="switchView('design',this)"><span class="nav-icon">🗺</span>DESIGN</button>
     <button class="nav-btn" onclick="switchView('seeds',this)"><span class="nav-icon">🌾</span>SEEDS</button>
@@ -2797,6 +2799,7 @@ function switchView(id,btn){
   document.getElementById('scroll-area').scrollTop=0;
   if(id==='design') initDesignTab();
   if(id==='spring'){renderSpring();populateVegDatalist();}
+  if(id==='plants') renderPlants();
 }
 function openModal(id){
   const today=new Date().toISOString().slice(0,10);
