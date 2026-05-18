@@ -293,6 +293,9 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 .sq.occupied{background:#f0f8f0;}
 .sq.warn{border-color:#e8a060!important;background:#fff8f0;}
 .sq.empty-sq{background:#fafaf7;}
+.sq.suggested{border:1.5px dashed #7ab07a!important;background:#f4fff4;}
+.sq.planted{border:2px solid #2a6a2a!important;background:#e2f0e2;}
+.sq-status-badge{position:absolute;top:1px;right:2px;font-size:9px;line-height:1;color:var(--moss);font-weight:700;}
 .sq-label{position:absolute;bottom:1px;left:0;right:0;text-align:center;font-family:'Space Mono',monospace;font-size:6px;color:var(--muted);line-height:1;overflow:hidden;white-space:nowrap;padding:0 2px;text-overflow:ellipsis;}
 
 /* Companion indicators */
@@ -480,7 +483,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
   <div id="scroll-area">
 
     <!-- TODAY -->
-    <div class="view" id="view-today">
+    <div class="view active" id="view-today">
       <div id="frost-alert-banner"></div>
       <div id="weather-card">
         <div class="wx-main">
@@ -511,7 +514,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
     </div>
 
     <!-- JOURNAL -->
-    <div class="view active" id="view-journal">
+    <div class="view" id="view-journal">
       <div class="journal-compose">
         <div class="journal-compose-header">NEW ENTRY · <span id="compose-date"></span></div>
         <div class="mood-row">
@@ -554,6 +557,12 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       <!-- Grid -->
       <div class="section-label">Bed layout <span id="grid-sq-count" style="font-weight:400;color:var(--muted);font-family:'Crimson Pro',serif;font-size:.85rem;text-transform:none;letter-spacing:0;margin-left:4px;"></span></div>
       <div class="grid-wrap"><div class="bed-grid" id="bed-grid"></div></div>
+      <div style="display:flex;gap:10px;font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);margin:5px 0 9px;flex-wrap:wrap;align-items:center;">
+        <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px dashed #7ab07a;background:#f4fff4;border-radius:3px;padding:1px 6px;">?</span> Suggested</span>
+        <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px solid rgba(0,0,0,.12);background:#f0f8f0;border-radius:3px;padding:1px 6px;">□</span> Planned</span>
+        <span style="display:flex;align-items:center;gap:3px;"><span style="border:2px solid #2a6a2a;background:#e2f0e2;border-radius:3px;padding:1px 6px;">✓</span> Planted</span>
+      </div>
+      <button class="btn-sm" style="width:100%;padding:8px;margin-bottom:12px;" onclick="autoPopulateBed()">✨ Auto-suggest from seed &amp; start inventory</button>
 
       <!-- Companion panel -->
       <div id="companion-panel-wrap"></div>
@@ -570,6 +579,10 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       <!-- Timing recommendations -->
       <div class="section-label">Planting timing — all planned plants</div>
       <div id="timing-list"></div>
+
+      <!-- Ground planting suggestions -->
+      <div class="section-label">What can go in the ground?</div>
+      <div id="ground-suggestions"></div>
     </div>
 
     <!-- SEEDS -->
@@ -717,8 +730,8 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
   </div>
 
   <div id="bottom-nav">
-    <button class="nav-btn" onclick="switchView('today',this)"><span class="nav-icon">☀️</span>TODAY</button>
-    <button class="nav-btn active" onclick="switchView('journal',this)"><span class="nav-icon">📓</span>JOURNAL</button>
+    <button class="nav-btn active" onclick="switchView('today',this)"><span class="nav-icon">☀️</span>TODAY</button>
+    <button class="nav-btn" onclick="switchView('journal',this)"><span class="nav-icon">📓</span>JOURNAL</button>
     <button class="nav-btn" onclick="switchView('plants',this)"><span class="nav-icon">🌿</span>PLANTS</button>
     <button class="nav-btn" onclick="switchView('spring',this)"><span class="nav-icon">🌱</span>SPRING</button>
     <button class="nav-btn" onclick="switchView('design',this)"><span class="nav-icon">🗺</span>DESIGN</button>
@@ -741,6 +754,22 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       </div>
       <div class="plant-lib-list" id="plant-lib-list"></div>
       <button class="btn-sm" style="width:100%;padding:10px;margin-top:10px;" onclick="closeModal('plant-picker-modal')">Cancel</button>
+    </div>
+  </div>
+
+  <!-- SQ STATUS MODAL -->
+  <div class="modal-overlay" id="sq-status-modal">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-title" id="sqm-title">Plant options</div>
+      <div class="modal-subtitle" id="sqm-sub"></div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px;">
+        <button class="btn-primary" onclick="confirmSq('planned')" style="padding:10px;">✓ Confirm as planned</button>
+        <button class="btn-primary" onclick="confirmSq('planted')" style="padding:10px;background:var(--moss);">🌱 Mark as planted</button>
+        <button class="btn-sm" style="width:100%;padding:10px;" onclick="changeSqPlant()">Change plant…</button>
+        <button class="btn-sm" style="width:100%;padding:10px;" onclick="removeSq()">Remove from bed</button>
+      </div>
+      <button class="btn-sm" style="width:100%;padding:10px;margin-top:6px;" onclick="closeModal('sq-status-modal')">Cancel</button>
     </div>
   </div>
 
@@ -1212,6 +1241,7 @@ function loadDB() {
         if (missing.length) d.plants = d.plants.concat(missing); }
       if (!d.harvestLog) d.harvestLog = [];
       if (!d.plantingList) d.plantingList = [];
+      if (!d.bedStatuses) d.bedStatuses = {};
       // Overwrite Amalthia Farm starts with current complete list
       d.seeds=(d.seeds||[]).filter(s=>!(s.source||'').includes('Amalthia Farm'));
       // Additive migration: add any new defaultSeeds() IDs not yet in local data
@@ -1228,7 +1258,7 @@ function loadDB() {
 }
 function saveDB(db) { localStorage.setItem(DB_KEY, JSON.stringify(db)); }
 function defaultDB() {
-  return { journal:[], plants:defaultPlants(), beds:defaultBeds(), seeds:defaultSeeds(), bedDesigns:{},
+  return { journal:[], plants:defaultPlants(), beds:defaultBeds(), seeds:defaultSeeds(), bedDesigns:{}, bedStatuses:{},
     sowLogs:[], hardenLogs:[], oyaLogs:{}, harvestLog:[], plantingList:[], settings:{} };
 }
 function defaultSeeds() {
@@ -1722,6 +1752,7 @@ function switchToToday(){
 // ════════════════════════════════════════
 let activeBedKey = 'A';
 let activeBedDesign = {}; // {sqIndex: plantId}
+let activeBedStatuses = {}; // {sqIndex: 'suggested'|'planned'|'planted'}
 let selectedSqIdx = null;
 let ppCategory = 'all';
 
@@ -1738,6 +1769,7 @@ function initDesignTab() {
 function selectBed(key, btn) {
   activeBedKey = key;
   activeBedDesign = (db.bedDesigns && db.bedDesigns[key]) ? {...db.bedDesigns[key]} : {};
+  activeBedStatuses = (db.bedStatuses && db.bedStatuses[key]) ? {...db.bedStatuses[key]} : {};
   document.querySelectorAll('.bed-sel-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   renderDesign();
@@ -1747,10 +1779,15 @@ function renderDesign() {
   const bed = db.beds.find(b => b.key === activeBedKey);
   if (!bed) return;
   activeBedDesign = (db.bedDesigns && db.bedDesigns[activeBedKey]) ? {...db.bedDesigns[activeBedKey]} : {};
+  activeBedStatuses = (db.bedStatuses && db.bedStatuses[activeBedKey]) ? {...db.bedStatuses[activeBedKey]} : {};
 
   const totalSq = bed.cols * bed.rows;
   const usedSq = Object.keys(activeBedDesign).length;
-  document.getElementById('grid-sq-count').textContent = `${usedSq}/${totalSq} sq ft planned`;
+  const confirmedSq = Object.keys(activeBedDesign).filter(i => activeBedStatuses[i] !== 'suggested').length;
+  const suggestedSq = usedSq - confirmedSq;
+  document.getElementById('grid-sq-count').textContent = suggestedSq > 0
+    ? `${confirmedSq} confirmed · ${suggestedSq} suggested / ${totalSq}`
+    : `${usedSq}/${totalSq} sq ft planned`;
 
   // Planting window banner (based on bed theme plant)
   renderPWBanner(bed);
@@ -1784,13 +1821,25 @@ function renderDesign() {
   for (let i = 0; i < totalSq; i++) {
     const plantId = activeBedDesign[i];
     const plant = plantId ? PLANT_IDX[plantId] : null;
+    const status = activeBedStatuses[i];
     const hasBadNeighbor = plant && [...badPairs].some(pair => pair.startsWith(plantId+':'));
     const sq = document.createElement('div');
-    sq.className = 'sq' + (plant ? ' occupied' : ' empty-sq') + (hasBadNeighbor ? ' warn' : '');
-    sq.innerHTML = plant
-      ? `${plant.emoji}<div class="sq-label">${plant.name.split(' ')[0]}</div>`
-      : `<span style="color:#ccc;font-size:.9rem">+</span>`;
-    sq.onclick = () => openPlantPicker(i);
+    let cls = 'sq';
+    if (!plant) cls += ' empty-sq';
+    else if (status === 'suggested') cls += ' suggested';
+    else if (status === 'planted') cls += ' planted';
+    else cls += ' occupied';
+    if (hasBadNeighbor) cls += ' warn';
+    sq.className = cls;
+    if (plant) {
+      const badge = status === 'suggested' ? '<div class="sq-status-badge">?</div>'
+                  : status === 'planted' ? '<div class="sq-status-badge">✓</div>' : '';
+      sq.innerHTML = `${plant.emoji}<div class="sq-label">${plant.name.split(' ')[0]}</div>${badge}`;
+      sq.onclick = () => openSqModal(i);
+    } else {
+      sq.innerHTML = `<span style="color:#ccc;font-size:.9rem">+</span>`;
+      sq.onclick = () => openPlantPicker(i);
+    }
     grid.appendChild(sq);
   }
 
@@ -1802,6 +1851,9 @@ function renderDesign() {
 
   // Timing
   renderTiming(placedIds);
+
+  // Ground planting suggestions
+  renderGroundSuggestions();
 }
 
 function renderPWBanner(bed) {
@@ -1917,6 +1969,157 @@ function renderTiming(placedIds) {
   }).join('');
 }
 
+// ── Ground planting suggestions ──
+function renderGroundSuggestions() {
+  const el = document.getElementById('ground-suggestions');
+  if (!el) return;
+  const seeds = db.seeds || [];
+  const cards = [];
+
+  // Seeds/starts with bed:'any' — ground or perennial bed candidates
+  const anyBed = seeds.filter(s => s.bed === 'any');
+  if (anyBed.length) {
+    cards.push(`<div class="card" style="margin-bottom:8px;">
+      <div style="font-weight:600;font-size:.9rem;margin-bottom:7px;">🌍 Ground or perennial bed candidates</div>
+      ${anyBed.map(s => {
+        const tag = s.storage === 'live' ? '<span style="font-family:\'Space Mono\',monospace;font-size:7px;background:#e2f0e4;color:#2a6a2a;padding:1px 5px;border-radius:3px;margin-right:4px;">LIVE START</span>' : '<span style="font-family:\'Space Mono\',monospace;font-size:7px;background:#f5edd8;color:#8a6010;padding:1px 5px;border-radius:3px;margin-right:4px;">SEED</span>';
+        const varNote = s.variety && !s.variety.startsWith('(') ? ` — ${s.variety}` : '';
+        const firstNote = (s.notes || '').split('.')[0];
+        return `<div style="font-size:.8rem;line-height:1.5;padding:5px 0;border-top:1px solid var(--rule);">${tag}<strong>${s.name}${varNote}</strong><br><span style="color:var(--muted)">${firstNote}.</span></div>`;
+      }).join('')}
+    </div>`);
+  }
+
+  // Tomatillos with qty > 2: suggest extras in ground
+  const tomatillos = seeds.filter(s => s.name.toLowerCase().includes('tomatillo') && (s.qty || 1) > 2);
+  tomatillos.forEach(s => {
+    const extras = s.qty - 3;
+    if (extras > 0) {
+      cards.push(`<div class="card" style="margin-bottom:8px;">
+        <div style="font-weight:600;font-size:.9rem;margin-bottom:4px;">🌿 Tomatillos — plant extras in ground</div>
+        <div style="font-size:.8rem;line-height:1.55;color:var(--ink);">You have <strong>${s.qty} tomatillo starts</strong>. Keep 2–3 in Bed A; plant ${extras} extra${extras>1?'s':''} in a sunny ground spot. Each plant sprawls 3–4 ft wide and yields 5+ lbs. Needs 2+ plants for cross-pollination.</div>
+      </div>`);
+    }
+  });
+
+  // Squash & pumpkins: let vines sprawl beyond beds
+  const squashes = seeds.filter(s => ['squash','pumpkin'].includes(s.name.toLowerCase()));
+  if (squashes.length) {
+    const varieties = squashes.map(s => s.variety && !s.variety.startsWith('(') ? `${s.name} (${s.variety})` : s.name).join(', ');
+    cards.push(`<div class="card" style="margin-bottom:8px;">
+      <div style="font-weight:600;font-size:.9rem;margin-bottom:4px;">🎃 Squash &amp; Pumpkins — let vines sprawl</div>
+      <div style="font-size:.8rem;line-height:1.55;color:var(--ink);"><strong>${varieties}</strong> — plant at the bed edge in Bed C or A, let vines trail out onto path or lawn. You have ${squashes.length} variety${squashes.length>1?'s — grow only ONE sugar pie variety this season':''}.
+      </div>
+    </div>`);
+  }
+
+  // Multiple sweet corn varieties — cross-pollination warning
+  const sweetCorns = seeds.filter(s => s.name.toLowerCase()==='corn' && !(s.notes||'').includes('DENT'));
+  if (sweetCorns.length > 1) {
+    cards.push(`<div class="card" style="margin-bottom:8px;">
+      <div style="font-weight:600;font-size:.9rem;margin-bottom:4px;">🌽 Corn — pick one sweet variety per season</div>
+      <div style="font-size:.8rem;line-height:1.55;color:var(--ink);">You have <strong>${sweetCorns.length} sweet corn varieties</strong>: ${sweetCorns.map(s=>s.variety).join(', ')}. Corn cross-pollinates on the wind — grow only one sweet variety per season (or separate sowing by 2+ weeks). Bed A fits a 4×8 block. <strong>Ashworth (68d) is the best Zone 5b choice.</strong></div>
+    </div>`);
+  }
+
+  if (!cards.length) {
+    el.innerHTML = `<div style="color:var(--muted);font-size:.83rem;padding:6px 0;">No ground planting notes for current inventory.</div>`;
+    return;
+  }
+  el.innerHTML = cards.join('');
+}
+
+// ── Auto-populate from inventory ──
+function seedToLibId(seed) {
+  const n = seed.name.toLowerCase();
+  const v = (seed.variety || '').toLowerCase();
+  if (n === 'tomato') return (v.includes('roma') || v.includes('paste')) ? 'tomato-det' : 'tomato-ind';
+  if (n === 'tomatillo') return 'tomato-det';
+  if (n === 'kale') return 'brassica-kale';
+  if (n === 'broccoli') return 'brassica-broc';
+  if (n === 'bok choy') return 'brassica-kale';
+  if (n === 'pepper') return 'pepper';
+  if (n === 'chard') return 'beet';
+  if (n === 'cucumber') return 'cucumber';
+  if (n === 'squash') return 'squash-winter';
+  if (n === 'pumpkin') return 'squash-winter';
+  if (n === 'zucchini') return 'zucchini';
+  if (n === 'beans' || n === 'bean') return 'bean-bush';
+  if (n === 'carrot') return 'carrot';
+  if (n === 'beet') return 'beet';
+  if (n === 'spinach') return 'spinach';
+  if (n === 'arugula') return 'arugula';
+  if (n === 'lettuce') return 'lettuce';
+  if (n === 'radish') return 'radish';
+  if (n === 'onion') return 'onion';
+  if (n === 'garlic') return 'garlic';
+  if (n === 'leek' || n === 'shallot') return 'onion';
+  if (n === 'peas') return null; // no pea in PLANT_LIB
+  if (n === 'corn') return null; // no corn in PLANT_LIB
+  if (n === 'basil') return 'basil';
+  if (n === 'cilantro') return 'cilantro';
+  if (n === 'dill') return 'dill';
+  if (n === 'parsley') return 'parsley';
+  if (n === 'chives') return 'chives';
+  if (n === 'thyme') return 'thyme';
+  if (n === 'oregano' || n === 'marjoram') return 'oregano';
+  if (n === 'rosemary') return 'thyme';
+  if (n === 'marigold') return 'marigold';
+  if (n === 'mint') return null; // container only
+  return null;
+}
+
+function autoPopulateBed() {
+  const bedKey = activeBedKey;
+  const bed = db.beds.find(b => b.key === bedKey);
+  if (!bed) return;
+  const totalSq = bed.cols * bed.rows;
+
+  // Seeds/starts assigned to this specific bed
+  const bedSeeds = (db.seeds || []).filter(s => s.bed === bedKey);
+  if (!bedSeeds.length) {
+    alert(`No seeds or starts are assigned to Bed ${bedKey} in your inventory.`);
+    return;
+  }
+
+  db.bedDesigns = db.bedDesigns || {};
+  db.bedStatuses = db.bedStatuses || {};
+  const design = {...(db.bedDesigns[bedKey] || {})};
+  const statuses = {...(db.bedStatuses[bedKey] || {})};
+
+  // Don't overwrite confirmed (planned/planted) squares — only fill empty or re-suggest empty slots
+  const toPlace = [];
+  bedSeeds.forEach(seed => {
+    const libId = seedToLibId(seed);
+    if (!libId) return;
+    const plant = PLANT_IDX[libId];
+    if (!plant) return;
+    const qty = seed.qty || 1;
+    const sqNeeded = Math.max(1, Math.round((plant.sqFt || 1) * qty));
+    toPlace.push({libId, sqNeeded});
+  });
+
+  toPlace.forEach(({libId, sqNeeded}) => {
+    let placed = 0;
+    for (let i = 0; i < totalSq && placed < sqNeeded; i++) {
+      const existingStatus = statuses[i];
+      // Only fill squares that are empty or currently just suggested
+      if (!design[i] || existingStatus === 'suggested') {
+        design[i] = libId;
+        statuses[i] = 'suggested';
+        placed++;
+      }
+    }
+  });
+
+  db.bedDesigns[bedKey] = design;
+  db.bedStatuses[bedKey] = statuses;
+  saveDB(db);
+  activeBedDesign = {...design};
+  activeBedStatuses = {...statuses};
+  renderDesign();
+}
+
 // ── Plant picker ──
 function openPlantPicker(sqIdx) {
   selectedSqIdx = sqIdx;
@@ -1987,6 +2190,7 @@ function renderPlantLib() {
 function placePlant(plantId) {
   if (selectedSqIdx === null) return;
   activeBedDesign[selectedSqIdx] = plantId;
+  activeBedStatuses[selectedSqIdx] = 'planned';
   closeModal('plant-picker-modal');
   renderDesign();
 }
@@ -2001,15 +2205,58 @@ function clearSquare() {
 function clearBedDesign() {
   if (!confirm('Clear all plants from this bed plan?')) return;
   activeBedDesign = {};
+  activeBedStatuses = {};
   db.bedDesigns = db.bedDesigns || {};
   db.bedDesigns[activeBedKey] = {};
+  db.bedStatuses = db.bedStatuses || {};
+  db.bedStatuses[activeBedKey] = {};
   saveDB(db);
+  renderDesign();
+}
+
+function openSqModal(sqIdx) {
+  selectedSqIdx = sqIdx;
+  const plant = PLANT_IDX[activeBedDesign[sqIdx]];
+  const status = activeBedStatuses[sqIdx] || 'planned';
+  const statusLabel = {suggested:'Suggested from inventory', planned:'Planned', planted:'Planted'}[status] || status;
+  document.getElementById('sqm-title').textContent = `${plant?.emoji || ''} ${plant?.name || 'Plant'}`;
+  document.getElementById('sqm-sub').textContent = `Status: ${statusLabel} — tap an action below`;
+  openModal('sq-status-modal');
+}
+
+function confirmSq(status) {
+  if (selectedSqIdx === null) return;
+  activeBedStatuses[selectedSqIdx] = status;
+  db.bedStatuses = db.bedStatuses || {};
+  db.bedStatuses[activeBedKey] = {...activeBedStatuses};
+  saveDB(db);
+  closeModal('sq-status-modal');
+  renderDesign();
+}
+
+function changeSqPlant() {
+  closeModal('sq-status-modal');
+  openPlantPicker(selectedSqIdx);
+}
+
+function removeSq() {
+  if (selectedSqIdx === null) return;
+  delete activeBedDesign[selectedSqIdx];
+  delete activeBedStatuses[selectedSqIdx];
+  db.bedDesigns = db.bedDesigns || {};
+  db.bedDesigns[activeBedKey] = {...activeBedDesign};
+  db.bedStatuses = db.bedStatuses || {};
+  db.bedStatuses[activeBedKey] = {...activeBedStatuses};
+  saveDB(db);
+  closeModal('sq-status-modal');
   renderDesign();
 }
 
 function saveBedPlan() {
   db.bedDesigns = db.bedDesigns || {};
   db.bedDesigns[activeBedKey] = {...activeBedDesign};
+  db.bedStatuses = db.bedStatuses || {};
+  db.bedStatuses[activeBedKey] = {...activeBedStatuses};
   saveDB(db);
   // Log to journal
   const bed = db.beds.find(b => b.key === activeBedKey);
