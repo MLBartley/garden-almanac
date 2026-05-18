@@ -185,6 +185,25 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 .plant-status-noted{font-family:'Space Mono',monospace;font-size:7px;padding:1px 6px;border-radius:8px;background:#e8e8e8;color:#777;margin-left:4px;vertical-align:middle;}
 .plant-status-planned{font-family:'Space Mono',monospace;font-size:7px;padding:1px 6px;border-radius:8px;background:#d4eaf7;color:#2a6fa8;margin-left:4px;vertical-align:middle;}
 .plant-card-noted{opacity:.75;}
+/* Plant view toggle + location filter */
+.plant-view-toggle{display:flex;border:1px solid var(--rule);border-radius:6px;overflow:hidden;margin-bottom:10px;}
+.pvt-btn{font-family:'Space Mono',monospace;font-size:8px;padding:5px 11px;border:none;background:white;color:var(--muted);cursor:pointer;flex:1;}
+.pvt-btn.active{background:var(--ink);color:white;}
+.plant-loc-filter{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;}
+.plant-loc-btn{font-family:'Space Mono',monospace;font-size:8px;padding:3px 9px;border-radius:10px;border:1px solid var(--rule);background:white;color:var(--muted);cursor:pointer;}
+.plant-loc-btn.active{background:var(--moss);border-color:var(--moss);color:white;}
+/* Bloom calendar */
+.bloom-month{margin-bottom:16px;}
+.bloom-month-hd{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:3px 8px;border-left:3px solid var(--rule);margin-bottom:6px;}
+.bloom-month-hd.bm-current{color:var(--moss);border-left-color:var(--moss);}
+.bloom-month-hd.bm-gap{color:#ccc;}
+.bloom-plant-row{display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:4px;font-size:.84rem;margin-bottom:1px;}
+.bloom-plant-row:hover{background:var(--surface);}
+/* Harvest log */
+.harvest-card{background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:10px 13px;margin-bottom:7px;display:flex;align-items:center;gap:10px;}
+.harvest-body{flex:1;min-width:0;}
+.harvest-crop{font-size:.93rem;font-weight:600;}
+.harvest-meta{font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-top:3px;}
 .pill-sage{background:#e8f0e8;color:var(--moss);}
 .pill-gold{background:#f5edd8;color:#8a6010;}
 .pill-sky{background:#e0edf4;color:#2e6080;}
@@ -559,6 +578,11 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       <div class="section-label">Transplant &amp; sow log</div>
       <div id="tlog-list"></div>
 
+      <!-- Harvest log -->
+      <div class="section-label">Harvest log</div>
+      <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:10px;" onclick="openModal('log-harvest-modal')">+ Log harvest</button>
+      <div id="harvest-list"></div>
+
     </div>
 
     <!-- PLANTS -->
@@ -568,10 +592,22 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <div class="spacer"></div>
         <button class="btn-sm" onclick="openModal('add-plant-modal')">+ Add</button>
       </div>
-      <div class="section-label">Native yard plants</div>
-      <div id="native-plant-list"></div>
-      <div class="section-label">Perennial edibles</div>
-      <div id="edible-plant-list"></div>
+      <div class="plant-view-toggle">
+        <button class="pvt-btn active" id="pvt-list" onclick="setPlantView('list',this)">List</button>
+        <button class="pvt-btn" id="pvt-bloom" onclick="setPlantView('bloom',this)">Bloom calendar</button>
+      </div>
+      <div class="plant-loc-filter" id="plant-loc-filter"></div>
+      <!-- list mode -->
+      <div id="plant-list-mode">
+        <div class="section-label">Native yard plants</div>
+        <div id="native-plant-list"></div>
+        <div class="section-label">Perennial edibles</div>
+        <div id="edible-plant-list"></div>
+      </div>
+      <!-- bloom calendar mode -->
+      <div id="plant-bloom-mode" style="display:none;">
+        <div id="bloom-calendar"></div>
+      </div>
     </div>
 
     <!-- TIMELINE -->
@@ -766,9 +802,57 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
           <div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);padding:4px 13px 8px;">Optional. See sync-setup-guide.md to configure.</div>
         </div>
       </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <button class="btn-sm" style="flex:1;padding:9px;" onclick="exportDB()">Export backup ↓</button>
+        <button class="btn-sm" style="flex:1;padding:9px;" onclick="document.getElementById('import-file').click()">Import backup ↑</button>
+        <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importDB(this)">
+      </div>
       <div style="display:flex;gap:8px;">
         <button class="btn-sm" style="flex:1;padding:11px;" onclick="closeModal('settings-modal')">Cancel</button>
         <button class="btn-primary" style="flex:2;padding:11px;" onclick="saveSettings()">Save →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- HARVEST MODAL -->
+  <div class="modal-overlay" id="log-harvest-modal">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-title">Log harvest</div>
+      <div style="background:white;border:1px solid var(--rule);border-radius:var(--radius);overflow:hidden;margin-bottom:12px;">
+        <div class="form-field">
+          <div class="form-label">Date</div>
+          <input class="form-input" id="hv-date" type="date">
+        </div>
+        <div class="form-field">
+          <div class="form-label">Crop</div>
+          <input class="form-input" id="hv-crop" type="text" placeholder="Tomatoes, lettuce, basil…">
+        </div>
+        <div class="form-field">
+          <div class="form-label">Bed / location</div>
+          <select class="form-input" id="hv-bed">
+            <option value="A">Bed A</option>
+            <option value="B">Bed B</option>
+            <option value="C">Bed C</option>
+            <option value="D">Bed D</option>
+            <option value="herb">Herb section</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="form-field" style="border-bottom:none;">
+          <div class="form-label">Quantity</div>
+          <div style="display:flex;gap:8px;padding:0 13px 10px;">
+            <input class="form-input" id="hv-qty" type="number" min="0.1" step="0.1" placeholder="1" style="flex:1;padding:7px 11px;">
+            <select class="form-input" id="hv-unit" style="flex:1;padding:7px 11px;">
+              <option>each</option><option>lbs</option><option>oz</option>
+              <option>cups</option><option>bunch</option><option>bag</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-sm" style="flex:1;padding:11px;" onclick="closeModal('log-harvest-modal')">Cancel</button>
+        <button class="btn-primary" style="flex:2;padding:11px;" onclick="saveHarvest()">Save →</button>
       </div>
     </div>
   </div>
@@ -1042,6 +1126,7 @@ function loadDB() {
       { const knownIds = new Set(d.plants.map(p => p.id));
         const missing = defaultPlants().filter(p => !knownIds.has(p.id));
         if (missing.length) d.plants = d.plants.concat(missing); }
+      if (!d.harvestLog) d.harvestLog = [];
       saveDB(d);
       return d;
     }
@@ -1053,7 +1138,7 @@ function loadDB() {
 function saveDB(db) { localStorage.setItem(DB_KEY, JSON.stringify(db)); }
 function defaultDB() {
   return { journal:[], plants:defaultPlants(), beds:defaultBeds(), seeds:[], bedDesigns:{},
-    sowLogs:[], hardenLogs:[], oyaLogs:{}, settings:{} };
+    sowLogs:[], hardenLogs:[], oyaLogs:{}, harvestLog:[], settings:{} };
 }
 function defaultPlants() {
   return [
@@ -1755,7 +1840,7 @@ function deleteSeed(id){if(!confirm('Remove from inventory?'))return;db.seeds=db
 // ════════════════════════════════════════
 //  PLANTS
 // ════════════════════════════════════════
-const BLOOM_C={April:'#f9a8d4',May:'#86efac',June:'#60a5fa',July:'#a78bfa',August:'#fb923c',September:'#fbbf24',October:'#d97706'};
+const BLOOM_C={March:'#e0d4f0',April:'#f9a8d4',May:'#86efac',June:'#60a5fa',July:'#a78bfa',August:'#fb923c',September:'#fbbf24',October:'#d97706'};
 function savePlant(){
   const common=document.getElementById('ap-common').value.trim();if(!common){alert('Enter a name.');return;}
   db.plants.push({id:'p'+Date.now(),category:document.getElementById('ap-category').value,common,latin:document.getElementById('ap-latin').value.trim(),emoji:document.getElementById('ap-emoji').value.trim()||'🌿',location:document.getElementById('ap-location').value.trim(),bloom:document.getElementById('ap-bloom').value,notes:document.getElementById('ap-notes').value.trim(),added:new Date().toISOString().slice(0,7)});
@@ -1768,10 +1853,33 @@ function plantCard(p){
   const addedPill=p.status==='planned'?`<span class="plant-pill pill-ink">Planned ${p.added}</span>`:`<span class="plant-pill pill-ink">Since ${p.added}</span>`;
   return`<div class="plant-card${dimmed}"><div class="plant-header"><div class="plant-icon-circle" style="background:${bg}20;border:2px solid ${bg}60;">${p.emoji||'🌿'}</div><div><div class="plant-common">${p.common}${statusBadge}</div>${p.latin?`<div class="plant-latin">${p.latin}</div>`:''}${p.location?`<div style="font-size:.76rem;color:var(--muted);margin-top:1px;">📍 ${p.location}</div>`:''}</div></div><div class="plant-meta">${p.bloom&&p.bloom!=='—'?`<span class="plant-pill pill-gold">🌸 ${p.bloom}</span>`:''}<span>${addedPill}</span>${p.notes?`<span class="plant-pill pill-sage">${p.notes.slice(0,50)}${p.notes.length>50?'…':''}</span>`:''}</div></div>`;
 }
+let plantViewMode='list', plantLocFilter='all';
+function setPlantView(mode,btn){
+  plantViewMode=mode;
+  document.querySelectorAll('.pvt-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('plant-list-mode').style.display=mode==='list'?'':'none';
+  document.getElementById('plant-bloom-mode').style.display=mode==='bloom'?'':'none';
+  document.getElementById('plant-loc-filter').style.display=mode==='list'?'':'none';
+  renderPlants();
+}
+function setLocFilter(loc,btn){
+  plantLocFilter=loc;
+  renderPlants();
+}
 function renderPlants(){
-  const n=db.plants.filter(p=>p.category==='native'),e=db.plants.filter(p=>p.category==='edible');
-  document.getElementById('native-plant-list').innerHTML=n.length?n.map(plantCard).join(''):`<div style="color:var(--muted);font-size:.85rem;padding:10px 0;">No native plants logged yet.</div>`;
-  document.getElementById('edible-plant-list').innerHTML=e.length?e.map(plantCard).join(''):`<div style="color:var(--muted);font-size:.85rem;padding:10px 0;">No perennial edibles logged yet.</div>`;
+  // Build location filter chips from unique location tokens
+  const locs=['All',...new Set(db.plants.flatMap(p=>(p.location||'').split('+').map(s=>s.trim())).filter(Boolean))];
+  document.getElementById('plant-loc-filter').innerHTML=locs.map(l=>{
+    const val=l==='All'?'all':l;
+    return`<button class="plant-loc-btn${plantLocFilter===val?' active':''}" onclick="setLocFilter('${val}',this)">${l}</button>`;
+  }).join('');
+  if(plantViewMode==='bloom'){renderBloomCalendar();return;}
+  const byLoc=p=>plantLocFilter==='all'||(p.location||'').includes(plantLocFilter);
+  const n=db.plants.filter(p=>p.category==='native'&&byLoc(p));
+  const e=db.plants.filter(p=>p.category==='edible'&&byLoc(p));
+  document.getElementById('native-plant-list').innerHTML=n.length?n.map(plantCard).join(''):`<div style="color:var(--muted);font-size:.85rem;padding:10px 0;">${plantLocFilter==='all'?'No native plants logged yet.':'None in this location.'}</div>`;
+  document.getElementById('edible-plant-list').innerHTML=e.length?e.map(plantCard).join(''):`<div style="color:var(--muted);font-size:.85rem;padding:10px 0;">${plantLocFilter==='all'?'No perennial edibles logged yet.':'None in this location.'}</div>`;
 }
 
 // ════════════════════════════════════════
@@ -2238,7 +2346,95 @@ function renderSpring(){
   renderOya();
   renderSuccession();
   renderTransplantLog();
+  renderHarvestLog();
   renderSpringWidget();
+}
+
+// ════════════════════════════════════════
+//  BLOOM CALENDAR
+// ════════════════════════════════════════
+const BLOOM_ORDER=['March','April','May','June','July','August','September','October'];
+function renderBloomCalendar(){
+  const el=document.getElementById('bloom-calendar');
+  const curMonth=new Date().toLocaleString('en-US',{month:'long'});
+  const byMonth={};
+  BLOOM_ORDER.forEach(m=>byMonth[m]=[]);
+  db.plants.forEach(p=>{if(p.bloom&&byMonth[p.bloom])byMonth[p.bloom].push(p);});
+  el.innerHTML=BLOOM_ORDER.map(month=>{
+    const ps=byMonth[month],isCur=month===curMonth,isGap=!ps.length;
+    const col=BLOOM_C[month]||'#ccc';
+    const hdCls=isCur?' bm-current':isGap?' bm-gap':'';
+    const rows=isGap
+      ?`<div style="font-size:.8rem;color:#ccc;padding:2px 8px;">—</div>`
+      :ps.map(p=>{
+          const badge=p.status==='noted'?`<span class="plant-status-noted">noted</span>`:p.status==='planned'?`<span class="plant-status-planned">planned</span>`:'';
+          const op=p.status==='noted'?' opacity:.65':'';
+          return`<div class="bloom-plant-row" style="${op}"><span style="font-size:1rem;">${p.emoji||'🌿'}</span><span style="flex:1;">${p.common}${badge}</span><span style="font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);">${p.location||''}</span></div>`;
+        }).join('');
+    return`<div class="bloom-month"><div class="bloom-month-hd${hdCls}" style="${!isGap?`border-left-color:${col};`:''}">
+${month.toUpperCase()}${isCur?' — NOW':''} <span style="font-weight:400;opacity:.6;">(${ps.length})</span></div>${rows}</div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════
+//  HARVEST LOG
+// ════════════════════════════════════════
+const HV_BEDS={A:'Bed A',B:'Bed B',C:'Bed C',D:'Bed D',herb:'Herb section',other:'Other'};
+function saveHarvest(){
+  const date=document.getElementById('hv-date').value;
+  const crop=document.getElementById('hv-crop').value.trim();
+  if(!date||!crop){alert('Date and crop are required.');return;}
+  const entry={id:'hv'+Date.now(),date,crop,
+    bed:document.getElementById('hv-bed').value,
+    qty:document.getElementById('hv-qty').value||'',
+    unit:document.getElementById('hv-unit').value};
+  db.harvestLog=db.harvestLog||[];
+  db.harvestLog.unshift(entry);
+  saveDB(db);
+  closeModal('log-harvest-modal');
+  document.getElementById('hv-crop').value='';
+  document.getElementById('hv-qty').value='';
+  renderHarvestLog();
+}
+function deleteHarvest(id){
+  if(!confirm('Delete this harvest entry?'))return;
+  db.harvestLog=(db.harvestLog||[]).filter(h=>h.id!==id);
+  saveDB(db);renderHarvestLog();
+}
+function renderHarvestLog(){
+  const el=document.getElementById('harvest-list');if(!el)return;
+  const logs=db.harvestLog||[];
+  if(!logs.length){el.innerHTML=`<div style="color:var(--muted);font-size:.85rem;padding:4px 0;">No harvests logged yet.</div>`;return;}
+  el.innerHTML=logs.slice(0,50).map(h=>{
+    const d=new Date(h.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    const qty=h.qty?` · ${h.qty} ${h.unit}`:'';
+    return`<div class="harvest-card"><div style="font-size:1.4rem;">🧺</div><div class="harvest-body"><div class="harvest-crop">${h.crop}</div><div class="harvest-meta">${d} · ${HV_BEDS[h.bed]||h.bed}${qty}</div></div><button onclick="deleteHarvest('${h.id}')" style="background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;padding:4px;">×</button></div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════
+//  EXPORT / IMPORT
+// ════════════════════════════════════════
+function exportDB(){
+  const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`garden-almanac-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+function importDB(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const d=JSON.parse(e.target.result);
+      if(!d.plants||!d.journal)throw new Error('Invalid');
+      if(!confirm('Replace all local data with this backup? This cannot be undone.'))return;
+      Object.assign(db,d);saveDB(db);renderAll();closeModal('settings-modal');
+    }catch{alert('Could not read backup — file may be invalid.');}
+    input.value='';
+  };
+  reader.readAsText(file);
 }
 
 // ════════════════════════════════════════
@@ -2270,7 +2466,7 @@ async function syncData(){
       const pr=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'pull'})});
       const remote=await pr.json();
       if(remote.status!=='empty'&&remote.status!=='error'){
-        ['journal','plants','seeds','sowLogs','hardenLogs'].forEach(key=>{
+        ['journal','plants','seeds','sowLogs','hardenLogs','harvestLog'].forEach(key=>{
           if(!remote[key])return;
           const ids=new Set((db[key]||[]).map(x=>x.id));
           remote[key].forEach(item=>{if(!ids.has(item.id))(db[key]=db[key]||[]).push(item);});
@@ -2306,7 +2502,7 @@ function switchView(id,btn){
 }
 function openModal(id){
   const today=new Date().toISOString().slice(0,10);
-  const fields={'log-sow-modal':'ls-date','log-harden-modal':'lh-date'};
+  const fields={'log-sow-modal':'ls-date','log-harden-modal':'lh-date','log-harvest-modal':'hv-date'};
   if(fields[id]){const f=document.getElementById(fields[id]);if(f&&!f.value)f.value=today;}
   if(id==='settings-modal'){
     document.getElementById('settings-api-key').value=getApiKey();
@@ -2326,6 +2522,7 @@ function renderAll(){renderJournal();renderPlants();renderTimeline();renderSeeds
 
 // ── INIT ──
 updateHeaderDate();loadWeather();renderAll();checkSyncStatus();
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>
 </html>
