@@ -71,6 +71,26 @@ html,body{height:100%;overflow:hidden;font-family:'Crimson Pro',Georgia,serif;ba
 .care-task.urgent .care-title{color:var(--clay);}
 .care-task.normal .care-title{color:var(--moss);}
 .care-task.info .care-title{color:var(--sky);}
+/* ── READY TO PLANT ── */
+.rtp-card{background:#f0f8f2;border:1px solid #b8d9be;border-radius:var(--radius);padding:12px 13px;margin-bottom:8px;display:flex;align-items:flex-start;gap:10px;}
+.rtp-emoji{font-size:1.2rem;flex-shrink:0;margin-top:1px;}
+.rtp-body{flex:1;min-width:0;}
+.rtp-name{font-weight:600;font-size:.92rem;line-height:1.3;}
+.rtp-meta{font-size:.77rem;color:var(--muted);margin-top:1px;margin-bottom:7px;}
+.rtp-actions{display:flex;gap:6px;flex-wrap:wrap;}
+.rtp-btn{font-family:'Space Mono',monospace;font-size:9px;padding:5px 11px;border-radius:10px;cursor:pointer;border:1px solid;letter-spacing:.03em;}
+.rtp-btn-plant{background:#2a6a2a;color:white;border-color:#2a6a2a;}
+.rtp-btn-harden{background:white;color:var(--moss);border-color:var(--moss);}
+/* ── WEEK SPRINT ── */
+.week-sprint{background:var(--ink);color:var(--paper);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px;}
+.ws-header{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.12em;color:#9fc9a0;margin-bottom:9px;display:flex;justify-content:space-between;}
+.ws-item{display:flex;align-items:flex-start;gap:9px;padding:6px 0;border-top:1px solid rgba(255,255,255,.07);}
+.ws-icon{font-size:.9rem;flex-shrink:0;line-height:1.5;}
+.ws-text{font-size:.82rem;line-height:1.4;flex:1;color:rgba(255,255,255,.9);}
+.ws-badge{font-family:'Space Mono',monospace;font-size:7px;padding:2px 7px;border-radius:8px;flex-shrink:0;margin-top:3px;white-space:nowrap;}
+.ws-do{background:rgba(126,200,126,.25);color:#9fc9a0;}
+.ws-soon{background:rgba(196,146,42,.22);color:#c4922a;}
+.ws-sow{background:rgba(91,143,168,.22);color:#8bbfd8;}
 /* frost alert banner */
 #frost-alert-banner{display:none;margin-bottom:10px;}
 .frost-banner{border-radius:var(--radius);padding:13px 14px;border:1.5px solid;}
@@ -514,6 +534,8 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       </div>
       <div class="forecast-scroll" id="forecast-row"></div>
       <div id="spring-widget-wrap"></div>
+      <div id="week-sprint-wrap"></div>
+      <div id="ready-to-plant-wrap"></div>
       <div class="section-label">Today's care</div>
       <div id="care-list"></div>
       <div class="section-label">Quick note</div>
@@ -1533,6 +1555,8 @@ async function loadWeather() {
     renderFrostAlert(d);
     renderTodayBar(d);
     renderDesign(); // refresh timing with weather
+    renderReadyToPlant();
+    renderWeekSprint();
   } catch { document.getElementById('wx-desc').textContent='Weather unavailable'; }
 }
 
@@ -2389,12 +2413,33 @@ function openSqModal(sqIdx) {
 
 function confirmSq(status) {
   if (selectedSqIdx === null) return;
+  const prevStatus = activeBedStatuses[selectedSqIdx];
   activeBedStatuses[selectedSqIdx] = status;
   db.bedStatuses = db.bedStatuses || {};
   db.bedStatuses[activeBedKey] = {...activeBedStatuses};
   saveDB(db);
+  // Auto-log transplant the first time a square is marked planted
+  if (status === 'planted' && prevStatus !== 'planted') {
+    const libId = activeBedDesign[selectedSqIdx];
+    const plant = PLANT_IDX[libId];
+    if (plant) {
+      const today = new Date().toISOString().slice(0,10);
+      const alreadyLogged = (db.sowLogs||[]).some(e =>
+        e.method==='transplant' && e.bed===activeBedKey && e.date===today &&
+        e.name.toLowerCase().includes(plant.name.toLowerCase())
+      );
+      if (!alreadyLogged) {
+        db.sowLogs = db.sowLogs || [];
+        db.sowLogs.unshift({id:'sl'+Date.now(),name:plant.name,bed:activeBedKey,
+          method:'transplant',date:today,germDays:0,notes:'',status:'sprouted',qty:1});
+        saveDB(db);
+      }
+    }
+  }
   closeModal('sq-status-modal');
   renderDesign();
+  renderReadyToPlant();
+  renderWeekSprint();
 }
 
 function changeSqPlant() {
@@ -2560,7 +2605,9 @@ function renderSeeds(){
     let bodyContent;
     if(isStart){
       const rec=seedPlantingRec(s);
-      bodyContent=`<div class="seed-meta-row"><span class="storage-badge store-live">🌱 Live start</span>${s.source?`<span class="plant-pill pill-sage">${s.source}</span>`:''}</div>${rec?`<div class="seed-detail seed-planting-rec">📍 ${rec}</div>`:''} ${s.notes?`<div class="seed-detail" style="margin-top:4px;">${s.notes}</div>`:''}`;
+      const isHardening=(db.hardenLogs||[]).some(e=>!e.done&&e.name.toLowerCase().includes(s.name.toLowerCase()));
+      const hardenHtml=isHardening?`<span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--moss);">🌿 Hardening in progress</span>`:`<button class="seed-skip-btn" style="color:var(--moss);border-color:var(--moss);" onclick="startHardeningFromSeed('${s.id}')">🌿 Start hardening</button>`;
+      bodyContent=`<div class="seed-meta-row"><span class="storage-badge store-live">🌱 Live start</span>${s.source?`<span class="plant-pill pill-sage">${s.source}</span>`:''}</div>${rec?`<div class="seed-detail seed-planting-rec">📍 ${rec}</div>`:''} ${s.notes?`<div class="seed-detail" style="margin-top:4px;">${s.notes}</div>`:''}<div style="margin-top:8px;">${hardenHtml}</div>`;
     }else if(isSkipped){
       const tip=storageTipForSeed(s);
       const reminderTag=s.nextReminder?`<div style="margin-top:5px;"><span class="seed-reminder-tag">🔔 Remind me ${s.nextReminder}</span></div>`:'';
@@ -3529,7 +3576,144 @@ function updateHeaderDate(){
   document.getElementById('header-date').innerHTML=d.replace(',',' <br>');
   document.getElementById('compose-date').textContent=d;
 }
-function renderAll(){renderJournal();renderPlants();renderTimeline();renderSeeds();renderSpring();}
+// ════════════════════════════════════════
+//  TODAY — READY TO PLANT + WEEK SPRINT
+// ════════════════════════════════════════
+function _startWindowDate(plant, yr) {
+  if (!plant) return new Date(yr, 4, 15);
+  if (plant.frostTol==='tender'||plant.frostTol==='verytender') return new Date(yr,4,15);
+  if (plant.frostTol==='halfhardy') return new Date(yr,3,25);
+  return new Date(yr,3,1);
+}
+
+function renderReadyToPlant() {
+  const el = document.getElementById('ready-to-plant-wrap'); if (!el) return;
+  const now = new Date(); const yr = now.getFullYear();
+  const loggedNames = new Set((db.sowLogs||[])
+    .filter(e=>e.method==='transplant'&&e.date.startsWith(yr))
+    .map(e=>e.name.toLowerCase().split(' (')[0]));
+  const activeHardenNames = new Set((db.hardenLogs||[]).filter(e=>!e.done).map(e=>e.name.toLowerCase().split(' (')[0]));
+  const ready = (db.seeds||[]).filter(s => {
+    if (s.storage!=='live') return false;
+    if (loggedNames.has(s.name.toLowerCase())) return false;
+    return now >= _startWindowDate(PLANT_IDX[seedToLibId(s)], yr);
+  });
+  if (!ready.length) { el.innerHTML=''; return; }
+  el.innerHTML = `<div class="section-label">Ready to transplant</div>` +
+    ready.map(s => {
+      const libId=seedToLibId(s); const plant=PLANT_IDX[libId];
+      const bed=BED_INFO[s.bed]||BED_INFO.any;
+      const emoji=plant?.emoji||'🌱';
+      const sqFt=plant?Math.max(1,Math.round(plant.sqFt*(s.qty||1)))+' sq ft':'';
+      const isHardening=activeHardenNames.has(s.name.toLowerCase());
+      const hardenBtn=isHardening
+        ?`<span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--moss);">🌿 Hardening in progress</span>`
+        :`<button class="rtp-btn rtp-btn-harden" onclick="startHardeningFromSeed('${s.id}')">🌿 Start hardening</button>`;
+      return `<div class="rtp-card"><div class="rtp-emoji">${emoji}</div><div class="rtp-body">
+        <div class="rtp-name">${s.name}${s.variety?' · '+s.variety:''} ×${s.qty||1}</div>
+        <div class="rtp-meta">${bed.label}${sqFt?' · '+sqFt:''}</div>
+        <div class="rtp-actions">
+          <button class="rtp-btn rtp-btn-plant" onclick="logStartAsTransplanted('${s.id}')">🌱 Log as transplanted</button>
+          ${hardenBtn}
+        </div>
+      </div></div>`;
+    }).join('');
+}
+
+function logStartAsTransplanted(seedId) {
+  const seed=(db.seeds||[]).find(s=>s.id===seedId); if (!seed) return;
+  const today=new Date().toISOString().slice(0,10);
+  const libId=seedToLibId(seed); const plant=PLANT_IDX[libId];
+  db.sowLogs=db.sowLogs||[];
+  db.sowLogs.unshift({id:'sl'+Date.now(),
+    name:seed.name+(seed.variety?' ('+seed.variety+')':''),
+    bed:seed.bed!=='any'?seed.bed:'A',method:'transplant',date:today,
+    germDays:0,notes:'',status:'sprouted',qty:seed.qty||1});
+  // Mark matching Design squares as planted
+  if (libId && seed.bed && seed.bed!=='any') {
+    db.bedDesigns=db.bedDesigns||{}; db.bedStatuses=db.bedStatuses||{};
+    const design=db.bedDesigns[seed.bed]||{}, statuses={...(db.bedStatuses[seed.bed]||{})};
+    const sqNeeded=plant?Math.max(1,Math.round(plant.sqFt*(seed.qty||1))):1;
+    let marked=0;
+    Object.entries(design).forEach(([i,id])=>{
+      if(id===libId&&statuses[i]!=='planted'&&marked<sqNeeded){statuses[i]='planted';marked++;}
+    });
+    db.bedStatuses[seed.bed]=statuses;
+    if(activeBedKey===seed.bed) activeBedStatuses={...statuses};
+  }
+  db.journal.unshift({id:'j'+Date.now(),date:new Date().toISOString(),mood:'🌱',tags:['planted'],
+    text:`Transplanted ${seed.name}${seed.variety?' ('+seed.variety+')':''} ×${seed.qty||1} to ${BED_INFO[seed.bed]?.label||'the garden'}.`,weather:null});
+  saveDB(db);
+  renderReadyToPlant(); renderWeekSprint(); renderSpring(); renderJournal();
+}
+
+function startHardeningFromSeed(seedId) {
+  const seed=(db.seeds||[]).find(s=>s.id===seedId); if (!seed) return;
+  const existing=(db.hardenLogs||[]).find(e=>!e.done&&e.name.toLowerCase().includes(seed.name.toLowerCase()));
+  if (existing) { switchViewByName('spring'); return; }
+  db.hardenLogs=db.hardenLogs||[];
+  db.hardenLogs.unshift({id:'hl'+Date.now(),
+    name:seed.name+(seed.variety?' ('+seed.variety+')':''),
+    qty:seed.qty||1,startDate:new Date().toISOString().slice(0,10),
+    completedDays:[],done:false});
+  saveDB(db);
+  renderReadyToPlant(); renderSeeds(); renderSpring();
+  switchViewByName('spring');
+}
+
+function renderWeekSprint() {
+  const el=document.getElementById('week-sprint-wrap'); if (!el) return;
+  const now=new Date(); const yr=now.getFullYear();
+  const items=[];
+  // 1. Live starts ready to transplant but not yet logged
+  const loggedNames=new Set((db.sowLogs||[])
+    .filter(e=>e.method==='transplant'&&e.date.startsWith(yr))
+    .map(e=>e.name.toLowerCase().split(' (')[0]));
+  (db.seeds||[]).filter(s=>s.storage==='live'&&!loggedNames.has(s.name.toLowerCase())&&now>=_startWindowDate(PLANT_IDX[seedToLibId(s)],yr))
+    .forEach(s=>{
+      const bed=BED_INFO[s.bed]||BED_INFO.any;
+      items.push({icon:PLANT_IDX[seedToLibId(s)]?.emoji||'🌱',text:`Transplant ${s.name}${s.variety?' ('+s.variety+')':''} → ${bed.label}`,badge:'DO THIS WEEK',cls:'ws-do'});
+    });
+  // 2. Direct-sow seeds whose window just opened, not yet sown
+  const directLogged=new Set((db.sowLogs||[]).filter(e=>e.method==='direct'&&e.date.startsWith(yr)).map(e=>e.name.toLowerCase().split(' (')[0]));
+  const seenSow=new Set();
+  (db.seeds||[]).filter(s=>{
+    if(s.storage==='live'||s.skipYear)return false;
+    const libId=seedToLibId(s); const plant=PLANT_IDX[libId];
+    if(!plant||plant.sowMethod!=='direct')return false;
+    if(directLogged.has(s.name.toLowerCase())||seenSow.has(s.name.toLowerCase()))return false;
+    return now>=_startWindowDate(plant,yr);
+  }).forEach(s=>{
+    seenSow.add(s.name.toLowerCase());
+    const bed=BED_INFO[s.bed]||BED_INFO.any;
+    items.push({icon:PLANT_IDX[seedToLibId(s)]?.emoji||'🫘',text:`Direct sow ${s.name} in ${bed.label}`,badge:'SOW',cls:'ws-sow'});
+  });
+  // 3. Succession crops due within 7 days
+  SUCCESSION_CROPS.filter(c=>{
+    const key='succ_'+c.name.toLowerCase().replace(/\s+/g,'_');
+    const last=db.oyaLogs?.[key]; if(!last)return false;
+    return c.intervalDays-Math.round((Date.now()-new Date(last))/86400000)<=7;
+  }).forEach(c=>items.push({icon:c.emoji||'🔄',text:`Succession sow ${c.name}`,badge:'SOON',cls:'ws-soon'}));
+  // 4. Planned-but-not-planted Design squares with timing = now (uses simple window, no wxData needed)
+  const seenDesign=new Set();
+  ['A','B','C','D'].forEach(key=>{
+    const design=(db.bedDesigns&&db.bedDesigns[key])||{};
+    const statuses=(db.bedStatuses&&db.bedStatuses[key])||{};
+    Object.entries(design).forEach(([idx,libId])=>{
+      if(statuses[idx]==='planted'||seenDesign.has(libId+key))return;
+      const plant=PLANT_IDX[libId]; if(!plant)return;
+      if(now>=_startWindowDate(plant,yr)&&now<=new Date(yr,8,1)){
+        seenDesign.add(libId+key);
+        items.push({icon:plant.emoji,text:`${plant.name} planned in Bed ${key} — confirm planting`,badge:'PLANT NOW',cls:'ws-do'});
+      }
+    });
+  });
+  if (!items.length) { el.innerHTML=''; return; }
+  const dateStr=now.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  el.innerHTML=`<div class="week-sprint"><div class="ws-header"><span>THIS WEEK IN THE GARDEN</span><span style="opacity:.6;">${dateStr}</span></div>${items.slice(0,6).map(i=>`<div class="ws-item"><div class="ws-icon">${i.icon}</div><div class="ws-text">${i.text}</div><div class="ws-badge ${i.cls}">${i.badge}</div></div>`).join('')}</div>`;
+}
+
+function renderAll(){renderJournal();renderPlants();renderTimeline();renderSeeds();renderSpring();renderReadyToPlant();renderWeekSprint();}
 
 // ── INIT ──
 updateHeaderDate();loadWeather();renderAll();checkSyncStatus();
