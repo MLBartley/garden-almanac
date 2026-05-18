@@ -485,6 +485,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 
       <!-- Planting window banner -->
       <div id="pw-banner"></div>
+      <div id="bed-shade-note" style="display:none;"></div>
 
       <!-- Grid -->
       <div class="section-label">Bed layout <span id="grid-sq-count" style="font-weight:400;color:var(--muted);font-family:'Crimson Pro',serif;font-size:.85rem;text-transform:none;letter-spacing:0;margin-left:4px;"></span></div>
@@ -1021,7 +1022,22 @@ const SHEETS_KEY = 'bozeman_sheets_url';
 function loadDB() {
   try {
     const v3 = localStorage.getItem(DB_KEY);
-    if (v3) return JSON.parse(v3);
+    if (v3) {
+      const d = JSON.parse(v3);
+      // Migrate: replace old sample plant list with actual inventory
+      const oldIds = new Set(['p1','p2','p3','p4','p5','p6','p7']);
+      if (d.plants && d.plants.length <= 7 && d.plants.every(p => oldIds.has(p.id))) {
+        d.plants = defaultPlants();
+      }
+      // Migrate: replace old fake bed history with accurate bed metadata
+      if (d.beds && d.beds[0] && d.beds[0].history && d.beds[0].history.length &&
+          d.beds[0].history[0].year === 2024) {
+        const fresh = defaultBeds();
+        d.beds = d.beds.map((b,i) => Object.assign({}, fresh[i] || b, {current: b.current, bedDesigns: b.bedDesigns}));
+      }
+      saveDB(d);
+      return d;
+    }
     const v2 = localStorage.getItem('bozeman_almanac_v2');
     if (v2) { const d = JSON.parse(v2); d.seeds = d.seeds||[]; d.bedDesigns = {}; saveDB(d); return d; }
     return defaultDB();
@@ -1034,29 +1050,42 @@ function defaultDB() {
 }
 function defaultPlants() {
   return [
-    {id:'p1',category:'native',common:'Purple Coneflower',latin:'Echinacea purpurea',emoji:'🌸',location:'Front native bed',bloom:'July',notes:'Self-seeds, leave heads for goldfinches',added:'2023-06'},
-    {id:'p2',category:'native',common:'Rocky Mountain Penstemon',latin:'Penstemon strictus',emoji:'💜',location:'SW border',bloom:'June',notes:'Planted 3 plugs 2022',added:'2022-05'},
-    {id:'p3',category:'native',common:'Prairie Flax',latin:'Linum lewisii',emoji:'💙',location:'Scattered / self-seeds',bloom:'May',notes:'Direct sowed fall 2021',added:'2021-09'},
-    {id:'p4',category:'native',common:'Blanket Flower',latin:'Gaillardia aristata',emoji:'🌻',location:'E border + path edge',bloom:'July',notes:'Native to MT, very tough',added:'2022-05'},
-    {id:'p5',category:'edible',common:'Chives',latin:'Allium schoenoprasum',emoji:'🌿',location:'Bed D',bloom:'June',notes:'3 clumps, divide each spring',added:'2021-05'},
-    {id:'p6',category:'edible',common:'Thyme',latin:'Thymus vulgaris',emoji:'🍃',location:'Bed D',bloom:'July',notes:'Two plants, well established',added:'2021-05'},
-    {id:'p7',category:'edible',common:'Oregano',latin:'Origanum vulgare',emoji:'🌱',location:'Bed D',bloom:'August',notes:'Spreads within bed',added:'2022-05'},
+    // ── BACKYARD NATIVES
+    {id:'p10',category:'native',common:'American Plum',latin:'Prunus americana',emoji:'🌸',location:'Backyard',bloom:'April',notes:'Tree #1 — planted spring 2023. Native, excellent wildlife plant. Blooms before leaf-out.',added:'2023-05'},
+    {id:'p11',category:'native',common:'American Plum',latin:'Prunus americana',emoji:'🌸',location:'Backyard',bloom:'April',notes:'Tree #2 — planted spring 2025. Younger of the two. Watch for suckers.',added:'2025-05'},
+    {id:'p12',category:'native',common:'Hazelnut',latin:'Corylus cornuta',emoji:'🌰',location:'Backyard',bloom:'March',notes:'Planted spring 2025. Beaked hazelnut, native to MT. Catkins appear before leaves. Needs patience to establish.',added:'2025-05'},
+    {id:'p13',category:'native',common:'Chokecherry',latin:'Prunus virginiana',emoji:'🍒',location:'Backyard',bloom:'May',notes:'3 trees. Native, highly drought-tolerant once established. Important wildlife food source. Watch for black knot fungus.',added:'2022-05'},
+    {id:'p14',category:'native',common:'Backyard Aspen',latin:'Populus tremuloides',emoji:'🍂',location:'West side of house',bloom:'April',notes:'4 trees. Create partial shade on Bed D from mid-May onward. Aspens spread by root suckers — watch margins.',added:'2020-05'},
+    // ── BOULEVARD + FRONT YARD
+    {id:'p15',category:'native',common:'Burr Oak',latin:'Quercus macrocarpa',emoji:'🌳',location:'Boulevard',bloom:'May',notes:'Extremely long-lived native tree. One of the best for wildlife. Slow to establish — water deeply first 3 years.',added:'2023-05'},
+    {id:'p16',category:'native',common:'Front Yard Aspen',latin:'Populus tremuloides',emoji:'🍂',location:'Front yard',bloom:'April',notes:'Larger established aspens. Manage suckers annually.',added:'2019-05'},
+    // ── EDIBLE PERENNIALS (trees + shrubs)
+    {id:'p17',category:'edible',common:'Sour Cherry',latin:'Prunus cerasus',emoji:'🍒',location:'Backyard',bloom:'May',notes:'2 trees. Need cross-pollination — good that there are two. Montmorency is the standard for MT. Protect from late frosts during bloom.',added:'2022-05'},
+    {id:'p18',category:'edible',common:'Apple',latin:'Malus domestica',emoji:'🍎',location:'Backyard',bloom:'May',notes:'Planted spring 2023. Choose a short-season variety suited to Zone 5b. Protect bloom from late frost. Thin fruit in June.',added:'2023-05'},
+    // ── BED D — PERENNIAL HERBS (partial shade from aspens)
+    {id:'p5',category:'edible',common:'Chives',latin:'Allium schoenoprasum',emoji:'🌿',location:'Bed D',bloom:'June',notes:'Tolerates partial shade well. Divide clumps every 2–3 years in spring.',added:'2024-05'},
+    {id:'p6',category:'edible',common:'Thyme',latin:'Thymus vulgaris',emoji:'🍃',location:'Bed D',bloom:'July',notes:'Prefers full sun — place in sunniest spot of Bed D (east end, morning sun). Hardy to Zone 4.',added:'2024-05'},
+    {id:'p7',category:'edible',common:'Oregano',latin:'Origanum vulgare',emoji:'🌱',location:'Bed D',bloom:'August',notes:'Tolerates partial shade. Spreads — divide or cut back annually. Cut to ground in spring.',added:'2024-05'},
   ];
 }
 function defaultBeds() {
   return [
-    {id:'bedA',key:'A',name:'Bed A',dims:'8×4 ft',cols:8,rows:4,theme:'Tomatoes + Companions',oya:2,
-     history:[{year:2024,family:'Solanaceae',plants:'Tomatoes, Peppers'}],
-     current:[{name:'Indeterminate Tomato',color:'#c0392b',stage:'fruiting'},{name:'Basil',color:'#27ae60',stage:'growing'}]},
-    {id:'bedB',key:'B',name:'Bed B',dims:'8×4 ft',cols:8,rows:4,theme:'Brassicas + Roots',oya:2,
-     history:[{year:2024,family:'Brassicaceae',plants:'Broccoli, Kale'}],
-     current:[{name:'Broccoli',color:'#1a6b2a',stage:'heading'},{name:'Kale',color:'#2d7a3a',stage:'growing'}]},
-    {id:'bedC',key:'C',name:'Bed C',dims:'8×4 ft',cols:8,rows:4,theme:'Cucurbits + Beans',oya:2,
-     history:[{year:2024,family:'Fabaceae',plants:'Beans, Peas'}],
-     current:[{name:'Zucchini',color:'#27ae60',stage:'flowering'},{name:'Bush Beans',color:'#2ecc71',stage:'producing'}]},
-    {id:'bedD',key:'D',name:'Bed D',dims:'10×2 ft',cols:10,rows:2,theme:'Perennial Herb Strip (far right)',oya:2,
-     history:[{year:2024,family:'Perennial herbs',plants:'Chives, Thyme, Oregano'}],
-     current:[{name:'Chives',color:'#9b59b6',stage:'growing'},{name:'Thyme',color:'#4a7c5a',stage:'growing'}]},
+    {id:'bedA',key:'A',name:'Bed A',dims:'8×4 ft',cols:8,rows:4,
+     theme:'Tomatoes + Companions',oya:2,shade:'full',
+     notes:'South-facing backyard, full sun, N/S orientation. New Fall 2025 — 50/50 compost + topsoil (Cashmans Nursery). First growing season 2026.',
+     history:[],current:[]},
+    {id:'bedB',key:'B',name:'Bed B',dims:'8×4 ft',cols:8,rows:4,
+     theme:'Brassicas + Roots',oya:2,shade:'full',
+     notes:'South-facing backyard, full sun, N/S orientation. New Fall 2025 — 50/50 compost + topsoil (Cashmans Nursery). First growing season 2026.',
+     history:[],current:[]},
+    {id:'bedC',key:'C',name:'Bed C',dims:'8×4 ft',cols:8,rows:4,
+     theme:'Cucurbits + Beans',oya:2,shade:'full',
+     notes:'South-facing backyard, full sun, N/S orientation. New Fall 2025 — 50/50 compost + topsoil (Cashmans Nursery). First growing season 2026.',
+     history:[],current:[]},
+    {id:'bedD',key:'D',name:'Bed D',dims:'10×2 ft',cols:10,rows:2,
+     theme:'Perennial Herb Strip — west side, partial shade',oya:2,shade:'partial',
+     notes:'West side of house. Partial shade from 4 backyard aspens — nearly full sun until aspens leaf out (~May 15), then 4–6 hrs direct sun. Best for shade-tolerant herbs: chives, oregano, parsley, cilantro, mint. Place thyme and sage at the east end for maximum sun. Avoid basil here.',
+     history:[],current:[{name:'Chives',color:'#9b59b6',stage:'growing'},{name:'Thyme',color:'#4a7c5a',stage:'growing'},{name:'Oregano',color:'#2d7a3a',stage:'growing'}]},
   ];
 }
 
@@ -1312,6 +1341,17 @@ function renderDesign() {
 
   // Planting window banner (based on bed theme plant)
   renderPWBanner(bed);
+
+  // Shade note for Bed D
+  const shadeEl = document.getElementById('bed-shade-note');
+  if (bed.shade === 'partial') {
+    shadeEl.style.display = 'block';
+    shadeEl.innerHTML = `<div style="background:#f5edd8;border:1px solid #c8a84b;border-radius:6px;padding:10px 13px;margin-bottom:10px;font-size:.82rem;line-height:1.55;color:#5a4010;">
+      🌳 <strong>Partial shade</strong> — aspens leaf out ~May 15, giving 4–6 hrs direct sun after that. Place sun-lovers (thyme, sage) at the east end. Chives, oregano, parsley, cilantro, mint do well here. Avoid basil.
+    </div>`;
+  } else {
+    shadeEl.style.display = 'none';
+  }
 
   // Grid
   const grid = document.getElementById('bed-grid');
