@@ -182,6 +182,9 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 .plant-latin{font-style:italic;font-size:.78rem;color:var(--muted);}
 .plant-meta{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;}
 .plant-pill{font-family:'Space Mono',monospace;font-size:8px;padding:2px 7px;border-radius:10px;}
+.plant-status-noted{font-family:'Space Mono',monospace;font-size:7px;padding:1px 6px;border-radius:8px;background:#e8e8e8;color:#777;margin-left:4px;vertical-align:middle;}
+.plant-status-planned{font-family:'Space Mono',monospace;font-size:7px;padding:1px 6px;border-radius:8px;background:#d4eaf7;color:#2a6fa8;margin-left:4px;vertical-align:middle;}
+.plant-card-noted{opacity:.75;}
 .pill-sage{background:#e8f0e8;color:var(--moss);}
 .pill-gold{background:#f5edd8;color:#8a6010;}
 .pill-sky{background:#e0edf4;color:#2e6080;}
@@ -1108,6 +1111,15 @@ function defaultPlants() {
     {id:'p51',category:'edible',common:'Fennel',latin:'Foeniculum vulgare',emoji:'🌿',location:'Herb section',bloom:'July',notes:'Perennial in Zone 5. Can reseed aggressively — deadhead before seed sets. Keep away from dill (cross-pollinates). Host plant for swallowtail butterflies.',added:'2023-05'},
     {id:'p52',category:'edible',common:'French Tarragon',latin:'Artemisia dracunculus var. sativa',emoji:'🌿',location:'Herb section',bloom:'—',notes:'True French tarragon — must be propagated by division, not seed. Divide every 2-3 years to maintain vigor. Does not overwinter well in Zone 5 without mulch.',added:'2023-05'},
     {id:'p53',category:'edible',common:'Parsley',latin:'Petroselinum crispum',emoji:'🌿',location:'Herb section',bloom:'Year 2',notes:'Biennial — harvested in year 1, flowers and sets seed in year 2. Sow new plants each spring. Host plant for black swallowtail butterfly larvae.',added:'2024-05'},
+    // ── NOTED — present in yard, location/details TBD
+    {id:'p54',category:'native',common:'Rabbitbrush',latin:'Ericameria nauseosa',emoji:'🌼',location:'Native yard',bloom:'September',status:'noted',notes:'Critical late-season bloom Aug–Oct when little else is flowering. Monarchs and native bees depend on it for fall fueling. Very drought-tolerant. Silver-green foliage.',added:'2025-05'},
+    {id:'p55',category:'native',common:'Pasque Flower',latin:'Pulsatilla patens',emoji:'🌸',location:'Native yard',bloom:'April',status:'noted',notes:'One of the very first natives to bloom — sometimes through snow. Silky seed heads extend the show. Montana native, Zone 3. Do not move once established.',added:'2025-05'},
+    {id:'p56',category:'native',common:'Purple Prairie Clover',latin:'Dalea purpurea',emoji:'💜',location:'Native yard',bloom:'July',status:'noted',notes:'Nitrogen-fixing. Specialist native bees depend on it. Drought-tolerant once established. Cylindrical magenta flower heads. Allow to self-seed.',added:'2025-05'},
+    {id:'p57',category:'native',common:'Yellow Prairie Clover',latin:'Dalea aurea',emoji:'🌼',location:'Native yard',bloom:'July',status:'noted',notes:'Nitrogen-fixing companion to purple prairie clover. Bright yellow blooms. Less common in cultivation — excellent that you have it.',added:'2025-05'},
+    {id:'p58',category:'native',common:'Spotted Gayfeather',latin:'Liatris punctata',emoji:'💜',location:'Native yard',bloom:'August',status:'noted',notes:'Deep-taproot native liatris, extremely drought-tolerant. Blooms top-down (unlike most plants). Important late-season nectar for monarchs and bumbles.',added:'2025-05'},
+    {id:'p59',category:'native',common:'Orange Globemallow',latin:'Sphaeralcea coccinea',emoji:'🧡',location:'Native yard',bloom:'June',status:'noted',notes:'Long-blooming, extremely drought-tolerant. Orange mallow flowers through summer. Good for dry, rocky spots where other plants fail. Spreads by seed.',added:'2025-05'},
+    // ── PLANNED — intending to add
+    {id:'p60',category:'native',common:'Serviceberry',latin:'Amelanchier alnifolia',emoji:'🫐',location:'TBD',bloom:'April',status:'planned',notes:'Among the best native shrubs for Bozeman. Blooms before most things, berries beat chokecherry for flavor, birds depend on it in early summer. Zone 2. Aim to plant 2026.',added:'2026-05'},
   ];
 }
 function defaultBeds() {
@@ -1751,7 +1763,10 @@ function savePlant(){
 }
 function plantCard(p){
   const bg=BLOOM_C[p.bloom]||'#e8e4d8';
-  return`<div class="plant-card"><div class="plant-header"><div class="plant-icon-circle" style="background:${bg}20;border:2px solid ${bg}60;">${p.emoji||'🌿'}</div><div><div class="plant-common">${p.common}</div>${p.latin?`<div class="plant-latin">${p.latin}</div>`:''}${p.location?`<div style="font-size:.76rem;color:var(--muted);margin-top:1px;">📍 ${p.location}</div>`:''}</div></div><div class="plant-meta">${p.bloom?`<span class="plant-pill pill-gold">🌸 ${p.bloom}</span>`:''}<span class="plant-pill pill-ink">Since ${p.added}</span>${p.notes?`<span class="plant-pill pill-sage">${p.notes.slice(0,50)}${p.notes.length>50?'…':''}</span>`:''}</div></div>`;
+  const statusBadge=p.status==='noted'?`<span class="plant-status-noted">noted</span>`:p.status==='planned'?`<span class="plant-status-planned">planned</span>`:'';
+  const dimmed=p.status==='noted'?' plant-card-noted':'';
+  const addedPill=p.status==='planned'?`<span class="plant-pill pill-ink">Planned ${p.added}</span>`:`<span class="plant-pill pill-ink">Since ${p.added}</span>`;
+  return`<div class="plant-card${dimmed}"><div class="plant-header"><div class="plant-icon-circle" style="background:${bg}20;border:2px solid ${bg}60;">${p.emoji||'🌿'}</div><div><div class="plant-common">${p.common}${statusBadge}</div>${p.latin?`<div class="plant-latin">${p.latin}</div>`:''}${p.location?`<div style="font-size:.76rem;color:var(--muted);margin-top:1px;">📍 ${p.location}</div>`:''}</div></div><div class="plant-meta">${p.bloom&&p.bloom!=='—'?`<span class="plant-pill pill-gold">🌸 ${p.bloom}</span>`:''}<span>${addedPill}</span>${p.notes?`<span class="plant-pill pill-sage">${p.notes.slice(0,50)}${p.notes.length>50?'…':''}</span>`:''}</div></div>`;
 }
 function renderPlants(){
   const n=db.plants.filter(p=>p.category==='native'),e=db.plants.filter(p=>p.category==='edible');
