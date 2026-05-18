@@ -2167,9 +2167,28 @@ async function syncData(){
   const btn=document.getElementById('sync-btn'),status=document.getElementById('sync-status');
   btn.classList.add('syncing');status.textContent='…';
   try{
-    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'sync',data:db})});
+    // 1. Pull remote snapshot and merge into local (remote adds new IDs; local wins for existing)
+    let pulled=false;
+    try{
+      const pr=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'pull'})});
+      const remote=await pr.json();
+      if(remote.status!=='empty'&&remote.status!=='error'){
+        ['journal','plants','seeds','sowLogs','hardenLogs'].forEach(key=>{
+          if(!remote[key])return;
+          const ids=new Set((db[key]||[]).map(x=>x.id));
+          remote[key].forEach(item=>{if(!ids.has(item.id))(db[key]=db[key]||[]).push(item);});
+        });
+        if(remote.oyaLogs)db.oyaLogs=Object.assign({},remote.oyaLogs,db.oyaLogs);
+        if(remote.bedDesigns)Object.keys(remote.bedDesigns).forEach(k=>{if(!db.bedDesigns[k])db.bedDesigns[k]=remote.bedDesigns[k];});
+        saveDB(db);renderAll();pulled=true;
+      }
+    }catch(e){}
+    // 2. Push merged data — strip seed thumbnails to keep payload small
+    const payload=JSON.parse(JSON.stringify(db));
+    (payload.seeds||[]).forEach(s=>{s.thumb='';s.thumbType='';});
+    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'sync',data:payload})});
     const r=await res.json();
-    if(r.status==='ok'){status.textContent='SYNCED';status.className='sync-status sync-ok';}
+    if(r.status==='ok'){status.textContent=pulled?'SYNCED ↕':'SYNCED ↑';status.className='sync-status sync-ok';}
     else throw new Error();
   }catch{status.textContent='ERR';status.className='sync-status sync-off';}
   btn.classList.remove('syncing');
