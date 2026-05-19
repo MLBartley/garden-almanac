@@ -1710,6 +1710,8 @@ function loadDB() {
       if (!d.plantingList) d.plantingList = [];
       if (!d.bedStatuses) d.bedStatuses = {};
       // Additive migration: add any new defaultSeeds() IDs not yet in local data
+      // Additive-only: never modify existing seeds (user may have changed bed/qty/storage).
+      // IMPORTANT: do NOT add destructive patterns here — user edits are marked _userModified.
       { const knownSeedIds = new Set((d.seeds||[]).map(s=>s.id));
         const missSeeds = defaultSeeds().filter(s=>!knownSeedIds.has(s.id));
         if(missSeeds.length) d.seeds=(d.seeds||[]).concat(missSeeds); }
@@ -3610,7 +3612,7 @@ function runAutoPopulate() {
 
 function acceptConflictMove(seedId, newBed, warnElemId) {
   const seed = db.seeds.find(s=>s.id===seedId);
-  if (seed) { seed.bed = newBed; saveDB(db); }
+  if (seed) { seed.bed = newBed; seed._userModified = true; saveDB(db); }
   closeModal('suggest-summary-modal');
   autoPopulateAllBeds();
 }
@@ -4134,16 +4136,16 @@ function seedBedMismatch(seed){
 }
 function changeSeedBed(id,newBed){
   const s=(db.seeds||[]).find(s=>s.id===id);if(!s)return;
-  s.bed=newBed;saveDB(db);renderSeeds();
+  s.bed=newBed;s._userModified=true;saveDB(db);renderSeeds();
 }
 function changeSeedBed2(id,bed2){
   const s=(db.seeds||[]).find(s=>s.id===id);if(!s)return;
-  s.bed2=bed2;saveDB(db);renderSeeds();
+  s.bed2=bed2;s._userModified=true;saveDB(db);renderSeeds();
 }
 function changeSeedQty2(id,val){
   const s=(db.seeds||[]).find(s=>s.id===id);if(!s)return;
   s.qty2=Math.max(1,Math.min((s.qty||1)-1,parseInt(val)||1));
-  saveDB(db);renderSeeds();
+  s._userModified=true;saveDB(db);renderSeeds();
 }
 function addSeedSplit(id){
   const s=(db.seeds||[]).find(s=>s.id===id);if(!s)return;
