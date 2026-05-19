@@ -4252,9 +4252,9 @@ function renderSeeds(){
     el.innerHTML=filtered.map(s=>buildCard(s,false,false)).join('');return;
   }
   if(activeSeedFilter!=='all'){
-    const filtered=seeds.filter(s=>s.bed===activeSeedFilter&&!s.skipYear&&s.storage!=='live');
+    const filtered=seeds.filter(s=>(s.bed===activeSeedFilter||s.bed2===activeSeedFilter)&&!s.skipYear);
     if(!filtered.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">No seeds assigned to this bed.</div></div>`;return;}
-    el.innerHTML=filtered.map(s=>buildCard(s,false,false)).join('');return;
+    el.innerHTML=filtered.map(s=>buildCard(s,s.storage==='live',false)).join('');return;
   }
   if(!seeds.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">No seeds yet.\nTap "Scan packet" to add your first.</div></div><div class="scan-zone" onclick="openScanModal()"><div class="scan-icon">📷</div><div class="scan-text">SCAN YOUR FIRST SEED PACKET</div><div class="scan-sub">AI reads the packet and fills in all the details</div></div>`;return;}
   let html='';
