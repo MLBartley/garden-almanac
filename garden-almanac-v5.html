@@ -728,27 +728,8 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
           <div id="bed-inventory-panel" style="display:none;background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-top:10px;"></div>
         </div>
 
-        <!-- Freeform bed UI (herb / perennial types) -->
-        <div id="freeform-bed-view" style="display:none;">
-          <div id="freeform-bed-note" style="background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-bottom:12px;font-size:.82rem;line-height:1.55;color:var(--muted);"></div>
-          <div id="freeform-seed-panel"></div>
-          <div class="section-label">Plants in this bed</div>
-          <div id="freeform-plant-list"></div>
-          <div style="background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:12px 13px;margin-top:8px;">
-            <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;">ADD PLANT</div>
-            <div style="position:relative;margin-bottom:7px;">
-              <input id="freeform-plant-input" type="text" placeholder="Start typing a plant name…" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:8px 10px;font-size:.88rem;box-sizing:border-box;outline:none;" oninput="freeformPlantSearch(this.value)" onblur="setTimeout(()=>{const el=document.getElementById('freeform-plant-suggestions');if(el)el.style.display='none';},150)" autocomplete="off">
-              <div id="freeform-plant-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--rule);border-radius:0 0 6px 6px;z-index:10;max-height:160px;overflow-y:auto;"></div>
-            </div>
-            <select id="freeform-plant-status" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:7px 8px;font-size:.85rem;margin-bottom:7px;background:white;">
-              <option value="established">Established — already growing</option>
-              <option value="planted">Planted this season</option>
-              <option value="planned">Planned — not yet planted</option>
-            </select>
-            <input id="freeform-plant-notes" type="text" placeholder="Notes (optional)" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:7px 10px;font-size:.85rem;box-sizing:border-box;margin-bottom:8px;outline:none;">
-            <button class="btn-primary" style="width:100%;padding:9px;" onclick="addFreeformPlant()">+ Add plant</button>
-          </div>
-        </div>
+        <!-- Freeform bed UI (perennial type) — content injected by renderFreeformBed() -->
+        <div id="freeform-bed-view" style="display:none;"></div>
       </div><!-- end #garden-design -->
 
       <!-- ── SEEDS SUB-TAB ── -->
@@ -1724,6 +1705,7 @@ function loadDB() {
       if(!d.seasonReview)d.seasonReview={};
       if(!d.lockedBeds)d.lockedBeds=[];
       if(!d.bedPlantList)d.bedPlantList={};
+      if(!d.bedZones)d.bedZones={};
       if(!(d.sowLogs||[]).some(e=>e.id==='sl-corn-live-2026')){
         d.sowLogs=d.sowLogs||[];
         d.sowLogs.unshift({id:'sl-corn-live-2026',name:'Corn',variety:'Ashworth Sweet',method:'indoor',bed:'A',qty:24,date:'2026-05-18',status:'started',notes:'24 plants started from seed indoors. Transplant after last frost; plant in 3×3+ block in Bed A for wind pollination.'});
@@ -2288,20 +2270,22 @@ function buildBedSelector() {
     const confirmedIds = [...new Set(Object.keys(design).filter(i => statuses[i] !== 'suggested').map(i => design[i]))];
     const preview = uniqueIds.slice(0, 4).map(id => PLANT_IDX[id]?.emoji || '').join('');
     const invCount = (db.seeds || []).filter(s => s.bed === b.key).length;
-    const isFreeform = b.type === 'herb' || b.type === 'perennial';
+    const isFreeform = b.type === 'perennial';
     let sub;
     if (isFreeform) {
-      const fList = (db.bedPlantList||{})[b.key] || [];
-      const estab = fList.filter(e=>e.status==='established').length;
-      const planted = fList.filter(e=>e.status==='planted').length;
-      const planned = fList.filter(e=>e.status==='planned').length;
-      if (!fList.length) sub = 'No plants yet';
+      const zones = (db.bedZones||{})[b.key] || [];
+      const allPlants = zones.flatMap(z => z.plants||[]);
+      const estab = allPlants.filter(e=>e.status==='established').length;
+      const planted = allPlants.filter(e=>e.status==='planted').length;
+      const planned = allPlants.filter(e=>e.status==='planned').length;
+      if (!zones.length) sub = 'No zones yet';
+      else if (!allPlants.length) sub = `${zones.length} zone${zones.length>1?'s':''} · no plants yet`;
       else {
         const parts=[];
         if(estab) parts.push(`${estab} established`);
         if(planted) parts.push(`${planted} planted`);
         if(planned) parts.push(`${planned} planned`);
-        sub = fList.slice(0,3).map(e=>e.emoji||'🌿').join('')+' '+parts.join(' · ');
+        sub = allPlants.slice(0,3).map(e=>e.emoji||'🌿').join('')+' '+parts.join(' · ');
       }
     } else if (confirmedIds.length > 0) sub = `${preview} ${confirmedIds.length} type${confirmedIds.length>1?'s':''} confirmed`;
     else if (uniqueIds.length > 0) sub = `${preview} ${uniqueIds.length} suggested`;
@@ -2333,8 +2317,8 @@ function renderDesign() {
   const bed = db.beds.find(b => b.key === activeBedKey);
   if (!bed) return;
 
-  // Freeform beds (herb / perennial) get a list view, not a grid
-  const isFreeform = bed.type === 'herb' || bed.type === 'perennial';
+  // Perennial beds get a zone-based list view; all others use the sq-ft grid
+  const isFreeform = bed.type === 'perennial';
   document.getElementById('grid-bed-view').style.display = isFreeform ? 'none' : '';
   document.getElementById('freeform-bed-view').style.display = isFreeform ? '' : 'none';
   if (isFreeform) {
@@ -2469,140 +2453,183 @@ function toggleBedLock(key) {
   buildBedSelector();
 }
 
-// ── Freeform bed (herb / perennial) ──────────────────────────────────────
-let freeformSelectedPlant = null; // {id, name, emoji} from PLANT_LIB or null for custom
-
+// ── Perennial bed — zone-based freeform view ─────────────────────────────────
 function renderFreeformBed(bed) {
-  const noteEl = document.getElementById('freeform-bed-note');
-  if (noteEl) noteEl.textContent = bed.notes || '';
+  const fv = document.getElementById('freeform-bed-view'); if (!fv) return;
 
-  // Seeds / starts assigned to this bed that haven't been planted yet
-  const seedPanel = document.getElementById('freeform-seed-panel');
-  if (seedPanel) {
-    const assigned = (db.seeds || []).filter(s =>
-      s.bed === bed.key || s.bed2 === bed.key
-    );
-    if (!assigned.length) {
-      seedPanel.innerHTML = '';
-    } else {
-      const rows = assigned.map(s => {
-        const isStart = s.storage === 'live';
-        const isSplit = s.bed2 === bed.key && s.bed !== bed.key;
-        const qty = isSplit ? (s.qty2 || 1) : (s.qty || 1);
-        const splitNote = isSplit
-          ? `<span style="font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);"> · split loc</span>`
-          : '';
-        const typeBadge = isStart
-          ? `<span style="font-family:'Space Mono',monospace;font-size:7px;background:#e2f0e4;color:#2a6a2a;padding:1px 5px;border-radius:3px;">START</span>`
-          : `<span style="font-family:'Space Mono',monospace;font-size:7px;background:var(--surface);color:var(--muted);padding:1px 5px;border-radius:3px;border:1px solid var(--rule);">SEED</span>`;
-        const libId = seedToLibId(s);
-        const plant = PLANT_IDX[libId];
-        const emoji = plant?.emoji || '🌱';
-        return `<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--rule);">
-          <div style="font-size:1.25rem;flex-shrink:0;line-height:1;">${emoji}</div>
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:.85rem;font-weight:600;">${s.name}${s.variety&&!s.variety.startsWith('(')?` <span style="opacity:.6;font-weight:400;">${s.variety}</span>`:''}</div>
-            <div style="margin-top:2px;display:flex;gap:4px;flex-wrap:wrap;align-items:center;">${typeBadge}<span style="font-family:'Space Mono',monospace;font-size:7px;background:#fff8e8;color:#8a5a00;padding:1px 5px;border-radius:3px;border:1px solid #e8d08a;">×${qty}</span>${splitNote}</div>
-          </div>
-          <div style="font-size:.72rem;color:var(--muted);white-space:nowrap;">Not planted</div>
-        </div>`;
-      }).join('');
-      seedPanel.innerHTML = `<div style="background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-bottom:12px;">
-        <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:var(--muted);margin-bottom:4px;">FROM SEED INVENTORY</div>
-        ${rows}
-        <div style="margin-top:8px;font-size:.75rem;color:var(--muted);border-top:1px solid var(--rule);padding-top:6px;">When planted, add to "Plants in this bed" below and update the Seeds section.</div>
-      </div>`;
-    }
-  }
+  // Bed notes banner
+  const noteHtml = bed.notes
+    ? `<div style="background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-bottom:12px;font-size:.82rem;line-height:1.55;color:var(--muted);">${bed.notes}</div>`
+    : '';
 
-  db.bedPlantList = db.bedPlantList || {};
-  const list = db.bedPlantList[bed.key] || [];
-  const STATUS = {established:'Established', planted:'Planted this season', planned:'Planned'};
-  const STATUS_COLOR = {established:'var(--moss)', planted:'#2a6a2a', planned:'var(--muted)'};
-
-  const listEl = document.getElementById('freeform-plant-list');
-  if (!list.length) {
-    listEl.innerHTML = `<div style="color:var(--muted);font-size:.83rem;padding:10px 0;">No plants recorded yet — add one below.</div>`;
-  } else {
-    listEl.innerHTML = list.map((entry, i) => {
-      const p = entry.plantId ? PLANT_IDX[entry.plantId] : null;
-      const emoji = p?.emoji || entry.emoji || '🌿';
-      const statusColor = STATUS_COLOR[entry.status] || 'var(--muted)';
-      return `<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-top:1px solid var(--rule);">
-        <div style="font-size:1.4rem;flex-shrink:0;line-height:1;">${emoji}</div>
+  // Seeds / starts from inventory assigned to this bed
+  const assigned = (db.seeds||[]).filter(s => s.bed===bed.key || s.bed2===bed.key);
+  let seedPanelHtml = '';
+  if (assigned.length) {
+    const rows = assigned.map(s => {
+      const isStart = s.storage==='live';
+      const isSplit = s.bed2===bed.key && s.bed!==bed.key;
+      const qty = isSplit ? (s.qty2||1) : (s.qty||1);
+      const typeBadge = isStart
+        ? `<span style="font-family:'Space Mono',monospace;font-size:7px;background:#e2f0e4;color:#2a6a2a;padding:1px 5px;border-radius:3px;">START</span>`
+        : `<span style="font-family:'Space Mono',monospace;font-size:7px;background:var(--surface);color:var(--muted);padding:1px 5px;border-radius:3px;border:1px solid var(--rule);">SEED</span>`;
+      const libId = seedToLibId(s); const plant = PLANT_IDX[libId];
+      const emoji = plant?.emoji || '🌱';
+      return `<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--rule);">
+        <div style="font-size:1.25rem;flex-shrink:0;line-height:1;">${emoji}</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:.9rem;font-weight:600;">${entry.name}</div>
-          ${entry.notes?`<div style="font-size:.78rem;color:var(--muted);margin-top:1px;">${entry.notes}</div>`:''}
-          <div style="margin-top:4px;">
-            <select onchange="updateFreeformStatus('${bed.key}',${i},this.value)" style="font-size:.75rem;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;background:white;color:${statusColor};">
-              ${['established','planted','planned'].map(s=>`<option value="${s}"${entry.status===s?' selected':''}>${STATUS[s]}</option>`).join('')}
-            </select>
-          </div>
+          <div style="font-size:.85rem;font-weight:600;">${s.name}${s.variety&&!s.variety.startsWith('(')?` <span style="opacity:.6;font-weight:400;">${s.variety}</span>`:''}</div>
+          <div style="margin-top:2px;display:flex;gap:4px;">${typeBadge}<span style="font-family:'Space Mono',monospace;font-size:7px;background:#fff8e8;color:#8a5a00;padding:1px 5px;border-radius:3px;border:1px solid #e8d08a;">×${qty}</span>${isSplit?`<span style="font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);"> split</span>`:''}</div>
         </div>
-        <button onclick="removeFreeformPlant('${bed.key}',${i})" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:2px 4px;flex-shrink:0;">×</button>
+        <div style="font-size:.72rem;color:var(--muted);white-space:nowrap;">Pending</div>
       </div>`;
     }).join('');
+    seedPanelHtml = `<div style="background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-bottom:12px;">
+      <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:var(--muted);margin-bottom:4px;">FROM SEED INVENTORY</div>
+      ${rows}
+      <div style="margin-top:8px;font-size:.75rem;color:var(--muted);border-top:1px solid var(--rule);padding-top:6px;">Once planted, add to a zone below.</div>
+    </div>`;
   }
-  // Reset add form
-  document.getElementById('freeform-plant-input').value = '';
-  document.getElementById('freeform-plant-notes').value = '';
-  document.getElementById('freeform-plant-suggestions').style.display = 'none';
-  freeformSelectedPlant = null;
+  // (seedPanelHtml used below in fv.innerHTML)
+
+  // Build zones UI
+  const STATUS_L = {established:'Established', planted:'Planted this season', planned:'Planned'};
+  const STATUS_C = {established:'var(--moss)', planted:'#2a6a2a', planned:'var(--muted)'};
+  const zones = (db.bedZones||{})[bed.key] || [];
+
+  const zonesHtml = zones.map(zone => {
+    const plantsHtml = (zone.plants||[]).length
+      ? (zone.plants||[]).map((entry, i) => {
+          const sc = STATUS_C[entry.status]||'var(--muted)';
+          return `<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-top:1px solid var(--rule);">
+            <div style="font-size:1.25rem;flex-shrink:0;line-height:1;">${entry.emoji}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:.88rem;font-weight:600;">${entry.name}</div>
+              ${entry.notes?`<div style="font-size:.75rem;color:var(--muted);margin-top:1px;">${entry.notes}</div>`:''}
+              <div style="margin-top:4px;"><select onchange="updateZonePlant('${bed.key}','${zone.id}',${i},this.value)" style="font-size:.75rem;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;background:white;color:${sc};">
+                ${['established','planted','planned'].map(s=>`<option value="${s}"${entry.status===s?' selected':''}>${STATUS_L[s]}</option>`).join('')}
+              </select></div>
+            </div>
+            <button onclick="removeZonePlant('${bed.key}','${zone.id}',${i})" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:2px 4px;flex-shrink:0;">×</button>
+          </div>`;
+        }).join('')
+      : `<div style="color:var(--muted);font-size:.8rem;padding:8px 0;">No plants yet.</div>`;
+
+    return `<div style="background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:12px 13px;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <div style="font-size:1rem;">🌿</div>
+        <div style="font-size:.92rem;font-weight:600;flex:1;">${zone.name}</div>
+        <button onclick="removeZone('${bed.key}','${zone.id}')" style="background:none;border:1px solid var(--rule);color:var(--muted);font-size:.7rem;border-radius:4px;padding:2px 7px;cursor:pointer;">Remove</button>
+      </div>
+      ${plantsHtml}
+      <div style="padding-top:9px;border-top:1px solid var(--rule);margin-top:4px;">
+        <div style="position:relative;">
+          <input id="zone-input-${zone.id}" type="text" placeholder="Add plant…"
+            style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:7px 10px;font-size:.85rem;box-sizing:border-box;outline:none;"
+            oninput="zonePlantSearch('${bed.key}','${zone.id}',this.value)"
+            onblur="setTimeout(()=>{const e=document.getElementById('zone-sugg-${zone.id}');if(e)e.style.display='none';},150)"
+            autocomplete="off">
+          <div id="zone-sugg-${zone.id}" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--rule);border-radius:0 0 6px 6px;z-index:10;max-height:140px;overflow-y:auto;"></div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:5px;">
+          <select id="zone-status-${zone.id}" style="flex:1;border:1px solid var(--rule);border-radius:4px;padding:6px 7px;font-size:.78rem;background:white;">
+            <option value="established">Established</option>
+            <option value="planted">Planted this season</option>
+            <option value="planned">Planned</option>
+          </select>
+          <button class="btn-sm" onclick="addZonePlant('${bed.key}','${zone.id}')">+ Add</button>
+        </div>
+        <input id="zone-notes-${zone.id}" type="text" placeholder="Notes (optional)"
+          style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:6px 9px;font-size:.82rem;box-sizing:border-box;margin-top:5px;outline:none;">
+      </div>
+    </div>`;
+  }).join('');
+
+  const emptyMsg = !zones.length ? `<div style="color:var(--muted);font-size:.83rem;padding:10px 0;text-align:center;">No zones yet — add a zone to start organizing this bed.</div>` : '';
+
+  const addZoneForm = `<div style="background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:12px 13px;margin-bottom:10px;">
+    <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;">ADD ZONE</div>
+    <div style="display:flex;gap:6px;">
+      <input id="new-zone-name" type="text" placeholder="e.g. Native Yard, Herb Section, Sour Cherry Border"
+        style="flex:1;border:1px solid var(--rule);border-radius:4px;padding:7px 10px;font-size:.85rem;outline:none;box-sizing:border-box;"
+        onkeydown="if(event.key==='Enter')addZone('${bed.key}')">
+      <button class="btn-sm" onclick="addZone('${bed.key}')">+ Add</button>
+    </div>
+  </div>`;
+
+  fv.innerHTML = noteHtml + seedPanelHtml + addZoneForm + zonesHtml + emptyMsg;
 }
 
-function freeformPlantSearch(val) {
-  const sugEl = document.getElementById('freeform-plant-suggestions');
-  if (!val.trim()) { sugEl.style.display = 'none'; freeformSelectedPlant = null; return; }
+// ── Zone management ───────────────────────────────────────────────────────────
+let _zoneSelected = {}; // zoneId → {id, name, emoji} | null
+
+function zonePlantSearch(bedKey, zoneId, val) {
+  const sugEl = document.getElementById('zone-sugg-'+zoneId);
+  if (!val.trim()) { if(sugEl)sugEl.style.display='none'; _zoneSelected[zoneId]=null; return; }
   const q = val.toLowerCase();
-  const matches = PLANT_LIB.filter(p => p.name.toLowerCase().includes(q)).slice(0, 8);
-  if (!matches.length) { sugEl.style.display = 'none'; freeformSelectedPlant = null; return; }
-  sugEl.style.display = 'block';
-  sugEl.innerHTML = matches.map(p =>
-    `<div onclick="selectFreeformPlant('${p.id}','${p.name.replace(/'/g,"\\'")}','${p.emoji}')" style="padding:7px 10px;cursor:pointer;font-size:.85rem;border-bottom:1px solid var(--rule);">${p.emoji} ${p.name}</div>`
+  const matches = PLANT_LIB.filter(p=>p.name.toLowerCase().includes(q)).slice(0,8);
+  if (!matches.length||!sugEl) { if(sugEl)sugEl.style.display='none'; return; }
+  sugEl.style.display='block';
+  sugEl.innerHTML = matches.map(p=>
+    `<div onclick="selectZonePlant('${zoneId}','${p.id}')" style="padding:7px 10px;cursor:pointer;font-size:.85rem;border-bottom:1px solid var(--rule);">${p.emoji} ${p.name}</div>`
   ).join('');
 }
 
-function selectFreeformPlant(id, name, emoji) {
-  freeformSelectedPlant = {id, name, emoji};
-  document.getElementById('freeform-plant-input').value = name;
-  document.getElementById('freeform-plant-suggestions').style.display = 'none';
+function selectZonePlant(zoneId, plantId) {
+  const plant = PLANT_IDX[plantId]; if (!plant) return;
+  _zoneSelected[zoneId] = {id:plant.id, name:plant.name, emoji:plant.emoji};
+  const inp = document.getElementById('zone-input-'+zoneId); if(inp) inp.value=plant.name;
+  const sug = document.getElementById('zone-sugg-'+zoneId); if(sug) sug.style.display='none';
 }
 
-function addFreeformPlant() {
-  const nameInput = document.getElementById('freeform-plant-input').value.trim();
-  if (!nameInput) return;
-  const status = document.getElementById('freeform-plant-status').value;
-  const notes = document.getElementById('freeform-plant-notes').value.trim();
-  db.bedPlantList = db.bedPlantList || {};
-  db.bedPlantList[activeBedKey] = db.bedPlantList[activeBedKey] || [];
-  const p = freeformSelectedPlant && freeformSelectedPlant.name.toLowerCase() === nameInput.toLowerCase()
-    ? freeformSelectedPlant : null;
-  db.bedPlantList[activeBedKey].push({
-    id: 'fp'+Date.now(),
-    plantId: p?.id || null,
-    name: p?.name || nameInput,
-    emoji: p?.emoji || '🌿',
-    status, notes,
-    added: new Date().toISOString().slice(0,7)
-  });
-  saveDB(db);
-  freeformSelectedPlant = null;
-  renderFreeformBed(db.beds.find(b=>b.key===activeBedKey));
-  buildBedSelector();
-}
-
-function removeFreeformPlant(bedKey, idx) {
-  if (!(db.bedPlantList||{})[bedKey]) return;
-  db.bedPlantList[bedKey].splice(idx, 1);
+function addZonePlant(bedKey, zoneId) {
+  const nameEl=document.getElementById('zone-input-'+zoneId);
+  const statusEl=document.getElementById('zone-status-'+zoneId);
+  const notesEl=document.getElementById('zone-notes-'+zoneId);
+  const name=nameEl?.value.trim(); if(!name)return;
+  const status=statusEl?.value||'planned';
+  const notes=notesEl?.value.trim()||'';
+  const sel=_zoneSelected[zoneId];
+  const p=sel&&sel.name.toLowerCase()===name.toLowerCase()?sel:null;
+  db.bedZones=db.bedZones||{};
+  db.bedZones[bedKey]=db.bedZones[bedKey]||[];
+  const zone=(db.bedZones[bedKey]||[]).find(z=>z.id===zoneId); if(!zone)return;
+  zone.plants=zone.plants||[];
+  zone.plants.push({id:'zp'+Date.now(),plantId:p?.id||null,name:p?.name||name,emoji:p?.emoji||'🌿',status,notes,added:new Date().toISOString().slice(0,7)});
+  delete _zoneSelected[zoneId];
   saveDB(db);
   renderFreeformBed(db.beds.find(b=>b.key===bedKey));
-  buildBedSelector();
 }
 
-function updateFreeformStatus(bedKey, idx, status) {
-  if (!(db.bedPlantList||{})[bedKey]) return;
-  db.bedPlantList[bedKey][idx].status = status;
+function removeZonePlant(bedKey, zoneId, plantIdx) {
+  const zone=(db.bedZones?.[bedKey]||[]).find(z=>z.id===zoneId); if(!zone)return;
+  zone.plants.splice(plantIdx,1);
   saveDB(db);
+  renderFreeformBed(db.beds.find(b=>b.key===bedKey));
+}
+
+function updateZonePlant(bedKey, zoneId, plantIdx, status) {
+  const zone=(db.bedZones?.[bedKey]||[]).find(z=>z.id===zoneId); if(!zone||!zone.plants[plantIdx])return;
+  zone.plants[plantIdx].status=status;
+  saveDB(db); buildBedSelector();
+}
+
+function addZone(bedKey) {
+  const nameEl=document.getElementById('new-zone-name');
+  const name=nameEl?.value.trim(); if(!name)return;
+  db.bedZones=db.bedZones||{};
+  db.bedZones[bedKey]=db.bedZones[bedKey]||[];
+  db.bedZones[bedKey].push({id:'z'+Date.now(),name,emoji:'🌿',plants:[]});
+  if(nameEl)nameEl.value='';
+  saveDB(db);
+  renderFreeformBed(db.beds.find(b=>b.key===bedKey));
+}
+
+function removeZone(bedKey, zoneId) {
+  if(!db.bedZones?.[bedKey])return;
+  db.bedZones[bedKey]=db.bedZones[bedKey].filter(z=>z.id!==zoneId);
+  saveDB(db);
+  renderFreeformBed(db.beds.find(b=>b.key===bedKey));
   buildBedSelector();
 }
 
@@ -2931,7 +2958,7 @@ function autoPopulateAllBeds() {
   if (hasWarning) {
     // Show all grid beds — including those with zero demand (where overflow goes)
     const allBedKeys = db.beds
-      .filter(b => !b.type || b.type === 'bag')
+      .filter(b => !b.type || b.type === 'bag' || b.type === 'herb')
       .map(b => b.key);
     const totalNeeded = Object.values(bedSqNeeded).reduce((a,b)=>a+b,0);
     const totalCap = allBedKeys.reduce((a,k)=>{const i=bedCaps[k];return a+(i&&i.cap?i.cap:0);},0);
@@ -2976,7 +3003,7 @@ function runAutoPopulate() {
   const lockedBeds = new Set(db.lockedBeds || []);
   db.beds.forEach(b => {
     if (lockedBeds.has(b.key)) return; // locked — leave entirely alone
-    if (b.type === 'perennial') return; // perennial beds are user-managed
+    if (b.type === 'perennial' || b.type === 'herb') return; // user-managed — never auto-cleared
     const d = designs[b.key], s = statuses[b.key], cap = capacities[b.key];
     if (!d || cap === undefined) return;
     for (let i = 0; i < cap; i++) {
@@ -3224,8 +3251,8 @@ function placeThreeSisters(designs, statuses, capacities, remainingSqFn) {
 function fillRecommendedPass(designs, statuses, capacities) {
   db.beds.forEach(bed => {
     const key = bed.key;
-    // Perennial beds are user-managed — never auto-fill with recommendations
-    if (bed.type === 'perennial') return;
+    // Perennial and herb beds are user-managed — never auto-fill with recommendations
+    if (bed.type === 'perennial' || bed.type === 'herb') return;
     const d = designs[key], s = statuses[key], cap = capacities[key];
     if (!d || cap === undefined) return;
 
