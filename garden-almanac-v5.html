@@ -3163,41 +3163,53 @@ function renderBedInventoryPanel(){
 
 // ── Auto-populate from inventory ──
 function seedToLibId(seed) {
-  const n = seed.name.toLowerCase();
+  const n = seed.name.toLowerCase().trim();
   const v = (seed.variety || '').toLowerCase();
-  if (n === 'tomato') return (v.includes('roma') || v.includes('paste')) ? 'tomato-det' : 'tomato-ind';
+  // ── Explicit mappings (most specific first) ────────────────────────────
+  if (n === 'tomato' || n === 'tomatoes') return (v.includes('roma') || v.includes('paste') || v.includes('det')) ? 'tomato-det' : 'tomato-ind';
   if (n === 'tomatillo') return 'tomato-det';
   if (n === 'kale') return 'brassica-kale';
   if (n === 'broccoli') return 'brassica-broc';
-  if (n === 'bok choy') return 'brassica-kale';
-  if (n === 'pepper') return 'pepper';
-  if (n === 'chard') return 'beet';
-  if (n === 'cucumber') return 'cucumber';
-  if (n === 'squash') return 'squash-winter';
-  if (n === 'pumpkin') return 'squash-winter';
+  if (n === 'bok choy' || n === 'pak choi' || n === 'cabbage' || n === 'cauliflower' || n === 'brussels sprouts') return 'brassica-kale';
+  if (n === 'kohlrabi') return 'kohlrabi';
+  if (n === 'pepper' || n === 'peppers' || n === 'chili' || n === 'hot pepper') return 'pepper';
+  if (n === 'chard' || n === 'swiss chard' || n === 'rainbow chard') return 'beet';
+  if (n === 'cucumber' || n === 'cucumbers') return 'cucumber';
   if (n === 'zucchini') return 'zucchini';
-  if (n === 'beans' || n === 'bean') return 'bean-bush';
-  if (n === 'carrot') return 'carrot';
-  if (n === 'beet') return 'beet';
+  if (n === 'squash') return (v.includes('zucchini') || v.includes('summer') || v.includes('pattypan')) ? 'zucchini' : 'squash-winter';
+  if (n === 'summer squash') return 'zucchini';
+  if (n === 'winter squash') return 'squash-winter';
+  if (n === 'pumpkin') return 'squash-winter';
+  if (n === 'melon' || n === 'cantaloupe' || n === 'watermelon') return 'cucumber';
+  if (n === 'bean' || n === 'beans' || n === 'green bean' || n === 'green beans' || n === 'pole bean' || n === 'pole beans' || n === 'bush bean' || n === 'bush beans' || n === 'snap bean' || n === 'snap beans' || n === 'runner bean') return 'bean-bush';
+  if (n === 'carrot' || n === 'carrots') return 'carrot';
+  if (n === 'beet' || n === 'beets') return 'beet';
   if (n === 'spinach') return 'spinach';
-  if (n === 'arugula') return 'arugula';
-  if (n === 'lettuce') return 'lettuce';
-  if (n === 'radish') return 'radish';
-  if (n === 'onion') return 'onion';
+  if (n === 'arugula' || n === 'rocket') return 'arugula';
+  if (n === 'lettuce' || n === 'salad mix' || n === 'mesclun') return 'lettuce';
+  if (n === 'radish' || n === 'radishes') return 'radish';
+  if (n === 'onion' || n === 'onions') return 'onion';
   if (n === 'garlic') return 'garlic';
-  if (n === 'leek' || n === 'shallot') return 'onion';
-  if (n === 'peas' || n === 'pea') return 'pea';
-  if (n === 'corn') return 'corn';
+  if (n === 'leek' || n === 'leeks' || n === 'shallot' || n === 'shallots') return 'onion';
+  if (n === 'pea' || n === 'peas' || n === 'snap pea' || n === 'snap peas' || n === 'snow pea' || n === 'snow peas' || n === 'shell pea' || n === 'sugar snap') return 'pea';
+  if (n === 'corn' || n === 'sweet corn') return 'corn';
   if (n === 'basil') return 'basil';
-  if (n === 'cilantro') return 'cilantro';
+  if (n === 'cilantro' || n === 'coriander') return 'cilantro';
   if (n === 'dill') return 'dill';
   if (n === 'parsley') return 'parsley';
   if (n === 'chives') return 'chives';
-  if (n === 'thyme') return 'thyme';
+  if (n === 'thyme' || n === 'rosemary' || n === 'sage' || n === 'lavender') return 'thyme';
   if (n === 'oregano' || n === 'marjoram') return 'oregano';
-  if (n === 'rosemary') return 'thyme';
-  if (n === 'marigold') return 'marigold';
-  if (n === 'mint') return null; // container only
+  if (n === 'marigold' || n === 'marigolds' || n === 'calendula') return 'marigold';
+  if (n === 'nasturtium' || n === 'nasturtiums') return 'marigold';
+  if (n === 'mint') return null;
+  // ── Fuzzy fallback: match seed name words against PLANT_LIB names ──────
+  // Avoids silent drops for names like "Cherry Tomato", "Lacinato Kale", etc.
+  const nWords = n.split(/\s+/);
+  for (const p of PLANT_LIB) {
+    const pWords = p.name.toLowerCase().split(/[\s()/]+/).filter(Boolean);
+    if (nWords.some(w => w.length > 3 && pWords.some(pw => pw === w || pw.startsWith(w) || w.startsWith(pw)))) return p.id;
+  }
   return null;
 }
 
@@ -3412,11 +3424,15 @@ function runAutoPopulate() {
         }
       }
     } else {
-      // Route to the best-fit bed: prefer conflict-free, then most remaining space
-      const nonPerennial = db.beds.filter(b => b.type !== 'perennial').map(b => b.key);
-      const valid = (plant.bestBeds || []).filter(k => nonPerennial.includes(k) && capacities[k] !== undefined);
-      if (!valid.length) return;
-      const target = valid.slice().sort((a, b) => {
+      // Route to the best-fit bed: prefer bestBeds, then conflict-free, then most space
+      const nonPerennial = db.beds.filter(b => b.type !== 'perennial' && b.type !== 'herb').map(b => b.key)
+        .filter(k => capacities[k] !== undefined && remainingSq(k) > 0);
+      if (!nonPerennial.length) return;
+      const bestBedKeys = new Set(plant.bestBeds || []);
+      const target = nonPerennial.slice().sort((a, b) => {
+        const aPref = bestBedKeys.has(a) ? 0 : 1;
+        const bPref = bestBedKeys.has(b) ? 0 : 1;
+        if (aPref !== bPref) return aPref - bPref;
         const aConf = bedConflicts(a, libId) ? 1 : 0;
         const bConf = bedConflicts(b, libId) ? 1 : 0;
         if (aConf !== bConf) return aConf - bConf;
