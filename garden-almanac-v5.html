@@ -1584,6 +1584,10 @@ function loadDB() {
       if(!d.rainfallLog)d.rainfallLog=[];
       if(!d.soilTempLog)d.soilTempLog=[];
       if(!d.gddLog)d.gddLog=[];
+      if(!(d.sowLogs||[]).some(e=>e.id==='sl-corn-live-2026')){
+        d.sowLogs=d.sowLogs||[];
+        d.sowLogs.unshift({id:'sl-corn-live-2026',name:'Corn',variety:'Ashworth Sweet',method:'indoor',bed:'A',qty:24,date:'2026-05-18',status:'started',notes:'24 plants started from seed indoors. Transplant after last frost; plant in 3×3+ block in Bed A for wind pollination.'});
+      }
       saveDB(d);
       return d;
     }
@@ -1722,6 +1726,9 @@ function defaultSeeds() {
      notes:'⚠️ Most heat-demanding crop in this collection — very marginal for Zone 5b. Use wall-o-water, black plastic mulch, warmest bed spot. Start indoors NOW if not started. Manage expectations.'},
     {id:'seed-fm-07',name:'Chives',variety:'(Ferry Morse)',days:'80',bed:'D',storage:'cool',source:fm,qty:1,addedDate:d,thumb:t,thumbType:tt,
      notes:'Perennial — already established in Bed D. Use these seeds to start new clumps for permanent spots in ground perennial beds or herb section. Slow from seed; start indoors or direct sow in spring.'},
+    // ── INDOOR STARTS (self-started from seed)
+    {id:'seed-corn-live-2026',name:'Corn',variety:'Ashworth Sweet (indoor start)',days:'68',bed:'A',storage:'live',source:'Indoor Starts 2026',qty:24,addedDate:'2026-05-18',thumb:'',thumbType:'',
+     notes:'24 plants started from seed indoors May 18 2026. Transplant to Bed A after last frost. Plant in 3×3+ block for wind pollination. Handle roots carefully — corn dislikes disturbance.'},
   ];
 }
 function defaultPlants() {
@@ -2491,11 +2498,24 @@ function autoPopulateAllBeds() {
     capacities[b.key] = b.cols * b.rows;
   });
 
+  // ── Step 0: clear previously auto-suggested/recommended squares ──────
+  // Preserves 'planted' and 'planned' squares set by the user.
+  db.beds.forEach(b => {
+    const d = designs[b.key], s = statuses[b.key], cap = capacities[b.key];
+    if (!d || cap === undefined) return;
+    for (let i = 0; i < cap; i++) {
+      if (!s[i] || s[i] === 'suggested' || s[i] === 'recommended') {
+        delete d[i]; delete s[i];
+      }
+    }
+  });
+
+  // Count truly empty squares (no plant assigned)
   function remainingSq(bedKey) {
-    const d = designs[bedKey], s = statuses[bedKey], cap = capacities[bedKey];
+    const d = designs[bedKey], cap = capacities[bedKey];
     if (!d || cap === undefined) return 0;
     let n = 0;
-    for (let i = 0; i < cap; i++) if (!d[i] || s[i] === 'suggested' || s[i] === 'recommended') n++;
+    for (let i = 0; i < cap; i++) if (!d[i]) n++;
     return n;
   }
 
@@ -2504,7 +2524,7 @@ function autoPopulateAllBeds() {
     const d = designs[bedKey], s = statuses[bedKey], cap = capacities[bedKey];
     if (!d || cap === undefined) return sqNeeded;
     for (let i = 0; i < cap && sqNeeded > 0; i++) {
-      if (!d[i] || s[i] === 'suggested' || s[i] === 'recommended') { d[i] = libId; s[i] = 'suggested'; sqNeeded--; }
+      if (!d[i]) { d[i] = libId; s[i] = 'suggested'; sqNeeded--; }
     }
     return sqNeeded; // leftover not placed
   }
@@ -2551,11 +2571,11 @@ function autoPopulateAllBeds() {
     if (!libId) return;
     if (threeSistersOn && threeSistersIds.has(libId)) return;
     const plant = PLANT_IDX[libId]; if (!plant) return;
-    // Allocate a reasonable patch per seed packet
+    // Allocate a practical patch per seed packet
     let sqNeeded;
-    if (plant.sqFt >= 4) sqNeeded = plant.sqFt;
-    else if (plant.sqFt >= 1) sqNeeded = Math.max(2, Math.round(plant.sqFt * 2));
-    else sqNeeded = 4;
+    if (plant.sqFt >= 4) sqNeeded = Math.ceil(plant.sqFt);
+    else if (plant.sqFt >= 1) sqNeeded = Math.max(4, Math.ceil(plant.sqFt * 4));
+    else sqNeeded = 8;
 
     if (seed.bed !== 'any') {
       fillInto(seed.bed, libId, sqNeeded);
@@ -2649,6 +2669,7 @@ function fillRecommendedPass(designs, statuses, capacities) {
     let pool = PLANT_LIB.filter(p => {
       if (!p.bestBeds.includes(key)) return false;
       if (badIds.has(p.id)) return false;
+      if (p.id === 'radish') return false; // personal preference
       // Bags: compact plants only
       if (bed.type === 'bag' && p.sqFt > 2) return false;
       // Partial shade: avoid very tender crops that need full sun heat
