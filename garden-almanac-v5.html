@@ -2560,7 +2560,17 @@ function autoPopulateAllBeds() {
   // ── Pass 1: live starts (direct bed assignment) ──────────────────────
   // Live starts MUST all get placed. If their assigned bed is full, overflow to
   // whatever full-sun bed has the most remaining space.
-  const liveStarts = (db.seeds || []).filter(s => s.storage === 'live');
+  // Sort: largest direct-bed allocations first so they get first pick of their bed.
+  const liveStarts = (db.seeds || []).filter(s => s.storage === 'live').sort((a, b) => {
+    // Direct-bed before 'any'
+    if (a.bed !== 'any' && b.bed === 'any') return -1;
+    if (a.bed === 'any' && b.bed !== 'any') return 1;
+    // Larger allocations first within the same category
+    const pA = PLANT_IDX[seedToLibId(a)], pB = PLANT_IDX[seedToLibId(b)];
+    const sqA = pA ? Math.max(1, Math.round(pA.sqFt * (a.qty || 1))) : 0;
+    const sqB = pB ? Math.max(1, Math.round(pB.sqFt * (b.qty || 1))) : 0;
+    return sqB - sqA;
+  });
   liveStarts.forEach(seed => {
     const libId = seedToLibId(seed);
     if (!libId) return;
@@ -2728,6 +2738,7 @@ function fillRecommendedPass(designs, statuses, capacities) {
     if (!pool.length) {
       pool = PLANT_LIB.filter(p => {
         if (badIds.has(p.id)) return false;
+        if (p.id === 'radish') return false; // personal preference
         if (bed.shade === 'partial') return p.frostTol === 'hardy' || p.frostTol === 'halfhardy';
         return p.cat === 'veg' || p.cat === 'herb';
       });
