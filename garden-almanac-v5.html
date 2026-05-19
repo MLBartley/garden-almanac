@@ -810,7 +810,10 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 
       <!-- Hardening off -->
       <div class="section-label">Hardening off</div>
-      <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:8px;" onclick="openModal('log-harden-modal')">+ Start hardening schedule</button>
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <button class="btn-sm" style="flex:1;padding:9px;" onclick="openHardenAllModal()">🌿 Harden all starts</button>
+        <button class="btn-sm" style="flex:1;padding:9px;" onclick="openModal('log-harden-modal')">+ One plant</button>
+      </div>
       <div id="harden-list"></div>
 
       <!-- Harvest log -->
@@ -1321,6 +1324,46 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       <div style="display:flex;gap:8px;">
         <button class="btn-sm" style="flex:1;padding:11px;" onclick="closeModal('log-harden-modal')">Cancel</button>
         <button class="btn-primary" style="flex:2;padding:11px;" onclick="saveHardenLog()">Start schedule →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- HARDEN ALL MODAL -->
+  <div class="modal-overlay" id="harden-all-modal">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-title">Harden all plant starts</div>
+      <div class="modal-subtitle">Start a 7-day outdoor acclimation schedule for each</div>
+
+      <!-- Guidance block -->
+      <div style="background:#f0f5f0;border:1px solid #c4d4c5;border-radius:6px;padding:11px 13px;margin-bottom:12px;font-size:.82rem;color:var(--muted);line-height:1.6;">
+        <strong style="color:var(--moss);display:block;margin-bottom:4px;">🌿 7-day schedule</strong>
+        Day 1: 1 hr in shade · Day 2: 2 hrs shade · Day 3: 3 hrs dappled light<br>
+        Day 4: 3 hrs morning sun · Day 5: 4 hrs direct · Day 6: 6 hrs · Day 7: Full day ✓
+        <div style="margin-top:7px;padding-top:7px;border-top:1px solid #c4d4c5;">
+          <strong style="color:var(--moss);">Tips</strong><br>
+          • Start in shade — avoid midday sun first few days<br>
+          • Bring inside if frost is forecast or temps drop below 40°F<br>
+          • Skip or shorten on windy days — wind desiccates faster than sun<br>
+          • Watch for wilting; if it droops, bring in immediately
+        </div>
+      </div>
+
+      <!-- Start date -->
+      <div style="background:white;border:1px solid var(--rule);border-radius:var(--radius);overflow:hidden;margin-bottom:12px;">
+        <div class="form-field" style="border-bottom:none;">
+          <div class="form-label">Start date (first day outside)</div>
+          <input class="form-input" id="ha-date" type="date">
+        </div>
+      </div>
+
+      <!-- Plant checklist -->
+      <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:var(--muted);margin-bottom:6px;">SELECT STARTS TO HARDEN</div>
+      <div id="harden-all-plant-list" style="background:white;border:1px solid var(--rule);border-radius:var(--radius);overflow:hidden;margin-bottom:12px;max-height:220px;overflow-y:auto;"></div>
+
+      <div style="display:flex;gap:8px;">
+        <button class="btn-sm" style="flex:1;padding:11px;" onclick="closeModal('harden-all-modal')">Cancel</button>
+        <button class="btn-primary" style="flex:2;padding:11px;" id="ha-start-btn" onclick="saveHardenAll()">Start all →</button>
       </div>
     </div>
   </div>
@@ -5581,7 +5624,11 @@ function renderReadyToPlant() {
     return now >= _startWindowDate(PLANT_IDX[seedToLibId(s)], yr);
   });
   if (!ready.length) { el.innerHTML=''; return; }
-  el.innerHTML = `<div class="section-label">Ready to transplant</div><div class="rtp-grid">` +
+  const anyNotHardening = ready.some(s=>!activeHardenNames.has(s.name.toLowerCase()));
+  const hardenAllBtn = anyNotHardening
+    ? `<button class="btn-sm" style="float:right;padding:3px 10px;font-size:.75rem;margin-top:-2px;" onclick="openHardenAllModal()">🌿 Harden all</button>`
+    : '';
+  el.innerHTML = `<div class="section-label">Ready to transplant${hardenAllBtn}</div><div style="clear:both;"></div><div class="rtp-grid">` +
     ready.map(s => {
       const libId=seedToLibId(s); const plant=PLANT_IDX[libId];
       const bed=BED_INFO[s.bed]||BED_INFO.any;
@@ -5629,6 +5676,73 @@ function logStartAsTransplanted(seedId) {
     text:`Transplanted ${seed.name}${seed.variety?' ('+seed.variety+')':''} ×${seed.qty||1} to ${BED_INFO[seed.bed]?.label||'the garden'}.`,weather:null});
   saveDB(db);
   renderReadyToPlant(); renderWeekSprint(); renderSpring(); renderJournal();
+}
+
+function openHardenAllModal() {
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('ha-date').value = today;
+
+  const activeNames = new Set((db.hardenLogs||[]).filter(e=>!e.done).map(e=>e.name.toLowerCase().split(' (')[0]));
+  const starts = (db.seeds||[]).filter(s=>s.storage==='live');
+
+  if (!starts.length) {
+    alert('No live plant starts in inventory yet.');
+    return;
+  }
+
+  document.getElementById('harden-all-plant-list').innerHTML = starts.map(s => {
+    const libId = seedToLibId(s);
+    const plant = PLANT_IDX[libId];
+    const emoji = plant?.emoji || '🌱';
+    const already = activeNames.has(s.name.toLowerCase());
+    const label = s.name + (s.variety ? ' · ' + s.variety : '') + ' ×' + (s.qty||1);
+    const subLabel = already ? '<span style="color:var(--moss);font-size:.73rem;"> — hardening in progress</span>' : '';
+    return `<label style="display:flex;align-items:center;gap:10px;padding:10px 13px;border-bottom:1px solid var(--rule);cursor:${already?'default':'pointer'};">
+      <input type="checkbox" class="ha-check" data-id="${s.id}" data-name="${s.name}" data-variety="${s.variety||''}" data-qty="${s.qty||1}"
+        ${already?'disabled checked':'checked'} style="width:16px;height:16px;accent-color:var(--sage);">
+      <span style="font-size:1.1rem;">${emoji}</span>
+      <span style="flex:1;font-size:.88rem;">${label}${subLabel}</span>
+    </label>`;
+  }).join('');
+
+  // Update button label on check change
+  const updateBtn = () => {
+    const n = document.querySelectorAll('.ha-check:checked:not(:disabled)').length;
+    document.getElementById('ha-start-btn').textContent = n ? `Start ${n} schedule${n>1?'s':''} →` : 'Start all →';
+  };
+  document.querySelectorAll('.ha-check').forEach(c => c.addEventListener('change', updateBtn));
+  updateBtn();
+
+  openModal('harden-all-modal');
+}
+
+function saveHardenAll() {
+  const dateVal = document.getElementById('ha-date').value;
+  if (!dateVal) { alert('Enter a start date.'); return; }
+  const checked = [...document.querySelectorAll('.ha-check:checked:not(:disabled)')];
+  if (!checked.length) { closeModal('harden-all-modal'); return; }
+
+  db.hardenLogs = db.hardenLogs || [];
+  const activeNames = new Set((db.hardenLogs).filter(e=>!e.done).map(e=>e.name.toLowerCase().split(' (')[0]));
+  let added = 0;
+  checked.forEach(el => {
+    const name = el.dataset.name;
+    const variety = el.dataset.variety;
+    const qty = parseInt(el.dataset.qty)||1;
+    const fullName = name + (variety ? ' ('+variety+')' : '');
+    if (activeNames.has(name.toLowerCase())) return;
+    db.hardenLogs.unshift({id:'hl'+Date.now()+added,
+      name:fullName, qty, startDate:dateVal, completedDays:[], done:false});
+    added++;
+  });
+  if (added) {
+    db.journal.unshift({id:'j'+Date.now(),date:new Date().toISOString(),mood:'🌿',tags:['hardening'],
+      text:`Started hardening schedule for ${added} plant start${added>1?'s':''}.`,weather:null});
+    saveDB(db); renderJournal();
+  }
+  closeModal('harden-all-modal');
+  renderReadyToPlant(); renderSeeds(); renderSpring();
+  switchViewByName('track');
 }
 
 function startHardeningFromSeed(seedId) {
