@@ -1414,11 +1414,11 @@ const PLANT_LIB = [
   {id:'tomato-ind',emoji:'🍅',name:'Tomato (indeterminate)',cat:'veg',sqFt:4,
    frostTol:'verytender',sowMethod:'transplant',daysMin:70,daysMax:85,
    companions:{good:['basil','marigold','carrot','parsley'],bad:['fennel','brassica-broc','brassica-kale']},
-   bestBeds:['A'],spacing:'24–36"',notes:'Stake or cage. Short-season varieties key in Bozeman: Stupice (65d), Siletz (70d), Early Girl (62d).'},
+   bestBeds:['A','B','C'],spacing:'24–36"',notes:'Stake or cage. Short-season varieties key in Bozeman: Stupice (65d), Siletz (70d), Early Girl (62d).'},
   {id:'tomato-det',emoji:'🍅',name:'Tomato (determinate)',cat:'veg',sqFt:2,
    frostTol:'verytender',sowMethod:'transplant',daysMin:65,daysMax:75,
    companions:{good:['basil','marigold','carrot'],bad:['fennel']},
-   bestBeds:['A'],spacing:'18–24"',notes:'Bush type. Good for Bozeman: Glacier (55d), Siletz (70d).'},
+   bestBeds:['A','B','C'],spacing:'18–24"',notes:'Bush type. Good for Bozeman: Glacier (55d), Siletz (70d).'},
   // ── PEPPERS
   {id:'pepper',emoji:'🫑',name:'Pepper',cat:'veg',sqFt:2,
    frostTol:'verytender',sowMethod:'transplant',daysMin:65,daysMax:80,
@@ -3527,8 +3527,59 @@ function runAutoPopulate() {
     if (empty) parts.push(`<span style="color:var(--muted);">${empty} empty</span>`);
     return `<div style="padding:5px 0;border-top:1px solid var(--rule);"><strong>${b.name}</strong> <span style="opacity:.5;">${b.dims}</span><br><span style="font-size:.75rem;">${parts.join(' · ')}</span></div>`;
   }).join('');
-  document.getElementById('suggest-summary-body').innerHTML = summaryRows || '<p>No beds updated.</p>';
+  // ── Companion conflict scan ───────────────────────────────────────────
+  // Catch explicitly-assigned seeds sharing a bed with a bad companion.
+  const conflictWarnings = [];
+  db.beds.filter(b => b.type !== 'perennial' && b.type !== 'herb').forEach(b => {
+    const d = designs[b.key] || {};
+    const uniqueIds = [...new Set(Object.values(d))];
+    for (let ai = 0; ai < uniqueIds.length; ai++) {
+      for (let bi2 = ai + 1; bi2 < uniqueIds.length; bi2++) {
+        const aId = uniqueIds[ai], bId = uniqueIds[bi2];
+        const aP = PLANT_IDX[aId], bP = PLANT_IDX[bId];
+        if (!aP || !bP) continue;
+        if (!(aP.companions?.bad||[]).includes(bId) && !(bP.companions?.bad||[]).includes(aId)) continue;
+        // Find the seeds explicitly assigned to this bed
+        const aSeed = (db.seeds||[]).find(s=>!s.skipYear&&seedToLibId(s)===aId&&s.bed===b.key);
+        const bSeed = (db.seeds||[]).find(s=>!s.skipYear&&seedToLibId(s)===bId&&s.bed===b.key);
+        // Suggest moving the plant with more alternative bestBeds
+        const aAlt = (aP.bestBeds||[]).filter(k=>k!==b.key&&!lockedBeds.has(k));
+        const bAlt = (bP.bestBeds||[]).filter(k=>k!==b.key&&!lockedBeds.has(k));
+        const [movePlant, moveSeed, altBeds, keepPlant] =
+          (bSeed && bAlt.length) ? [bP, bSeed, bAlt, aP] :
+          (aSeed && aAlt.length) ? [aP, aSeed, aAlt, bP] :
+          bSeed ? [bP, bSeed, bAlt, aP] :
+          aSeed ? [aP, aSeed, aAlt, bP] :
+          [bP, null, bAlt, aP];
+        const key = b.key+'::'+[aId,bId].sort().join('|');
+        if (!conflictWarnings.some(w=>w.key===key))
+          conflictWarnings.push({key, bedName:b.name, movePlant, moveSeed, altBeds, keepPlant});
+      }
+    }
+  });
+  const conflictHtml = conflictWarnings.length ? `
+    <div style="margin-top:12px;padding-top:10px;border-top:2px solid #e8b0b0;">
+      <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:#7a1a1a;margin-bottom:8px;">⚠️ COMPANION CONFLICTS</div>
+      ${conflictWarnings.map((w,wi)=>{
+        const moveBtn = w.moveSeed && w.altBeds.length
+          ? w.altBeds.map(k=>`<button onclick="acceptConflictMove('${w.moveSeed.id}','${k}','conflict-warn-${wi}')" style="font-size:.73rem;padding:3px 9px;border:1px solid #c47a7a;border-radius:4px;background:#fff8f8;color:#7a1a1a;cursor:pointer;margin-right:4px;">→ Move to ${BED_INFO[k]?.label||k}</button>`).join('')
+          : '';
+        return `<div id="conflict-warn-${wi}" class="rotation-conflict" style="display:flex;flex-direction:column;gap:6px;">
+          <div><strong>${w.movePlant.emoji} ${w.movePlant.name}</strong> + <strong>${w.keepPlant.emoji} ${w.keepPlant.name}</strong> in ${w.bedName} — bad companions</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">${moveBtn}<button onclick="document.getElementById('conflict-warn-${wi}').style.display='none'" style="font-size:.73rem;padding:3px 9px;border:1px solid var(--rule);border-radius:4px;background:transparent;color:var(--muted);cursor:pointer;">Keep as-is</button></div>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
+  document.getElementById('suggest-summary-body').innerHTML = (summaryRows || '<p>No beds updated.</p>') + conflictHtml;
   openModal('suggest-summary-modal');
+}
+
+function acceptConflictMove(seedId, newBed, warnElemId) {
+  const seed = db.seeds.find(s=>s.id===seedId);
+  if (seed) { seed.bed = newBed; saveDB(db); }
+  closeModal('suggest-summary-modal');
+  autoPopulateAllBeds();
 }
 
 function clearAllSuggestions() {
