@@ -611,7 +611,9 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
   .seed-card{margin-bottom:0;}
   /* Today — side by side below weather */
   #view-today.active{display:grid;grid-template-columns:1fr 1fr;column-gap:20px;align-content:start;}
-  #frost-alert-banner,#weather-card,.forecast-scroll{grid-column:1/-1;}
+  #frost-alert-banner,#weather-card,.forecast-scroll,#ready-to-plant-wrap{grid-column:1/-1;}
+  .rtp-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .rtp-grid .rtp-card{margin-bottom:0;}
 }
 </style>
 </head>
@@ -665,8 +667,8 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <div class="section-label" style="margin-top:0;">Today's care</div>
         <div id="care-list"></div>
       </div>
-      <div id="ready-to-plant-wrap"></div>
       <div id="week-sprint-wrap"></div>
+      <div id="ready-to-plant-wrap"></div>
       <div id="spring-widget-wrap"></div>
       <div style="border-top:1px solid var(--rule);margin-top:4px;">
         <button class="moon-toggle-btn" id="moon-toggle-btn" onclick="toggleMoonWidget()" style="display:flex;align-items:center;gap:6px;width:100%;border:none;"><span>🌙</span><span>Moon &amp; Sun</span><span style="margin-left:auto;" id="moon-toggle-arrow">▾</span></button>
@@ -5576,7 +5578,7 @@ function renderReadyToPlant() {
     return now >= _startWindowDate(PLANT_IDX[seedToLibId(s)], yr);
   });
   if (!ready.length) { el.innerHTML=''; return; }
-  el.innerHTML = `<div class="section-label">Ready to transplant</div>` +
+  el.innerHTML = `<div class="section-label">Ready to transplant</div><div class="rtp-grid">` +
     ready.map(s => {
       const libId=seedToLibId(s); const plant=PLANT_IDX[libId];
       const bed=BED_INFO[s.bed]||BED_INFO.any;
@@ -5596,7 +5598,7 @@ function renderReadyToPlant() {
           ${hardenBtn}
         </div>
       </div></div>`;
-    }).join('');
+    }).join('') + `</div>`;
 }
 
 function logStartAsTransplanted(seedId) {
