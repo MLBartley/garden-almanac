@@ -1706,6 +1706,38 @@ function loadDB() {
       if(!d.lockedBeds)d.lockedBeds=[];
       if(!d.bedPlantList)d.bedPlantList={};
       if(!d.bedZones)d.bedZones={};
+      if(!(d.bedZones['P']||[]).length){
+        const e='established',a='2026-05';
+        d.bedZones['P']=[
+          {id:'z-hammock',name:'Hammock Strip',emoji:'🌳',
+           notes:'Runs along the fence to the shed in the SW corner. 2 aspen, 1 chokecherry. A walking path from the eastern side yard goes alongside and then curves west along Grassland Triangle.',
+           plants:[{id:'zp-h1',plantId:null,name:'Aspen',emoji:'🌳',status:e,notes:'2 trees',added:a},{id:'zp-h2',plantId:null,name:'Chokecherry',emoji:'🍒',status:e,notes:'1 tree',added:a}]},
+          {id:'z-grassland',name:'Grassland Triangle',emoji:'🌾',
+           notes:'Runs E/W from in front of the shed out to a point. 2 American plum trees, 1 hazelnut. The point has path on both sides including one leading to the shed.',
+           plants:[{id:'zp-g1',plantId:null,name:'American Plum',emoji:'🌸',status:e,notes:'2 trees',added:a},{id:'zp-g2',plantId:null,name:'Hazelnut',emoji:'🌰',status:e,notes:'1 tree',added:a}]},
+          {id:'z-milkweed',name:'Milkweed Island',emoji:'🦋',
+           notes:'Parallel to Grassland Triangle, slightly north. Separated by a walking path. Surrounded by path on all sides.',
+           plants:[{id:'zp-m1',plantId:null,name:'Milkweed',emoji:'🦋',status:e,notes:'',added:a}]},
+          {id:'z-thimble',name:'Thimbleberry Sauna',emoji:'🍓',
+           notes:'Along the southern back fence. 2 chokecherry, 2 pine, thimbleberry patch. Unfinished — contains mound for planting.',
+           plants:[{id:'zp-t1',plantId:null,name:'Chokecherry',emoji:'🍒',status:e,notes:'2 trees',added:a},{id:'zp-t2',plantId:null,name:'Pine',emoji:'🌲',status:e,notes:'2 trees',added:a},{id:'zp-t3',plantId:null,name:'Thimbleberry',emoji:'🍓',status:e,notes:'patch',added:a}]},
+          {id:'z-raised',name:'Raised Corner',emoji:'⛰️',
+           notes:'SW corner of backyard. Raised above surrounding area.',
+           plants:[{id:'zp-r1',plantId:null,name:'Mountain Mahogany',emoji:'🌿',status:e,notes:'',added:a}]},
+          {id:'z-cherryrow',name:'Cherry Row',emoji:'🍒',
+           notes:'Runs along the western fence.',
+           plants:[{id:'zp-cr1',plantId:null,name:'Aspen',emoji:'🌳',status:e,notes:'2 trees',added:a},{id:'zp-cr2',plantId:null,name:'Sour Cherry',emoji:'🍒',status:e,notes:'2 trees',added:a}]},
+          {id:'z-maple',name:'Sugar Maple Corner',emoji:'🍁',
+           notes:'Next to the southern and western edge of the patio.',
+           plants:[{id:'zp-ma1',plantId:null,name:'Sugar Maple',emoji:'🍁',status:e,notes:'mature tree',added:a}]},
+          {id:'z-raspb',name:'Next to House Raspberries',emoji:'🍓',
+           notes:'Section along the house, east of the back door.',
+           plants:[{id:'zp-rb1',plantId:null,name:'Raspberry',emoji:'🍓',status:e,notes:'patch',added:a}]},
+          {id:'z-4oclock',name:'Next to House Colorado 4 o\'clock',emoji:'🌺',
+           notes:'Along the house.',
+           plants:[{id:'zp-4o1',plantId:null,name:'Colorado 4 o\'clock',emoji:'🌺',status:e,notes:'',added:a}]},
+        ];
+      }
       if(!(d.sowLogs||[]).some(e=>e.id==='sl-corn-live-2026')){
         d.sowLogs=d.sowLogs||[];
         d.sowLogs.unshift({id:'sl-corn-live-2026',name:'Corn',variety:'Ashworth Sweet',method:'indoor',bed:'A',qty:24,date:'2026-05-18',status:'started',notes:'24 plants started from seed indoors. Transplant after last frost; plant in 3×3+ block in Bed A for wind pollination.'});
@@ -2516,10 +2548,13 @@ function renderFreeformBed(bed) {
       : `<div style="color:var(--muted);font-size:.8rem;padding:8px 0;">No plants yet.</div>`;
 
     return `<div style="background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:12px 13px;margin-bottom:10px;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-        <div style="font-size:1rem;">🌿</div>
-        <div style="font-size:.92rem;font-weight:600;flex:1;">${zone.name}</div>
-        <button onclick="removeZone('${bed.key}','${zone.id}')" style="background:none;border:1px solid var(--rule);color:var(--muted);font-size:.7rem;border-radius:4px;padding:2px 7px;cursor:pointer;">Remove</button>
+      <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;">
+        <div style="font-size:1rem;margin-top:2px;">${zone.emoji||'🌿'}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:.92rem;font-weight:600;">${zone.name}</div>
+          ${zone.notes?`<div style="font-size:.76rem;color:var(--muted);margin-top:2px;line-height:1.45;">${zone.notes}</div>`:''}
+        </div>
+        <button onclick="removeZone('${bed.key}','${zone.id}')" style="background:none;border:1px solid var(--rule);color:var(--muted);font-size:.7rem;border-radius:4px;padding:2px 7px;cursor:pointer;flex-shrink:0;">Remove</button>
       </div>
       ${plantsHtml}
       <div style="padding-top:9px;border-top:1px solid var(--rule);margin-top:4px;">
@@ -2549,12 +2584,14 @@ function renderFreeformBed(bed) {
 
   const addZoneForm = `<div style="background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:12px 13px;margin-bottom:10px;">
     <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;">ADD ZONE</div>
-    <div style="display:flex;gap:6px;">
-      <input id="new-zone-name" type="text" placeholder="e.g. Native Yard, Herb Section, Sour Cherry Border"
+    <div style="display:flex;gap:6px;margin-bottom:6px;">
+      <input id="new-zone-name" type="text" placeholder="Zone name"
         style="flex:1;border:1px solid var(--rule);border-radius:4px;padding:7px 10px;font-size:.85rem;outline:none;box-sizing:border-box;"
         onkeydown="if(event.key==='Enter')addZone('${bed.key}')">
       <button class="btn-sm" onclick="addZone('${bed.key}')">+ Add</button>
     </div>
+    <input id="new-zone-desc" type="text" placeholder="Description (optional)"
+      style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:6px 10px;font-size:.82rem;outline:none;box-sizing:border-box;">
   </div>`;
 
   fv.innerHTML = noteHtml + seedPanelHtml + addZoneForm + zonesHtml + emptyMsg;
@@ -2616,11 +2653,14 @@ function updateZonePlant(bedKey, zoneId, plantIdx, status) {
 
 function addZone(bedKey) {
   const nameEl=document.getElementById('new-zone-name');
+  const descEl=document.getElementById('new-zone-desc');
   const name=nameEl?.value.trim(); if(!name)return;
+  const notes=descEl?.value.trim()||'';
   db.bedZones=db.bedZones||{};
   db.bedZones[bedKey]=db.bedZones[bedKey]||[];
-  db.bedZones[bedKey].push({id:'z'+Date.now(),name,emoji:'🌿',plants:[]});
+  db.bedZones[bedKey].push({id:'z'+Date.now(),name,emoji:'🌿',notes,plants:[]});
   if(nameEl)nameEl.value='';
+  if(descEl)descEl.value='';
   saveDB(db);
   renderFreeformBed(db.beds.find(b=>b.key===bedKey));
 }
