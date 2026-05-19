@@ -2871,20 +2871,31 @@ function autoPopulateAllBeds() {
   });
 
   if (hasWarning) {
-    const rows = Object.keys(bedSqNeeded).map(k => {
+    // Show all grid beds — including those with zero demand (where overflow goes)
+    const allBedKeys = db.beds
+      .filter(b => !b.type || b.type === 'bag')
+      .map(b => b.key);
+    const totalNeeded = Object.values(bedSqNeeded).reduce((a,b)=>a+b,0);
+    const totalCap = allBedKeys.reduce((a,k)=>{const i=bedCaps[k];return a+(i&&i.cap?i.cap:0);},0);
+    const rows = allBedKeys.map(k => {
       const info = bedCaps[k] || {};
-      const cap = info.cap || '?';
-      const needed = bedSqNeeded[k];
+      const cap = info.cap || 0;
+      const needed = bedSqNeeded[k] || 0;
       const over = needed - cap;
-      const color = over > 0 ? '#7a1a1a' : 'var(--moss)';
-      const icon = over > 0 ? '⚠️' : '✓';
+      const free = cap - needed;
+      if (!needed && !cap) return '';
+      const color = over > 0 ? '#7a1a1a' : free > 0 ? 'var(--moss)' : 'var(--muted)';
+      const icon = over > 0 ? '⚠️' : needed === 0 ? '🟢' : '✓';
       const sources = (bedSources[k] || []).map(s => `<span style="color:var(--muted)">${s.label} (${s.sq} sq)</span>`).join('<br>');
-      return `<div style="margin-bottom:10px;padding:9px 11px;border:1px solid var(--rule);border-radius:6px;${over>0?'border-color:#e8b0b0;background:#fde8e8;':''}">
-        <div style="font-weight:600;color:${color};">${icon} ${info.name||k} — ${needed} sq needed / ${cap} sq available${over>0?' <strong>(+'+over+' over)</strong>':''}</div>
-        <div style="font-size:.75rem;margin-top:4px;line-height:1.7;">${sources}</div>
+      const overflowNote = needed === 0 ? `<span style="color:var(--moss)"> — ${cap} sq available for overflow</span>` : over > 0 ? ` <strong>(+${over} over — overflow routes here)</strong>` : '';
+      return `<div style="margin-bottom:8px;padding:8px 11px;border:1px solid var(--rule);border-radius:6px;${over>0?'border-color:#e8b0b0;background:#fde8e8;':needed===0?'background:#f0f8f0;border-color:#b8d9be;':''}">
+        <div style="font-weight:600;color:${color};">${icon} ${info.name||k} — ${needed}/${cap} sq${overflowNote}</div>
+        ${sources?`<div style="font-size:.75rem;margin-top:3px;line-height:1.7;">${sources}</div>`:''}
       </div>`;
-    }).join('');
-    document.getElementById('capacity-check-body').innerHTML = `<p style="margin-bottom:10px;color:var(--muted);">Live starts claim more sq ft than some beds have. Extras will overflow to other beds automatically.</p>${rows}`;
+    }).filter(Boolean).join('');
+    const totalOk = totalNeeded <= totalCap;
+    const totalLine = `<div style="font-family:'Space Mono',monospace;font-size:9px;padding:7px 11px;border-radius:6px;margin-bottom:12px;background:${totalOk?'#f0f8f0':'#fde8e8'};border:1px solid ${totalOk?'#b8d9be':'#e8b0b0'};color:${totalOk?'var(--moss)':'#7a1a1a'};">TOTAL ACROSS ALL BEDS: ${totalNeeded} sq needed / ${totalCap} sq available${totalOk?' — fits with overflow':'  — genuinely over capacity'}</div>`;
+    document.getElementById('capacity-check-body').innerHTML = `<p style="margin-bottom:10px;color:var(--muted);">Starts assigned to one bed may not all fit — they'll automatically overflow to the next-best bed.</p>${totalLine}${rows}`;
     openModal('capacity-check-modal');
     return;
   }
