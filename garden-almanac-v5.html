@@ -712,47 +712,59 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       <div id="pw-banner"></div>
       <div id="bed-shade-note" style="display:none;"></div>
 
-      <!-- Grid -->
-      <div class="section-label">Bed layout <span id="grid-sq-count" style="font-weight:400;color:var(--muted);font-family:'Crimson Pro',serif;font-size:.85rem;text-transform:none;letter-spacing:0;margin-left:4px;"></span></div>
-      <div class="grid-wrap"><div class="bed-grid" id="bed-grid"></div></div>
-      <div style="display:flex;gap:10px;font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);margin:5px 0 9px;flex-wrap:wrap;align-items:center;">
-        <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px dashed #7ab07a;background:#f4fff4;border-radius:3px;padding:1px 6px;">?</span> From inventory</span>
-        <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px dashed #c4922a;background:#fffbf0;border-radius:3px;padding:1px 6px;">★</span> Buy/source</span>
-        <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px solid rgba(0,0,0,.12);background:#f0f8f0;border-radius:3px;padding:1px 6px;">□</span> Planned</span>
-        <span style="display:flex;align-items:center;gap:3px;"><span style="border:2px solid #2a6a2a;background:#e2f0e2;border-radius:3px;padding:1px 6px;">✓</span> Planted</span>
+      <!-- ── Grid-based bed UI (raised beds + bags) ── -->
+      <div id="grid-bed-view">
+        <div class="section-label">Bed layout <span id="grid-sq-count" style="font-weight:400;color:var(--muted);font-family:'Crimson Pro',serif;font-size:.85rem;text-transform:none;letter-spacing:0;margin-left:4px;"></span></div>
+        <div class="grid-wrap"><div class="bed-grid" id="bed-grid"></div></div>
+        <div style="display:flex;gap:10px;font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);margin:5px 0 9px;flex-wrap:wrap;align-items:center;">
+          <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px dashed #7ab07a;background:#f4fff4;border-radius:3px;padding:1px 6px;">?</span> From inventory</span>
+          <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px dashed #c4922a;background:#fffbf0;border-radius:3px;padding:1px 6px;">★</span> Buy/source</span>
+          <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px solid rgba(0,0,0,.12);background:#f0f8f0;border-radius:3px;padding:1px 6px;">□</span> Planned</span>
+          <span style="display:flex;align-items:center;gap:3px;"><span style="border:2px solid #2a6a2a;background:#e2f0e2;border-radius:3px;padding:1px 6px;">✓</span> Planted</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">
+          <label style="display:flex;align-items:center;gap:9px;font-size:.83rem;cursor:pointer;padding:7px 10px;background:var(--surface);border:1px solid var(--rule);border-radius:6px;">
+            <input type="checkbox" id="opt-three-sisters" style="width:15px;height:15px;flex-shrink:0;accent-color:var(--moss);">
+            <span>🌽🫘🎃 <strong>Three Sisters</strong> — corn + beans + squash together</span>
+          </label>
+        </div>
+        <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:6px;font-size:.82rem;" onclick="autoPopulateAllBeds()">✨ Auto-suggest all beds from inventory</button>
+        <button class="btn-sm" style="width:100%;padding:6px;margin-bottom:12px;font-size:.78rem;background:none;color:var(--muted);border-color:var(--rule);" onclick="clearAllSuggestions()">✕ Clear all suggestions</button>
+        <div id="companion-panel-wrap"></div>
+        <div class="section-label">Plan summary</div>
+        <div id="plan-summary"></div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <button class="btn-sm" style="flex:1;padding:9px;" onclick="clearBedDesign()">Clear bed</button>
+          <button class="btn-primary" style="flex:2;padding:9px;" onclick="saveBedPlan()">Save plan →</button>
+        </div>
+        <div id="bed-lock-toggle" style="margin-bottom:12px;"></div>
+        <div class="section-label">Planting timing — all planned plants</div>
+        <div id="timing-list"></div>
+        <div class="section-label">What can go in the ground?</div>
+        <div id="ground-suggestions"></div>
+        <div id="bed-inventory-panel" style="display:none;background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-top:10px;"></div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">
-        <label style="display:flex;align-items:center;gap:9px;font-size:.83rem;cursor:pointer;padding:7px 10px;background:var(--surface);border:1px solid var(--rule);border-radius:6px;">
-          <input type="checkbox" id="opt-three-sisters" style="width:15px;height:15px;flex-shrink:0;accent-color:var(--moss);">
-          <span>🌽🫘🎃 <strong>Three Sisters</strong> — corn + beans + squash together</span>
-        </label>
+
+      <!-- ── Freeform bed UI (herb / perennial types) ── -->
+      <div id="freeform-bed-view" style="display:none;">
+        <div id="freeform-bed-note" style="background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-bottom:12px;font-size:.82rem;line-height:1.55;color:var(--muted);"></div>
+        <div class="section-label">Plants in this bed</div>
+        <div id="freeform-plant-list"></div>
+        <div style="background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:12px 13px;margin-top:8px;">
+          <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;">ADD PLANT</div>
+          <div style="position:relative;margin-bottom:7px;">
+            <input id="freeform-plant-input" type="text" placeholder="Start typing a plant name…" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:8px 10px;font-size:.88rem;box-sizing:border-box;outline:none;" oninput="freeformPlantSearch(this.value)" onblur="setTimeout(()=>{const el=document.getElementById('freeform-plant-suggestions');if(el)el.style.display='none';},150)" autocomplete="off">
+            <div id="freeform-plant-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--rule);border-radius:0 0 6px 6px;z-index:10;max-height:160px;overflow-y:auto;"></div>
+          </div>
+          <select id="freeform-plant-status" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:7px 8px;font-size:.85rem;margin-bottom:7px;background:white;">
+            <option value="established">Established — already growing</option>
+            <option value="planted">Planted this season</option>
+            <option value="planned">Planned — not yet planted</option>
+          </select>
+          <input id="freeform-plant-notes" type="text" placeholder="Notes (optional)" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:7px 10px;font-size:.85rem;box-sizing:border-box;margin-bottom:8px;outline:none;">
+          <button class="btn-primary" style="width:100%;padding:9px;" onclick="addFreeformPlant()">+ Add plant</button>
+        </div>
       </div>
-      <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:6px;font-size:.82rem;" onclick="autoPopulateAllBeds()">✨ Auto-suggest all beds from inventory</button>
-      <button class="btn-sm" style="width:100%;padding:6px;margin-bottom:12px;font-size:.78rem;background:none;color:var(--muted);border-color:var(--rule);" onclick="clearAllSuggestions()">✕ Clear all suggestions</button>
-
-      <!-- Companion panel -->
-      <div id="companion-panel-wrap"></div>
-
-      <!-- Plan summary -->
-      <div class="section-label">Plan summary</div>
-      <div id="plan-summary"></div>
-
-      <div style="display:flex;gap:8px;margin-bottom:12px;">
-        <button class="btn-sm" style="flex:1;padding:9px;" onclick="clearBedDesign()">Clear bed</button>
-        <button class="btn-primary" style="flex:2;padding:9px;" onclick="saveBedPlan()">Save plan →</button>
-      </div>
-      <div id="bed-lock-toggle" style="margin-bottom:12px;"></div>
-
-      <!-- Timing recommendations -->
-      <div class="section-label">Planting timing — all planned plants</div>
-      <div id="timing-list"></div>
-
-      <!-- Ground planting suggestions -->
-      <div class="section-label">What can go in the ground?</div>
-      <div id="ground-suggestions"></div>
-
-      <!-- Seed inventory assigned to this bed -->
-      <div id="bed-inventory-panel" style="display:none;background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-top:10px;"></div>
     </div>
 
     <!-- SEEDS -->
@@ -1689,6 +1701,7 @@ function loadDB() {
       if(!d.gddLog)d.gddLog=[];
       if(!d.seasonReview)d.seasonReview={};
       if(!d.lockedBeds)d.lockedBeds=[];
+      if(!d.bedPlantList)d.bedPlantList={};
       if(!(d.sowLogs||[]).some(e=>e.id==='sl-corn-live-2026')){
         d.sowLogs=d.sowLogs||[];
         d.sowLogs.unshift({id:'sl-corn-live-2026',name:'Corn',variety:'Ashworth Sweet',method:'indoor',bed:'A',qty:24,date:'2026-05-18',status:'started',notes:'24 plants started from seed indoors. Transplant after last frost; plant in 3×3+ block in Bed A for wind pollination.'});
@@ -1706,7 +1719,7 @@ function defaultDB() {
   return { journal:[], plants:defaultPlants(), beds:defaultBeds(), seeds:defaultSeeds(), bedDesigns:{}, bedStatuses:{},
     sowLogs:[], hardenLogs:[], oyaLogs:{}, harvestLog:[], plantingList:[], settings:{},
     bedHistory:{}, amendments:[], compostLog:[], wishlist:[], seedSaving:[], checklists:{},
-    rainfallLog:[], soilTempLog:[], gddLog:[], seasonReview:{}, lockedBeds:[] };
+    rainfallLog:[], soilTempLog:[], gddLog:[], seasonReview:{}, lockedBeds:[], bedPlantList:{} };
 }
 function defaultSeeds() {
   const td='Triple Divide Organic Seeds 2026', bc='Baker Creek Heirloom Seeds 2026',
@@ -2247,8 +2260,22 @@ function buildBedSelector() {
     const confirmedIds = [...new Set(Object.keys(design).filter(i => statuses[i] !== 'suggested').map(i => design[i]))];
     const preview = uniqueIds.slice(0, 4).map(id => PLANT_IDX[id]?.emoji || '').join('');
     const invCount = (db.seeds || []).filter(s => s.bed === b.key).length;
+    const isFreeform = b.type === 'herb' || b.type === 'perennial';
     let sub;
-    if (confirmedIds.length > 0) sub = `${preview} ${confirmedIds.length} type${confirmedIds.length>1?'s':''} confirmed`;
+    if (isFreeform) {
+      const fList = (db.bedPlantList||{})[b.key] || [];
+      const estab = fList.filter(e=>e.status==='established').length;
+      const planted = fList.filter(e=>e.status==='planted').length;
+      const planned = fList.filter(e=>e.status==='planned').length;
+      if (!fList.length) sub = 'No plants yet';
+      else {
+        const parts=[];
+        if(estab) parts.push(`${estab} established`);
+        if(planted) parts.push(`${planted} planted`);
+        if(planned) parts.push(`${planned} planned`);
+        sub = fList.slice(0,3).map(e=>e.emoji||'🌿').join('')+' '+parts.join(' · ');
+      }
+    } else if (confirmedIds.length > 0) sub = `${preview} ${confirmedIds.length} type${confirmedIds.length>1?'s':''} confirmed`;
     else if (uniqueIds.length > 0) sub = `${preview} ${uniqueIds.length} suggested`;
     else if (invCount > 0) sub = `${invCount} item${invCount>1?'s':''} in inventory`;
     else sub = 'No plan yet';
@@ -2277,6 +2304,18 @@ function selectBed(key, btn) {
 function renderDesign() {
   const bed = db.beds.find(b => b.key === activeBedKey);
   if (!bed) return;
+
+  // Freeform beds (herb / perennial) get a list view, not a grid
+  const isFreeform = bed.type === 'herb' || bed.type === 'perennial';
+  document.getElementById('grid-bed-view').style.display = isFreeform ? 'none' : '';
+  document.getElementById('freeform-bed-view').style.display = isFreeform ? '' : 'none';
+  if (isFreeform) {
+    renderPWBanner(bed);
+    renderFreeformBed(bed);
+    buildBedSelector();
+    return;
+  }
+
   activeBedDesign = (db.bedDesigns && db.bedDesigns[activeBedKey]) ? {...db.bedDesigns[activeBedKey]} : {};
   activeBedStatuses = (db.bedStatuses && db.bedStatuses[activeBedKey]) ? {...db.bedStatuses[activeBedKey]} : {};
 
@@ -2399,6 +2438,104 @@ function toggleBedLock(key) {
   else db.lockedBeds.push(key);
   saveDB(db);
   renderBedLockToggle();
+  buildBedSelector();
+}
+
+// ── Freeform bed (herb / perennial) ──────────────────────────────────────
+let freeformSelectedPlant = null; // {id, name, emoji} from PLANT_LIB or null for custom
+
+function renderFreeformBed(bed) {
+  const noteEl = document.getElementById('freeform-bed-note');
+  if (noteEl) noteEl.textContent = bed.notes || '';
+
+  db.bedPlantList = db.bedPlantList || {};
+  const list = db.bedPlantList[bed.key] || [];
+  const STATUS = {established:'Established', planted:'Planted this season', planned:'Planned'};
+  const STATUS_COLOR = {established:'var(--moss)', planted:'#2a6a2a', planned:'var(--muted)'};
+
+  const listEl = document.getElementById('freeform-plant-list');
+  if (!list.length) {
+    listEl.innerHTML = `<div style="color:var(--muted);font-size:.83rem;padding:10px 0;">No plants recorded yet — add one below.</div>`;
+  } else {
+    listEl.innerHTML = list.map((entry, i) => {
+      const p = entry.plantId ? PLANT_IDX[entry.plantId] : null;
+      const emoji = p?.emoji || entry.emoji || '🌿';
+      const statusColor = STATUS_COLOR[entry.status] || 'var(--muted)';
+      return `<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-top:1px solid var(--rule);">
+        <div style="font-size:1.4rem;flex-shrink:0;line-height:1;">${emoji}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:.9rem;font-weight:600;">${entry.name}</div>
+          ${entry.notes?`<div style="font-size:.78rem;color:var(--muted);margin-top:1px;">${entry.notes}</div>`:''}
+          <div style="margin-top:4px;">
+            <select onchange="updateFreeformStatus('${bed.key}',${i},this.value)" style="font-size:.75rem;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;background:white;color:${statusColor};">
+              ${['established','planted','planned'].map(s=>`<option value="${s}"${entry.status===s?' selected':''}>${STATUS[s]}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <button onclick="removeFreeformPlant('${bed.key}',${i})" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:2px 4px;flex-shrink:0;">×</button>
+      </div>`;
+    }).join('');
+  }
+  // Reset add form
+  document.getElementById('freeform-plant-input').value = '';
+  document.getElementById('freeform-plant-notes').value = '';
+  document.getElementById('freeform-plant-suggestions').style.display = 'none';
+  freeformSelectedPlant = null;
+}
+
+function freeformPlantSearch(val) {
+  const sugEl = document.getElementById('freeform-plant-suggestions');
+  if (!val.trim()) { sugEl.style.display = 'none'; freeformSelectedPlant = null; return; }
+  const q = val.toLowerCase();
+  const matches = PLANT_LIB.filter(p => p.name.toLowerCase().includes(q)).slice(0, 8);
+  if (!matches.length) { sugEl.style.display = 'none'; freeformSelectedPlant = null; return; }
+  sugEl.style.display = 'block';
+  sugEl.innerHTML = matches.map(p =>
+    `<div onclick="selectFreeformPlant('${p.id}','${p.name.replace(/'/g,"\\'")}','${p.emoji}')" style="padding:7px 10px;cursor:pointer;font-size:.85rem;border-bottom:1px solid var(--rule);">${p.emoji} ${p.name}</div>`
+  ).join('');
+}
+
+function selectFreeformPlant(id, name, emoji) {
+  freeformSelectedPlant = {id, name, emoji};
+  document.getElementById('freeform-plant-input').value = name;
+  document.getElementById('freeform-plant-suggestions').style.display = 'none';
+}
+
+function addFreeformPlant() {
+  const nameInput = document.getElementById('freeform-plant-input').value.trim();
+  if (!nameInput) return;
+  const status = document.getElementById('freeform-plant-status').value;
+  const notes = document.getElementById('freeform-plant-notes').value.trim();
+  db.bedPlantList = db.bedPlantList || {};
+  db.bedPlantList[activeBedKey] = db.bedPlantList[activeBedKey] || [];
+  const p = freeformSelectedPlant && freeformSelectedPlant.name.toLowerCase() === nameInput.toLowerCase()
+    ? freeformSelectedPlant : null;
+  db.bedPlantList[activeBedKey].push({
+    id: 'fp'+Date.now(),
+    plantId: p?.id || null,
+    name: p?.name || nameInput,
+    emoji: p?.emoji || '🌿',
+    status, notes,
+    added: new Date().toISOString().slice(0,7)
+  });
+  saveDB(db);
+  freeformSelectedPlant = null;
+  renderFreeformBed(db.beds.find(b=>b.key===activeBedKey));
+  buildBedSelector();
+}
+
+function removeFreeformPlant(bedKey, idx) {
+  if (!(db.bedPlantList||{})[bedKey]) return;
+  db.bedPlantList[bedKey].splice(idx, 1);
+  saveDB(db);
+  renderFreeformBed(db.beds.find(b=>b.key===bedKey));
+  buildBedSelector();
+}
+
+function updateFreeformStatus(bedKey, idx, status) {
+  if (!(db.bedPlantList||{})[bedKey]) return;
+  db.bedPlantList[bedKey][idx].status = status;
+  saveDB(db);
   buildBedSelector();
 }
 
