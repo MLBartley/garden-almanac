@@ -774,6 +774,11 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
           <button class="bed-filter-btn" onclick="filterSeeds('any',this)">Unassigned</button>
           <button class="bed-filter-btn" onclick="filterSeeds('skip',this)">💤 Next year</button>
         </div>
+        <div style="position:relative;margin:8px 0 4px;">
+          <input id="seed-search" type="search" placeholder="Search seeds…" oninput="searchSeeds(this.value)"
+            style="width:100%;box-sizing:border-box;padding:7px 32px 7px 10px;border:1px solid var(--rule);border-radius:var(--radius);font-size:.85rem;background:white;color:var(--ink);">
+          <span id="seed-search-clear" onclick="clearSeedSearch()" style="display:none;position:absolute;right:9px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--muted);font-size:1rem;line-height:1;">✕</span>
+        </div>
         <div id="seed-list"></div>
       </div><!-- end #garden-seeds -->
 
@@ -4202,7 +4207,7 @@ function renderJournal(){
 // ════════════════════════════════════════
 //  SEEDS
 // ════════════════════════════════════════
-let currentScanImageB64=null, scanQty=1, activeSeedFilter='all';
+let currentScanImageB64=null, scanQty=1, activeSeedFilter='all', seedSearchQuery='';
 // Typical years until germination rate drops below ~50%
 const SEED_VIABILITY_YRS = {
   tomato:4,pepper:3,corn:1,kale:4,broccoli:4,arugula:4,spinach:3,lettuce:3,
@@ -4268,6 +4273,8 @@ function confirmSeed(){
   db.seeds=db.seeds||[];db.seeds.unshift(seed);saveDB(db);closeModal('scan-modal');resetScan();renderSeeds();
 }
 function filterSeeds(val,btn){activeSeedFilter=val;document.querySelectorAll('.bed-filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderSeeds();}
+function searchSeeds(q){seedSearchQuery=q.trim().toLowerCase();const clr=document.getElementById('seed-search-clear');if(clr)clr.style.display=seedSearchQuery?'':'none';renderSeeds();}
+function clearSeedSearch(){seedSearchQuery='';const inp=document.getElementById('seed-search');if(inp)inp.value='';const clr=document.getElementById('seed-search-clear');if(clr)clr.style.display='none';renderSeeds();}
 function calcNextReminder(seed){
   const libId=seedToLibId(seed);const plant=PLANT_IDX[libId];const now=new Date();const yr=now.getFullYear();
   let month,day;
@@ -4351,7 +4358,14 @@ function unskipSeed(id){const seed=(db.seeds||[]).find(s=>s.id===id);if(!seed)re
 function renderSeeds(){
   const seeds=db.seeds||[];
   const total=seeds.length;
-  document.getElementById('seed-count-label').textContent=`${total} packet${total!==1?'s':''} · ${seeds.reduce((a,s)=>a+(s.qty||1),0)} total`;
+  function applySearch(arr){
+    if(!seedSearchQuery)return arr;
+    return arr.filter(s=>(s.name||'').toLowerCase().includes(seedSearchQuery)||(s.variety||'').toLowerCase().includes(seedSearchQuery)||(s.source||'').toLowerCase().includes(seedSearchQuery));
+  }
+  const matchCount=applySearch(seeds).length;
+  document.getElementById('seed-count-label').textContent=seedSearchQuery
+    ?`${matchCount} of ${total} packet${total!==1?'s':''}`
+    :`${total} packet${total!==1?'s':''} · ${seeds.reduce((a,s)=>a+(s.qty||1),0)} total`;
   const liveStarts=seeds.filter(s=>s.storage==='live');
   const skipped=seeds.filter(s=>s.skipYear&&s.storage!=='live');
   const normalSeeds=seeds.filter(s=>s.storage!=='live'&&!s.skipYear);
@@ -4431,29 +4445,35 @@ function renderSeeds(){
   }
   const el=document.getElementById('seed-list');
   if(activeSeedFilter==='starts'){
+    const vis=applySearch(liveStarts);
     if(!liveStarts.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌱</div><div class="empty-text">No plant starts in inventory.\nAdd a start with storage set to "Plant soon".</div></div>`;return;}
-    el.innerHTML=liveStarts.map(s=>buildCard(s,true,false)).join('');return;
+    if(!vis.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">No starts match "${seedSearchQuery}".</div></div>`;return;}
+    el.innerHTML=vis.map(s=>buildCard(s,true,false)).join('');return;
   }
   if(activeSeedFilter==='skip'){
+    const vis=applySearch(skipped);
     if(!skipped.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">💤</div><div class="empty-text">No seeds saved for next year yet.\nTap "Not this year" on any seed packet.</div></div>`;return;}
-    el.innerHTML=skipped.map(s=>buildCard(s,false,true)).join('');return;
+    if(!vis.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">No skipped seeds match "${seedSearchQuery}".</div></div>`;return;}
+    el.innerHTML=vis.map(s=>buildCard(s,false,true)).join('');return;
   }
   if(activeSeedFilter==='bags'){
     const BAG_KEYS=['A1','B1','C1'];
-    const filtered=seeds.filter(s=>BAG_KEYS.includes(s.bed)&&!s.skipYear&&s.storage!=='live');
-    if(!filtered.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">No seeds assigned to the grow bags.</div></div>`;return;}
-    el.innerHTML=filtered.map(s=>buildCard(s,false,false)).join('');return;
+    const vis=applySearch(seeds.filter(s=>BAG_KEYS.includes(s.bed)&&!s.skipYear&&s.storage!=='live'));
+    if(!vis.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">${seedSearchQuery?`No bag seeds match "${seedSearchQuery}".`:'No seeds assigned to the grow bags.'}</div></div>`;return;}
+    el.innerHTML=vis.map(s=>buildCard(s,false,false)).join('');return;
   }
   if(activeSeedFilter!=='all'){
-    const filtered=seeds.filter(s=>(s.bed===activeSeedFilter||s.bed2===activeSeedFilter)&&!s.skipYear);
-    if(!filtered.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">No seeds assigned to this bed.</div></div>`;return;}
-    el.innerHTML=filtered.map(s=>buildCard(s,s.storage==='live',false)).join('');return;
+    const vis=applySearch(seeds.filter(s=>(s.bed===activeSeedFilter||s.bed2===activeSeedFilter)&&!s.skipYear));
+    if(!vis.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">${seedSearchQuery?`No seeds in this bed match "${seedSearchQuery}".`:'No seeds assigned to this bed.'}</div></div>`;return;}
+    el.innerHTML=vis.map(s=>buildCard(s,s.storage==='live',false)).join('');return;
   }
   if(!seeds.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">No seeds yet.\nTap "Scan packet" to add your first.</div></div><div class="scan-zone" onclick="openScanModal()"><div class="scan-icon">📷</div><div class="scan-text">SCAN YOUR FIRST SEED PACKET</div><div class="scan-sub">AI reads the packet and fills in all the details</div></div>`;return;}
+  const visStarts=applySearch(liveStarts),visNormal=applySearch(normalSeeds),visSkipped=applySearch(skipped);
+  if(seedSearchQuery&&!visStarts.length&&!visNormal.length&&!visSkipped.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">No seeds match "${seedSearchQuery}".</div></div>`;return;}
   let html='';
-  if(liveStarts.length)html+=`<div class="seed-section-divider">🌱 Plant starts <span style="font-weight:400;opacity:.6;">(${liveStarts.length})</span></div>`+liveStarts.map(s=>buildCard(s,true,false)).join('');
-  if(normalSeeds.length)html+=`<div class="seed-section-divider">🌾 Seed packets <span style="font-weight:400;opacity:.6;">(${normalSeeds.length})</span></div>`+normalSeeds.map(s=>buildCard(s,false,false)).join('');
-  if(skipped.length)html+=`<div class="seed-section-divider">💤 Saved for next year <span style="font-weight:400;opacity:.6;">(${skipped.length})</span></div>`+skipped.map(s=>buildCard(s,false,true)).join('');
+  if(visStarts.length)html+=`<div class="seed-section-divider">🌱 Plant starts <span style="font-weight:400;opacity:.6;">(${visStarts.length})</span></div>`+visStarts.map(s=>buildCard(s,true,false)).join('');
+  if(visNormal.length)html+=`<div class="seed-section-divider">🌾 Seed packets <span style="font-weight:400;opacity:.6;">(${visNormal.length})</span></div>`+visNormal.map(s=>buildCard(s,false,false)).join('');
+  if(visSkipped.length)html+=`<div class="seed-section-divider">💤 Saved for next year <span style="font-weight:400;opacity:.6;">(${visSkipped.length})</span></div>`+visSkipped.map(s=>buildCard(s,false,true)).join('');
   el.innerHTML=html||`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">No seeds yet.</div></div>`;
 }
 function deleteSeed(id){if(!confirm('Remove from inventory?'))return;db.seeds=db.seeds.filter(s=>s.id!==id);saveDB(db);renderSeeds();}
