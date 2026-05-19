@@ -3614,11 +3614,18 @@ function runAutoPopulate() {
         const aP = PLANT_IDX[aId], bP = PLANT_IDX[bId];
         if (!aP || !bP) continue;
         if (!(aP.companions?.bad||[]).includes(bId) && !(bP.companions?.bad||[]).includes(aId)) continue;
-        // Find the seeds explicitly assigned to this bed
-        const aSeed = (db.seeds||[]).find(s=>!s.skipYear&&seedToLibId(s)===aId&&s.bed===b.key);
-        const bSeed = (db.seeds||[]).find(s=>!s.skipYear&&seedToLibId(s)===bId&&s.bed===b.key);
-        const aAlt = (aP.bestBeds||[]).filter(k=>k!==b.key&&!lockedBeds.has(k));
-        const bAlt = (bP.bestBeds||[]).filter(k=>k!==b.key&&!lockedBeds.has(k));
+        // Find seeds for each plant — prefer explicit bed match, fall back to 'any'
+        const aSeed = (db.seeds||[]).find(s=>!s.skipYear&&seedToLibId(s)===aId&&s.bed===b.key)
+                   || (db.seeds||[]).find(s=>!s.skipYear&&seedToLibId(s)===aId);
+        const bSeed = (db.seeds||[]).find(s=>!s.skipYear&&seedToLibId(s)===bId&&s.bed===b.key)
+                   || (db.seeds||[]).find(s=>!s.skipYear&&seedToLibId(s)===bId);
+        const otherBeds = db.beds.filter(b2=>b2.type!=='perennial'&&b2.type!=='herb'&&b2.key!==b.key&&!lockedBeds.has(b2.key)).map(b2=>b2.key);
+        const aAlt = (aP.bestBeds||[]).filter(k=>k!==b.key&&!lockedBeds.has(k)).length
+          ? (aP.bestBeds||[]).filter(k=>k!==b.key&&!lockedBeds.has(k))
+          : otherBeds;
+        const bAlt = (bP.bestBeds||[]).filter(k=>k!==b.key&&!lockedBeds.has(k)).length
+          ? (bP.bestBeds||[]).filter(k=>k!==b.key&&!lockedBeds.has(k))
+          : otherBeds;
         const key = b.key+'::'+[aId,bId].sort().join('|');
         if (!conflictWarnings.some(w=>w.key===key))
           conflictWarnings.push({key, bedName:b.name,
@@ -3631,19 +3638,17 @@ function runAutoPopulate() {
     <div style="margin-top:12px;padding-top:10px;border-top:2px solid #e8b0b0;">
       <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:#7a1a1a;margin-bottom:8px;">⚠️ COMPANION CONFLICTS</div>
       ${conflictWarnings.map((w,wi)=>{
-        const moveRowA = w.seedA && w.altA.length
-          ? `<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
-               <span style="font-size:.73rem;color:var(--muted);min-width:60px;">Move ${w.plantA.emoji} ${w.plantA.name}:</span>
-               ${w.altA.map(k=>`<button onclick="acceptConflictMove('${w.seedA.id}','${k}','conflict-warn-${wi}')" style="font-size:.73rem;padding:3px 9px;border:1px solid #c47a7a;border-radius:4px;background:#fff8f8;color:#7a1a1a;cursor:pointer;">→ ${BED_INFO[k]?.label||k}</button>`).join('')}
+        const moveOption = (seed, plant, alts) => seed && alts.length
+          ? `<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;padding:6px 9px;background:#fff8f8;border:1px solid #e8c8c8;border-radius:4px;">
+               <span style="font-size:.78rem;font-weight:600;color:#7a1a1a;margin-right:2px;">Move ${plant.emoji} ${plant.name}</span>
+               ${alts.map(k=>`<button onclick="acceptConflictMove('${seed.id}','${k}','conflict-warn-${wi}')" style="font-size:.73rem;padding:3px 9px;border:1px solid #c47a7a;border-radius:4px;background:white;color:#7a1a1a;cursor:pointer;">→ ${BED_INFO[k]?.label||k}</button>`).join('')}
              </div>` : '';
-        const moveRowB = w.seedB && w.altB.length
-          ? `<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
-               <span style="font-size:.73rem;color:var(--muted);min-width:60px;">Move ${w.plantB.emoji} ${w.plantB.name}:</span>
-               ${w.altB.map(k=>`<button onclick="acceptConflictMove('${w.seedB.id}','${k}','conflict-warn-${wi}')" style="font-size:.73rem;padding:3px 9px;border:1px solid #c47a7a;border-radius:4px;background:#fff8f8;color:#7a1a1a;cursor:pointer;">→ ${BED_INFO[k]?.label||k}</button>`).join('')}
-             </div>` : '';
-        return `<div id="conflict-warn-${wi}" class="rotation-conflict" style="display:flex;flex-direction:column;gap:6px;">
-          <div><strong>${w.plantA.emoji} ${w.plantA.name}</strong> + <strong>${w.plantB.emoji} ${w.plantB.name}</strong> in ${w.bedName} — bad companions</div>
-          ${moveRowA}${moveRowB}
+        const optA = moveOption(w.seedA, w.plantA, w.altA);
+        const optB = moveOption(w.seedB, w.plantB, w.altB);
+        const choiceLabel = (optA && optB) ? `<div style="font-size:.73rem;color:var(--muted);margin-top:2px;">Choose which to move:</div>` : '';
+        return `<div id="conflict-warn-${wi}" class="rotation-conflict" style="display:flex;flex-direction:column;gap:5px;">
+          <div style="font-size:.85rem;"><strong>${w.plantA.emoji} ${w.plantA.name}</strong> + <strong>${w.plantB.emoji} ${w.plantB.name}</strong> in ${w.bedName} — bad companions</div>
+          ${choiceLabel}${optA}${optB}
           <div><button onclick="document.getElementById('conflict-warn-${wi}').style.display='none'" style="font-size:.73rem;padding:3px 9px;border:1px solid var(--rule);border-radius:4px;background:transparent;color:var(--muted);cursor:pointer;">Keep as-is</button></div>
         </div>`;
       }).join('')}
