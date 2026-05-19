@@ -3593,6 +3593,24 @@ function changeSeedBed(id,newBed){
   const s=(db.seeds||[]).find(s=>s.id===id);if(!s)return;
   s.bed=newBed;saveDB(db);renderSeeds();
 }
+function changeSeedBed2(id,bed2){
+  const s=(db.seeds||[]).find(s=>s.id===id);if(!s)return;
+  s.bed2=bed2;saveDB(db);renderSeeds();
+}
+function changeSeedQty2(id,val){
+  const s=(db.seeds||[]).find(s=>s.id===id);if(!s)return;
+  s.qty2=Math.max(1,Math.min((s.qty||1)-1,parseInt(val)||1));
+  saveDB(db);renderSeeds();
+}
+function addSeedSplit(id){
+  const s=(db.seeds||[]).find(s=>s.id===id);if(!s)return;
+  s.bed2='any';s.qty2=Math.max(1,Math.floor((s.qty||2)/2));
+  saveDB(db);renderSeeds();
+}
+function removeSeedSplit(id){
+  const s=(db.seeds||[]).find(s=>s.id===id);if(!s)return;
+  delete s.bed2;delete s.qty2;saveDB(db);renderSeeds();
+}
 function skipSeed(id){const seed=(db.seeds||[]).find(s=>s.id===id);if(!seed)return;seed.skipYear=new Date().getFullYear();seed.nextReminder=calcNextReminder(seed);saveDB(db);renderSeeds();}
 function unskipSeed(id){const seed=(db.seeds||[]).find(s=>s.id===id);if(!seed)return;delete seed.skipYear;delete seed.nextReminder;saveDB(db);renderSeeds();}
 function renderSeeds(){
@@ -3636,7 +3654,8 @@ function renderSeeds(){
       const mismatch=seedBedMismatch(s);
       const bestBeds=plant?.bestBeds||[];
       const mismatchHtml=mismatch?`<div style="font-size:.78rem;margin-top:4px;color:#7a1a1a;background:#fde8e8;border-radius:4px;padding:3px 8px;">⚠️ ${BED_INFO[assignedBed]?.label||assignedBed} not recommended — best in Bed ${bestBeds.join('/')}</div>`:'';
-      const bedOpts=['A','B','C','D','H','P','any'].map(k=>`<option value="${k}"${s.bed===k?' selected':''}>${BED_INFO[k]?.label||k}</option>`).join('');
+      const ALL_BEDS=['A','B','C','D','A1','B1','C1','H','P','any'];
+      const bedOpts=ALL_BEDS.map(k=>`<option value="${k}"${s.bed===k?' selected':''}>${BED_INFO[k]?.label||k}</option>`).join('');
       const bedChangeHtml=`<div style="margin-top:6px;display:flex;align-items:center;gap:6px;"><span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">ASSIGN TO</span><select style="font-size:.78rem;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;background:white;" onchange="changeSeedBed('${s.id}',this.value)">${bedOpts}</select></div>`;
       bodyContent=`<div class="seed-meta-row"><span class="storage-badge store-live">🌱 Live start</span>${s.source?`<span class="plant-pill pill-sage">${s.source}</span>`:''}</div>${rec?`<div class="seed-detail seed-planting-rec">📍 ${rec}</div>`:''} ${s.notes?`<div class="seed-detail" style="margin-top:4px;">${s.notes}</div>`:''} ${placementHtml}${mismatchHtml}${bedChangeHtml}<div style="margin-top:8px;">${hardenHtml}</div>`;
     }else if(isSkipped){
@@ -3644,9 +3663,28 @@ function renderSeeds(){
       const reminderTag=s.nextReminder?`<div style="margin-top:5px;"><span class="seed-reminder-tag">🔔 Remind me ${s.nextReminder}</span></div>`:'';
       bodyContent=`<div class="seed-meta-row"><span class="storage-badge ${store.cls}">${store.icon} ${store.label}</span>${s.source?`<span class="plant-pill pill-sage">${s.source}</span>`:''}</div><div class="seed-detail">${tip}</div>${reminderTag}<div style="margin-top:8px;"><button class="seed-skip-btn seed-unskip-btn" onclick="unskipSeed('${s.id}')">↩ Back in rotation</button></div>`;
     }else{
-      bodyContent=`<div class="seed-meta-row"><span class="storage-badge ${store.cls}">${store.icon} ${store.label}</span>${s.source?`<span class="plant-pill pill-sage">${s.source}</span>`:''}</div>${s.notes?`<div class="seed-detail">${s.notes}</div>`:''}<div style="margin-top:8px;"><button class="seed-skip-btn" onclick="skipSeed('${s.id}')">💤 Not this year</button></div>`;
+      const ALL_BEDS_N=['A','B','C','D','A1','B1','C1','H','P','any'];
+      const bedOptsN=ALL_BEDS_N.map(k=>`<option value="${k}"${s.bed===k?' selected':''}>${BED_INFO[k]?.label||k}</option>`).join('');
+      const bed2OptsN=ALL_BEDS_N.map(k=>`<option value="${k}"${s.bed2===k?' selected':''}>${BED_INFO[k]?.label||k}</option>`).join('');
+      const splitRow=s.bed2
+        ?`<div style="display:flex;align-items:center;gap:5px;margin-top:5px;">
+            <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">ALSO IN</span>
+            <select style="font-size:.78rem;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;background:white;" onchange="changeSeedBed2('${s.id}',this.value)">${bed2OptsN}</select>
+            <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">×</span>
+            <input type="number" min="1" max="${Math.max(1,(s.qty||1)-1)}" value="${s.qty2||1}" style="width:40px;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;font-size:.78rem;text-align:center;" onchange="changeSeedQty2('${s.id}',this.value)">
+            <button onclick="removeSeedSplit('${s.id}')" style="background:none;border:none;color:var(--muted);font-size:.95rem;cursor:pointer;padding:2px 5px;line-height:1;" title="Remove split">×</button>
+          </div>`
+        :(s.qty||1)>=2?`<button class="seed-skip-btn" style="margin-top:5px;" onclick="addSeedSplit('${s.id}')">+ Split to second location</button>`:'';
+      const assignHtmlN=`<div style="margin-top:7px;">
+        <div style="display:flex;align-items:center;gap:5px;">
+          <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">ASSIGN TO</span>
+          <select style="font-size:.78rem;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;background:white;" onchange="changeSeedBed('${s.id}',this.value)">${bedOptsN}</select>
+        </div>${splitRow}</div>`;
+      bodyContent=`<div class="seed-meta-row"><span class="storage-badge ${store.cls}">${store.icon} ${store.label}</span>${s.source?`<span class="plant-pill pill-sage">${s.source}</span>`:''}</div>${s.notes?`<div class="seed-detail">${s.notes}</div>`:''}${assignHtmlN}<div style="margin-top:8px;"><button class="seed-skip-btn" onclick="skipSeed('${s.id}')">💤 Not this year</button></div>`;
     }
-    return`<div class="seed-card${isSkipped?' skipped':''}"><div class="seed-card-header">${thumbHtml}<div style="flex:1;min-width:0;"><div class="seed-name">${s.name}</div><div class="seed-variety">${s.variety||'—'}</div><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;"><span class="seed-bed-tag ${bed.cls}">${bed.label}</span>${s.days?`<span class="plant-pill pill-ink">⏱ ${s.days}d</span>`:''}<span class="plant-pill pill-gold">×${s.qty||1}</span>${timingBadge}${viabBadge}</div></div><button onclick="deleteSeed('${s.id}')" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:4px;flex-shrink:0;">×</button></div><div class="seed-body">${bodyContent}</div></div>`;
+    const bed2tag=s.bed2&&s.bed2!=='any'?`<span class="seed-bed-tag ${(BED_INFO[s.bed2]||{}).cls||''}">${(BED_INFO[s.bed2]||{}).label||s.bed2}</span>`:'';
+    const qtyDisplay=s.bed2&&s.qty2?`×${(s.qty||1)-(s.qty2||0)}+${s.qty2}`:`×${s.qty||1}`;
+    return`<div class="seed-card${isSkipped?' skipped':''}"><div class="seed-card-header">${thumbHtml}<div style="flex:1;min-width:0;"><div class="seed-name">${s.name}</div><div class="seed-variety">${s.variety||'—'}</div><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;"><span class="seed-bed-tag ${bed.cls}">${bed.label}</span>${bed2tag}${s.days?`<span class="plant-pill pill-ink">⏱ ${s.days}d</span>`:''}<span class="plant-pill pill-gold">${qtyDisplay}</span>${timingBadge}${viabBadge}</div></div><button onclick="deleteSeed('${s.id}')" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:4px;flex-shrink:0;">×</button></div><div class="seed-body">${bodyContent}</div></div>`;
   }
   const el=document.getElementById('seed-list');
   if(activeSeedFilter==='starts'){
