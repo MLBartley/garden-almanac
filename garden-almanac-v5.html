@@ -731,6 +731,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <!-- Freeform bed UI (herb / perennial types) -->
         <div id="freeform-bed-view" style="display:none;">
           <div id="freeform-bed-note" style="background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-bottom:12px;font-size:.82rem;line-height:1.55;color:var(--muted);"></div>
+          <div id="freeform-seed-panel"></div>
           <div class="section-label">Plants in this bed</div>
           <div id="freeform-plant-list"></div>
           <div style="background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:12px 13px;margin-top:8px;">
@@ -2463,6 +2464,45 @@ let freeformSelectedPlant = null; // {id, name, emoji} from PLANT_LIB or null fo
 function renderFreeformBed(bed) {
   const noteEl = document.getElementById('freeform-bed-note');
   if (noteEl) noteEl.textContent = bed.notes || '';
+
+  // Seeds / starts assigned to this bed that haven't been planted yet
+  const seedPanel = document.getElementById('freeform-seed-panel');
+  if (seedPanel) {
+    const assigned = (db.seeds || []).filter(s =>
+      s.bed === bed.key || s.bed2 === bed.key
+    );
+    if (!assigned.length) {
+      seedPanel.innerHTML = '';
+    } else {
+      const rows = assigned.map(s => {
+        const isStart = s.storage === 'live';
+        const isSplit = s.bed2 === bed.key && s.bed !== bed.key;
+        const qty = isSplit ? (s.qty2 || 1) : (s.qty || 1);
+        const splitNote = isSplit
+          ? `<span style="font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);"> · split loc</span>`
+          : '';
+        const typeBadge = isStart
+          ? `<span style="font-family:'Space Mono',monospace;font-size:7px;background:#e2f0e4;color:#2a6a2a;padding:1px 5px;border-radius:3px;">START</span>`
+          : `<span style="font-family:'Space Mono',monospace;font-size:7px;background:var(--surface);color:var(--muted);padding:1px 5px;border-radius:3px;border:1px solid var(--rule);">SEED</span>`;
+        const libId = seedToLibId(s);
+        const plant = PLANT_IDX[libId];
+        const emoji = plant?.emoji || '🌱';
+        return `<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--rule);">
+          <div style="font-size:1.25rem;flex-shrink:0;line-height:1;">${emoji}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:.85rem;font-weight:600;">${s.name}${s.variety&&!s.variety.startsWith('(')?` <span style="opacity:.6;font-weight:400;">${s.variety}</span>`:''}</div>
+            <div style="margin-top:2px;display:flex;gap:4px;flex-wrap:wrap;align-items:center;">${typeBadge}<span style="font-family:'Space Mono',monospace;font-size:7px;background:#fff8e8;color:#8a5a00;padding:1px 5px;border-radius:3px;border:1px solid #e8d08a;">×${qty}</span>${splitNote}</div>
+          </div>
+          <div style="font-size:.72rem;color:var(--muted);white-space:nowrap;">Not planted</div>
+        </div>`;
+      }).join('');
+      seedPanel.innerHTML = `<div style="background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-bottom:12px;">
+        <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:var(--muted);margin-bottom:4px;">FROM SEED INVENTORY</div>
+        ${rows}
+        <div style="margin-top:8px;font-size:.75rem;color:var(--muted);border-top:1px solid var(--rule);padding-top:6px;">When planted, add to "Plants in this bed" below and update the Seeds section.</div>
+      </div>`;
+    }
+  }
 
   db.bedPlantList = db.bedPlantList || {};
   const list = db.bedPlantList[bed.key] || [];
