@@ -4920,6 +4920,22 @@ function deleteHarden(id) {
   saveDB(db); renderSpring();
 }
 
+function advanceAllHarden() {
+  const active = (db.hardenLogs||[]).filter(e=>!e.done);
+  if (!active.length) return;
+  active.forEach(entry => {
+    const nextDay = entry.completedDays.length;
+    if (nextDay >= HARDEN_STEPS.length) { entry.done=true; return; }
+    entry.completedDays.push(nextDay);
+    if (entry.completedDays.length >= HARDEN_STEPS.length) {
+      entry.done = true;
+      db.journal.unshift({id:'j'+Date.now(),date:new Date().toISOString(),mood:'🌱',
+        tags:['planted','hardened'],text:`${entry.name} fully hardened off — ready to transplant outdoors.`,weather:null});
+    }
+  });
+  saveDB(db); renderJournal(); renderSpring();
+}
+
 function renderHardening() {
   const logs = (db.hardenLogs||[]).filter(e=>!e.done||((Date.now()-new Date(e.startDate))/86400000)<14);
   const el = document.getElementById('harden-list');
@@ -4927,7 +4943,11 @@ function renderHardening() {
     el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌿</div><div class="empty-text">No hardening schedules active.<br>Tap "+ Start hardening schedule" when starts are ready to go outside.</div></div>`;
     return;
   }
-  el.innerHTML = logs.map(e => {
+  const activeCount = logs.filter(e=>!e.done).length;
+  const allDoneBtn = activeCount > 1
+    ? `<button class="btn-sm" style="width:100%;padding:9px;margin-bottom:8px;color:var(--moss);border-color:var(--moss);" onclick="advanceAllHarden()">✓ All done today's step (${activeCount})</button>`
+    : '';
+  el.innerHTML = allDoneBtn + logs.map(e => {
     const completed = e.completedDays.length;
     const currentStep = HARDEN_STEPS[completed] || HARDEN_STEPS[HARDEN_STEPS.length-1];
     const plant = PLANT_LIB.find(p=>p.name.toLowerCase().includes(e.name.toLowerCase()));
