@@ -1417,13 +1417,21 @@ const PLANT_LIB = [
    bestBeds:['A','B','C'],spacing:'24–36"',notes:'Stake or cage. Short-season varieties key in Bozeman: Stupice (65d), Siletz (70d), Early Girl (62d).'},
   {id:'tomato-det',emoji:'🍅',name:'Tomato (determinate)',cat:'veg',sqFt:2,
    frostTol:'verytender',sowMethod:'transplant',daysMin:65,daysMax:75,
-   companions:{good:['basil','marigold','carrot'],bad:['fennel']},
-   bestBeds:['A','B','C'],spacing:'18–24"',notes:'Bush type. Good for Bozeman: Glacier (55d), Siletz (70d).'},
-  // ── PEPPERS
+   companions:{good:['basil','marigold','carrot'],bad:['fennel','brassica-broc','brassica-kale']},
+   bestBeds:['A','B','C'],spacing:'18–24"',notes:'Bush type. Good for Bozeman: Glacier (55d), Siletz (70d). Sets all fruit at once — excellent for sauce/canning.'},
+  {id:'tomatillo',emoji:'🫙',name:'Tomatillo',cat:'veg',sqFt:4,
+   frostTol:'verytender',sowMethod:'transplant',daysMin:70,daysMax:80,
+   companions:{good:['basil','marigold','carrot'],bad:['fennel','brassica-broc','brassica-kale']},
+   bestBeds:['A','B','C'],spacing:'24–36"',notes:'MUST have 2+ plants for cross-pollination. Very prolific — 3 plants produces enormous yield. Sprawling habit; stake or cage at transplant. Husk splits when fruit is ripe; skin feels slightly sticky.'},
+  // ── PEPPERS + EGGPLANT
   {id:'pepper',emoji:'🫑',name:'Pepper',cat:'veg',sqFt:2,
    frostTol:'verytender',sowMethod:'transplant',daysMin:65,daysMax:80,
    companions:{good:['basil','carrot','marigold'],bad:['fennel']},
    bestBeds:['A','C'],spacing:'14–18"',notes:'Needs warmth. Carmen and Shishito ripen fastest. Black plastic mulch helps.'},
+  {id:'eggplant',emoji:'🍆',name:'Eggplant',cat:'veg',sqFt:2,
+   frostTol:'verytender',sowMethod:'transplant',daysMin:70,daysMax:85,
+   companions:{good:['pepper','marigold','basil'],bad:['fennel']},
+   bestBeds:['C'],spacing:'18–24"',notes:'Very marginal for Zone 5b. Needs warmest spot, black plastic mulch, wall-o-water. Requires soil temp 65°F+ to set fruit. Start indoors 8–10 weeks before transplant (early March).'},
   // ── BRASSICAS
   {id:'brassica-broc',emoji:'🥦',name:'Broccoli',cat:'veg',sqFt:2,
    frostTol:'hardy',sowMethod:'transplant',daysMin:60,daysMax:80,
@@ -1446,6 +1454,10 @@ const PLANT_LIB = [
    frostTol:'halfhardy',sowMethod:'direct',daysMin:55,daysMax:70,
    companions:{good:['brassica-broc','brassica-kale','lettuce','onion'],bad:['bean-bush']},
    bestBeds:['B'],spacing:'4"',notes:'Greens are edible too. Soak seeds overnight for better germination. Thin to 4".'},
+  {id:'chard',emoji:'🌈',name:'Swiss Chard',cat:'veg',sqFt:1,
+   frostTol:'halfhardy',sowMethod:'both',daysMin:35,daysMax:55,
+   companions:{good:['bean-bush','onion','brassica-kale'],bad:['corn']},
+   bestBeds:['B','D'],spacing:'12"',notes:'Cut-and-come-again — harvest outer stalks continuously. Tolerates both heat and light frost; one of the longest-season crops in the garden. Rainbow varieties are ornamental and productive. Soak seeds 1 hr before sowing.'},
   // ── CUCURBITS
   {id:'zucchini',emoji:'🥒',name:'Zucchini',cat:'veg',sqFt:4,
    frostTol:'tender',sowMethod:'direct',daysMin:45,daysMax:55,
@@ -1470,9 +1482,9 @@ const PLANT_LIB = [
    bestBeds:['B','C'],spacing:'4–6" on trellis',notes:'Direct sow as early as soil can be worked — frost hardy. Done by mid-summer; follow with warm-season crop. Snap peas need trellis.'},
   {id:'corn',emoji:'🌽',name:'Corn',cat:'veg',sqFt:1,
    frostTol:'tender',sowMethod:'direct',daysMin:68,daysMax:80,
-   companions:{good:['bean-bush','squash-winter'],bad:['tomato-ind','tomato-det']},
+   companions:{good:['bean-bush','squash-winter','cucumber'],bad:['fennel']},
    bestBeds:['A','C'],spacing:'10–12" in 3×3+ block',
-   notes:'Plant in blocks of 9+ for wind pollination. Ashworth (68d) best for Zone 5b. THREE SISTERS: center component — sow beans when corn is 4–6" tall.'},
+   notes:'Plant in blocks of 9+ for wind pollination. Ashworth (68d) best for Zone 5b. THREE SISTERS: center component — sow beans when corn is 4–6" tall. Keep sweet corn varieties 600+ ft apart or stagger sow dates to prevent cross-pollination.'},
   // ── LEAFY GREENS
   {id:'lettuce',emoji:'🥗',name:'Lettuce (loose-leaf)',cat:'veg',sqFt:0.25,
    frostTol:'halfhardy',sowMethod:'direct',daysMin:40,daysMax:55,
@@ -1498,7 +1510,11 @@ const PLANT_LIB = [
   {id:'garlic',emoji:'🧄',name:'Garlic (hardneck)',cat:'veg',sqFt:0.25,
    frostTol:'hardy',sowMethod:'direct',daysMin:240,daysMax:270,
    companions:{good:['tomato-ind','beet','carrot'],bad:['bean-bush','pea']},
-   bestBeds:['B'],spacing:'6"',notes:'Plant in October, harvest July. Hardneck varieties only for Bozeman winters. German Red, Music.'},
+   bestBeds:['B'],spacing:'6"',notes:'Plant in October, harvest July. Hardneck varieties only for Bozeman winters. German Red, Music. Harvest scapes in June for an early bonus crop.'},
+  {id:'leek',emoji:'🌿',name:'Leek',cat:'veg',sqFt:0.25,
+   frostTol:'hardy',sowMethod:'transplant',daysMin:120,daysMax:150,
+   companions:{good:['carrot','celery','onion'],bad:['bean-bush','pea']},
+   bestBeds:['B'],spacing:'6"',notes:'Start indoors Jan–Feb for full-size leeks in Zone 5b. Direct sow May = small baby leeks by fall (still usable). Mound soil around stems to blanch white. Very cold-hardy — can overwinter with mulch for spring harvest.'},
   // ── HERBS (annual)
   {id:'basil',emoji:'🌿',name:'Basil',cat:'herb',sqFt:0.5,
    frostTol:'verytender',sowMethod:'transplant',daysMin:60,daysMax:75,
@@ -1823,6 +1839,17 @@ function loadDB() {
         });
         d._zonesMigrated=true;
       }
+      // Mark seeds too late for 2026 season — auto-skip so they don't clutter auto-suggest
+      // Earth Tones Dent Corn: 105d + cross-pollinates sweet corn being grown this year
+      // Martain's Jewels: 80d sweet corn, cross-pollinates with Ashworth already started
+      // Autumn Giant Leek: 150d — needed Jan indoor start, too late for meaningful harvest
+      // Eggplant: needs 8–10 wk indoor start before last frost, window has passed
+      // Okra: marginal Zone 5b, needed 4–6 wk indoor start in early April
+      if(!d._seedTiming2026){
+        const skipIds=['seed-rg-01','seed-bc-01','seed-bc-08','seed-fm-06','seed-fm-02'];
+        (d.seeds||[]).forEach(s=>{if(skipIds.includes(s.id)&&!s.skipYear)s.skipYear=2026;});
+        d._seedTiming2026=true;
+      }
       saveDB(d);
       return d;
     }
@@ -1972,14 +1999,14 @@ function defaultPlants() {
     {id:'p10',category:'native',common:'American Plum',latin:'Prunus americana',emoji:'🌸',location:'Backyard',bloom:'April',notes:'Tree #1 — planted spring 2023. Native, excellent wildlife plant. Blooms before leaf-out.',added:'2023-05'},
     {id:'p11',category:'native',common:'American Plum',latin:'Prunus americana',emoji:'🌸',location:'Backyard',bloom:'April',notes:'Tree #2 — planted spring 2025. Younger of the two. Watch for suckers.',added:'2025-05'},
     {id:'p12',category:'native',common:'Hazelnut',latin:'Corylus cornuta',emoji:'🌰',location:'Backyard',bloom:'March',notes:'Planted spring 2025. Beaked hazelnut, native to MT. Catkins appear before leaves. Needs patience to establish.',added:'2025-05'},
-    {id:'p13',category:'native',common:'Chokecherry',latin:'Prunus virginiana',emoji:'🍒',location:'Backyard',bloom:'May',notes:'3 trees. Native, highly drought-tolerant once established. Important wildlife food source. Watch for black knot fungus.',added:'2022-05'},
+    {id:'p13',category:'native',common:'Chokecherry',latin:'Prunus virginiana',emoji:'🍒',location:'Backyard',bloom:'May',notes:'3 trees. Native, highly drought-tolerant once established. Berries ripen dark purple late July–Aug; excellent for syrup, jelly, and wine (raw fruit is astringent). Important wildlife food — birds and bears. Watch for black knot fungus: prune infected branches 6" below gall, disinfect pruners.',added:'2022-05'},
     {id:'p14',category:'native',common:'Backyard Aspen',latin:'Populus tremuloides',emoji:'🍂',location:'West side of house',bloom:'April',notes:'4 trees. Create partial shade on Bed D from mid-May onward. Aspens spread by root suckers — watch margins.',added:'2020-05'},
     // ── BOULEVARD + FRONT YARD
     {id:'p15',category:'native',common:'Burr Oak',latin:'Quercus macrocarpa',emoji:'🌳',location:'Boulevard',bloom:'May',notes:'Extremely long-lived native tree. One of the best for wildlife. Slow to establish — water deeply first 3 years.',added:'2023-05'},
     {id:'p16',category:'native',common:'Front Yard Aspen',latin:'Populus tremuloides',emoji:'🍂',location:'Front yard',bloom:'April',notes:'Larger established aspens. Manage suckers annually.',added:'2019-05'},
     // ── EDIBLE PERENNIALS (trees + shrubs)
-    {id:'p17',category:'edible',common:'Sour Cherry',latin:'Prunus cerasus',emoji:'🍒',location:'Backyard',bloom:'May',notes:'2 trees. Need cross-pollination — good that there are two. Montmorency is the standard for MT. Protect from late frosts during bloom.',added:'2022-05'},
-    {id:'p18',category:'edible',common:'Apple',latin:'Malus domestica',emoji:'🍎',location:'Backyard',bloom:'May',notes:'Planted spring 2023. Choose a short-season variety suited to Zone 5b. Protect bloom from late frost. Thin fruit in June.',added:'2023-05'},
+    {id:'p17',category:'edible',common:'Sour Cherry',latin:'Prunus cerasus',emoji:'🍒',location:'Backyard',bloom:'May',notes:'2 trees. Montmorency sour cherry is self-fertile — two trees boosts yield but is not required. Harvest mid-July in Bozeman. Prune right after harvest or late winter. Protect bloom from late frosts (critical in April–May). Watch for cherry slugs (sawfly larvae) in June.',added:'2022-05'},
+    {id:'p18',category:'edible',common:'Apple',latin:'Malus domestica',emoji:'🍎',location:'Backyard',bloom:'May',notes:'Planted spring 2023. Most apples need a second variety for cross-pollination — confirm your variety or plant a crabapple within 50 ft as pollinator. Protect bloom from late frost. Thin fruit in June to 6–8" apart for larger fruit. Harvest late Aug–Sept depending on variety.',added:'2023-05'},
     // ── BED D — PERENNIAL HERBS (partial shade from aspens)
     {id:'p5',category:'edible',common:'Chives',latin:'Allium schoenoprasum',emoji:'🌿',location:'Bed D',bloom:'June',notes:'Tolerates partial shade well. Divide clumps every 2–3 years in spring.',added:'2024-05'},
     {id:'p6',category:'edible',common:'Thyme',latin:'Thymus vulgaris',emoji:'🍃',location:'Bed D',bloom:'July',notes:'Prefers full sun — place in sunniest spot of Bed D (east end, morning sun). Hardy to Zone 4.',added:'2024-05'},
@@ -2011,20 +2038,20 @@ function defaultPlants() {
     {id:'p42',category:'native',common:'Mountain Mint',latin:'Pycnanthemum virginianum',emoji:'🌿',location:'Native yard',bloom:'July',notes:'Incredibly attractive to pollinators — best plant in the yard for bee diversity when in bloom. Spreads by rhizome.',added:'2023-05'},
     {id:'p43',category:'native',common:'Lead Plant',latin:'Amorpha canescens',emoji:'💜',location:'Native yard',bloom:'July',notes:'Nitrogen-fixing shrub, very tough and drought-tolerant. Purple spikes with orange anthers. Excellent for pollinators.',added:'2023-05'},
     // ── NATIVE SHRUBS
-    {id:'p44',category:'native',common:'Golden Currant',latin:'Ribes aureum',emoji:'🌼',location:'Native yard + Herb section',bloom:'April',notes:'4 plants total — 2 in native yard, 2 in perennial herb section. One of the first shrubs to bloom — critical early nectar source. Edible yellow/black fruit. Hummingbirds visit fragrant flowers.',added:'2022-05'},
-    {id:'p45',category:'native',common:'Mock Orange',latin:'Philadelphus lewisii',emoji:'🌼',location:'Native yard',bloom:'June',notes:'Idaho state flower, native to MT. Intensely fragrant white flowers. Prune right after bloom — do not prune in spring.',added:'2022-05'},
-    {id:'p46',category:'native',common:'Elderberry',latin:'Sambucus racemosa',emoji:'🌿',location:'Native yard',bloom:'May',notes:'Red elderberry native to MT. Fast-growing shrub. Fruit attracts birds. Cut to ground every few years to rejuvenate.',added:'2023-05'},
+    {id:'p44',category:'native',common:'Golden Currant',latin:'Ribes aureum',emoji:'🌼',location:'Native yard + Herb section',bloom:'April',notes:'4 plants total — 2 in native yard, 2 in perennial herb section. One of the first shrubs to bloom — critical early nectar source. Berries ripen yellow then black in late July–Aug; excellent fresh, dried, or in jam. Hummingbirds visit fragrant flowers. Little pruning needed; remove dead wood in late winter.',added:'2022-05'},
+    {id:'p45',category:'native',common:'Mock Orange',latin:'Philadelphus lewisii',emoji:'🌼',location:'Native yard',bloom:'June',notes:'Idaho state flower, native to MT. Intensely fragrant white flowers. Prune right after bloom — remove oldest 1/3 of canes to ground to rejuvenate. Never prune in spring (removes this year\'s flower buds). No other regular maintenance needed.',added:'2022-05'},
+    {id:'p46',category:'native',common:'Elderberry',latin:'Sambucus racemosa',emoji:'🌿',location:'Native yard',bloom:'May',notes:'Red elderberry native to MT. Fast-growing shrub. Berries ripen red July–Aug — leave for birds (red berries cause nausea if eaten raw; cook before eating). Cut 1/3 of oldest canes to ground each spring to rejuvenate without losing the whole plant.',added:'2023-05'},
     {id:'p47',category:'native',common:'Shrubby Cinquefoil',latin:'Dasiphora fruticosa',emoji:'🌼',location:'Native yard',bloom:'June',notes:'Blooms continuously June through frost — outstanding performer. Very tough, Zone 3. Great low-maintenance shrub.',added:'2022-05'},
-    {id:'p48',category:'native',common:'Buffalo Berry',latin:'Shepherdia argentea',emoji:'🍊',location:'Native yard',bloom:'April',notes:'Silver-leaved native shrub. Nitrogen-fixing. Tart orange berries excellent for jam. Thorny — good wildlife cover. Dioecious — need male + female.',added:'2023-05'},
+    {id:'p48',category:'native',common:'Buffalo Berry',latin:'Shepherdia argentea',emoji:'🍊',location:'Native yard',bloom:'April',notes:'Silver-leaved native shrub. Nitrogen-fixing. Tart orange berries ripen Aug–Sept — excellent for jelly and syrup (traditionally mixed with bison fat). Thorny — good wildlife cover. Dioecious: you need at least one male and one female plant to get fruit. Confirm both sexes are present. Berries are easier to harvest after a light frost softens them.',added:'2023-05'},
     // ── PERENNIAL HERB SECTION (not a raised bed)
-    {id:'p49',category:'edible',common:'Lavender',latin:'Lavandula angustifolia',emoji:'💜',location:'Herb section',bloom:'July',notes:'Perennial in Zone 5b with good drainage and winter mulch. Cut back by 1/3 in spring — do not cut into woody stems. Excellent for pollinators.',added:'2023-05'},
+    {id:'p49',category:'edible',common:'Lavender',latin:'Lavandula angustifolia',emoji:'💜',location:'Herb section',bloom:'July',notes:'Perennial in Zone 5b with perfect drainage and winter mulch. Munstead and Hidcote are the most reliable varieties for Zone 5b. Cut back by 1/3 in spring as new growth emerges — never cut into woody stems. Harvest flower stalks just before fully open for best fragrance. Excellent for pollinators and edible.',added:'2023-05'},
     {id:'p50',category:'edible',common:'Culinary Sage',latin:'Salvia officinalis',emoji:'🌿',location:'Herb section',bloom:'June',notes:'Perennial in Zone 5b. Cut back in spring before new growth. Prune after bloom. Drought-tolerant once established.',added:'2023-05'},
-    {id:'p51',category:'edible',common:'Fennel',latin:'Foeniculum vulgare',emoji:'🌿',location:'Herb section',bloom:'July',notes:'Perennial in Zone 5. Can reseed aggressively — deadhead before seed sets. Keep away from dill (cross-pollinates). Host plant for swallowtail butterflies.',added:'2023-05'},
-    {id:'p52',category:'edible',common:'French Tarragon',latin:'Artemisia dracunculus var. sativa',emoji:'🌿',location:'Herb section',bloom:'—',notes:'True French tarragon — must be propagated by division, not seed. Divide every 2-3 years to maintain vigor. Does not overwinter well in Zone 5 without mulch.',added:'2023-05'},
+    {id:'p51',category:'edible',common:'Fennel',latin:'Foeniculum vulgare',emoji:'🌿',location:'Herb section',bloom:'July',notes:'Perennial in Zone 5. Can reseed aggressively — deadhead before seed sets. Keep away from dill (cross-pollinates, taints flavor) and away from tomatoes, peppers, and most vegetables (allelopathic). Isolated herb section placement is correct. Host plant for swallowtail butterfly larvae.',added:'2023-05'},
+    {id:'p52',category:'edible',common:'French Tarragon',latin:'Artemisia dracunculus var. sativa',emoji:'🌿',location:'Herb section',bloom:'—',notes:'True French tarragon — must be propagated by division or cuttings, never from seed (seed-grown is the tasteless Russian tarragon). Divide every 2–3 years in spring to maintain vigor. Mulch heavily before first frost. Do not let it flower — this reduces flavor; cut back in midsummer if it bolts.',added:'2023-05'},
     {id:'p53',category:'edible',common:'Parsley',latin:'Petroselinum crispum',emoji:'🌿',location:'Herb section',bloom:'Year 2',notes:'Biennial — harvested in year 1, flowers and sets seed in year 2. Sow new plants each spring. Host plant for black swallowtail butterfly larvae.',added:'2024-05'},
     // ── EDIBLE PERENNIALS — ground level
-    {id:'p61',category:'edible',common:'Raspberry',latin:'Rubus idaeus',emoji:'🫐',location:'Backyard (house side)',bloom:'June',notes:'Established raspberry patch next to the house. Summer-bearing. Cut floricanes (2nd-year canes) to ground after fruiting. Tip new primocanes if they exceed the patch.',added:'2022-05'},
-    {id:'p62',category:'native',common:'Thimbleberry',latin:'Rubus parviflorus',emoji:'🍓',location:'Backyard fence',bloom:'June',notes:'Native thimbleberry along the backyard fence. Spreads by rhizome — manage edge each year. Fragrant white flowers. Soft berries excellent fresh but don\'t travel. Important wildlife food.',added:'2022-05'},
+    {id:'p61',category:'edible',common:'Raspberry',latin:'Rubus idaeus',emoji:'🫐',location:'Backyard (house side)',bloom:'June',notes:'Established raspberry patch next to the house. Summer-bearing — harvest July–Aug. Cut floricanes (2nd-year canes, which fruited this season) to ground after harvest. Keep 4–6 healthy primocanes per foot of row. Water consistently during fruit development — uneven moisture causes crumbly berries. Tip new primocanes at 4–5 ft to encourage lateral branching.',added:'2022-05'},
+    {id:'p62',category:'native',common:'Thimbleberry',latin:'Rubus parviflorus',emoji:'🍓',location:'Backyard fence',bloom:'June',notes:'Native thimbleberry along the backyard fence. Spreads by rhizome — manage edge each year. Fragrant white flowers June–July. Berries ripen red July–Aug; very soft and delicate, must be eaten same day picked. Important wildlife food. Cut old canes to ground after fruiting.',added:'2022-05'},
     // ── NOTED — present in yard, location/details TBD
     {id:'p54',category:'native',common:'Rabbitbrush',latin:'Ericameria nauseosa',emoji:'🌼',location:'Native yard',bloom:'September',status:'noted',notes:'Critical late-season bloom Aug–Oct when little else is flowering. Monarchs and native bees depend on it for fall fueling. Very drought-tolerant. Silver-green foliage.',added:'2025-05'},
     {id:'p55',category:'native',common:'Pasque Flower',latin:'Pulsatilla patens',emoji:'🌸',location:'Native yard',bloom:'April',status:'noted',notes:'One of the very first natives to bloom — sometimes through snow. Silky seed heads extend the show. Montana native, Zone 3. Do not move once established.',added:'2025-05'},
@@ -3220,13 +3247,13 @@ function seedToLibId(seed) {
   const v = (seed.variety || '').toLowerCase();
   // ── Explicit mappings (most specific first) ────────────────────────────
   if (n === 'tomato' || n === 'tomatoes') return (v.includes('roma') || v.includes('paste') || v.includes('det')) ? 'tomato-det' : 'tomato-ind';
-  if (n === 'tomatillo') return 'tomato-det';
+  if (n === 'tomatillo' || n === 'tomatillos') return 'tomatillo';
   if (n === 'kale') return 'brassica-kale';
   if (n === 'broccoli') return 'brassica-broc';
   if (n === 'bok choy' || n === 'pak choi' || n === 'cabbage' || n === 'cauliflower' || n === 'brussels sprouts') return 'brassica-kale';
   if (n === 'kohlrabi') return 'kohlrabi';
   if (n === 'pepper' || n === 'peppers' || n === 'chili' || n === 'hot pepper') return 'pepper';
-  if (n === 'chard' || n === 'swiss chard' || n === 'rainbow chard') return 'beet';
+  if (n === 'chard' || n === 'swiss chard' || n === 'rainbow chard') return 'chard';
   if (n === 'cucumber' || n === 'cucumbers') return 'cucumber';
   if (n === 'zucchini') return 'zucchini';
   if (n === 'squash') return (v.includes('zucchini') || v.includes('summer') || v.includes('pattypan')) ? 'zucchini' : 'squash-winter';
@@ -3243,7 +3270,8 @@ function seedToLibId(seed) {
   if (n === 'radish' || n === 'radishes') return 'radish';
   if (n === 'onion' || n === 'onions') return 'onion';
   if (n === 'garlic') return 'garlic';
-  if (n === 'leek' || n === 'leeks' || n === 'shallot' || n === 'shallots') return 'onion';
+  if (n === 'leek' || n === 'leeks') return 'leek';
+  if (n === 'shallot' || n === 'shallots') return 'onion';
   if (n === 'pea' || n === 'peas' || n === 'snap pea' || n === 'snap peas' || n === 'snow pea' || n === 'snow peas' || n === 'shell pea' || n === 'sugar snap') return 'pea';
   if (n === 'corn' || n === 'sweet corn') return 'corn';
   if (n === 'basil') return 'basil';
@@ -3251,6 +3279,8 @@ function seedToLibId(seed) {
   if (n === 'dill') return 'dill';
   if (n === 'parsley') return 'parsley';
   if (n === 'chives') return 'chives';
+  if (n === 'eggplant' || n === 'aubergine') return 'eggplant';
+  if (n === 'okra') return 'eggplant'; // similar placement/care needs
   if (n === 'thyme' || n === 'rosemary' || n === 'sage' || n === 'lavender') return 'thyme';
   if (n === 'oregano' || n === 'marjoram') return 'oregano';
   if (n === 'marigold' || n === 'marigolds' || n === 'calendula') return 'marigold';
