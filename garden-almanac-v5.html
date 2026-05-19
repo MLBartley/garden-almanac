@@ -383,7 +383,9 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 .cp-stage{font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);}
 /* timeline */
 .timeline-year-strip{display:flex;height:30px;border-radius:4px;overflow:hidden;margin-bottom:7px;border:1px solid var(--rule);}
-.tys{flex:1;display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-size:7px;}
+.tys{flex:1;display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-size:7px;cursor:pointer;transition:filter .12s;user-select:none;}
+.tys:hover{filter:brightness(.88);}
+.tys.sel{outline:2px solid var(--ink);outline-offset:-2px;position:relative;z-index:1;filter:brightness(.82);}
 .tys.dormant-s{background:#ede9de;color:#a09888;}
 .tys.active-s{background:#c8dcc8;color:var(--moss);}
 .tys.peak-s{background:#e8d080;color:#8a6010;}
@@ -932,23 +934,28 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       <!-- ── ALMANAC ── -->
       <div id="yr-almanac">
         <div class="section-label" style="margin-top:0;">Year at a glance</div>
-        <div class="timeline-year-strip">
-          <div class="tys dormant-s">JAN</div><div class="tys dormant-s">FEB</div>
-          <div class="tys active-s">MAR</div><div class="tys active-s">APR</div>
-          <div class="tys active-s">MAY</div><div class="tys peak-s">JUN</div>
-          <div class="tys peak-s">JUL</div><div class="tys harvest-s">AUG</div>
-          <div class="tys harvest-s">SEP</div><div class="tys wind-s">OCT</div>
-          <div class="tys dormant-s">NOV</div><div class="tys dormant-s">DEC</div>
+        <div class="timeline-year-strip" id="year-strip">
+          <div class="tys dormant-s" onclick="openMonthDetail(1)">JAN</div><div class="tys dormant-s" onclick="openMonthDetail(2)">FEB</div>
+          <div class="tys active-s" onclick="openMonthDetail(3)">MAR</div><div class="tys active-s" onclick="openMonthDetail(4)">APR</div>
+          <div class="tys active-s" onclick="openMonthDetail(5)">MAY</div><div class="tys peak-s" onclick="openMonthDetail(6)">JUN</div>
+          <div class="tys peak-s" onclick="openMonthDetail(7)">JUL</div><div class="tys harvest-s" onclick="openMonthDetail(8)">AUG</div>
+          <div class="tys harvest-s" onclick="openMonthDetail(9)">SEP</div><div class="tys wind-s" onclick="openMonthDetail(10)">OCT</div>
+          <div class="tys dormant-s" onclick="openMonthDetail(11)">NOV</div><div class="tys dormant-s" onclick="openMonthDetail(12)">DEC</div>
         </div>
         <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);display:flex;gap:12px;margin-bottom:13px;flex-wrap:wrap;">
           <span style="color:#8a6010">● peak</span><span style="color:#8a3010">● harvest</span>
           <span style="color:var(--moss)">● growth</span><span style="color:#6a5840">● wind-down</span>
         </div>
-        <div class="section-label">Upcoming</div>
-        <div id="timeline-list"></div>
-        <div class="section-label" style="cursor:pointer;" onclick="toggleFullCalendar(this)">Full almanac <span id="full-cal-arrow" style="font-size:.7rem;opacity:.6;">▾</span></div>
-        <div id="full-calendar" style="display:none;"></div>
-        <div id="almanac-extras"></div>
+        <!-- month detail drill-down -->
+        <div id="month-detail" style="display:none;"></div>
+        <!-- full year almanac content -->
+        <div id="almanac-main">
+          <div class="section-label">Upcoming</div>
+          <div id="timeline-list"></div>
+          <div class="section-label" style="cursor:pointer;" onclick="toggleFullCalendar(this)">Full almanac <span id="full-cal-arrow" style="font-size:.7rem;opacity:.6;">▾</span></div>
+          <div id="full-calendar" style="display:none;"></div>
+          <div id="almanac-extras"></div>
+        </div>
       </div>
 
       <!-- ── CHECKLISTS ── -->
@@ -4868,6 +4875,10 @@ const CAL=[
 ];
 function renderTimeline(){
   const now=new Date(),cm=now.getMonth()+1,cd=now.getDate();
+  // Mark current month in strip (but don't override a user selection)
+  if (!selectedAlmanacMonth) {
+    document.querySelectorAll('#year-strip .tys').forEach((el,i) => el.classList.toggle('sel', i+1===cm));
+  }
   const upcoming=CAL.filter(e=>e.m*100+e.d>=cm*100+cd&&e.m*100+e.d<=cm*100+cd+200).slice(0,5);
   const MO=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   document.getElementById('timeline-list').innerHTML=upcoming.length
@@ -4884,6 +4895,56 @@ function renderTimeline(){
     }
     calEl.innerHTML=html;
   }
+}
+
+let selectedAlmanacMonth = null;
+
+function openMonthDetail(m) {
+  selectedAlmanacMonth = m;
+  // highlight selected month in strip
+  document.querySelectorAll('#year-strip .tys').forEach((el, i) => el.classList.toggle('sel', i + 1 === m));
+  const MONTHS = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
+  const now = new Date(), yr = now.getFullYear(), cm = now.getMonth() + 1;
+  const yearChecks = (db.checklists||{})[yr]||{};
+  const monthChecks = yearChecks[String(m)]||{};
+  const mo = MONTHLY_TASKS[m];
+  const calEvents = CAL.filter(e => e.m === m).sort((a,b) => a.d - b.d);
+  const isCur = m === cm;
+
+  let html = `<button onclick="closeMonthDetail()" style="display:inline-flex;align-items:center;gap:5px;background:none;border:none;cursor:pointer;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.06em;color:var(--muted);padding:0 0 14px;text-transform:uppercase;">← Year view</button>`;
+  html += `<div style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);margin-bottom:${isCur?'4px':'14px'};">${MONTHS[m]}</div>`;
+  if (isCur) html += `<div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--moss);margin-bottom:14px;letter-spacing:.08em;">← CURRENT MONTH</div>`;
+
+  if (calEvents.length) {
+    html += `<div class="section-label" style="margin-top:0;">Gardening calendar</div>`;
+    html += calEvents.map(e => `<div class="care-task info" style="margin-bottom:5px;"><div class="care-icon">${e.icon}</div><div class="care-body"><div class="care-title" style="color:var(--ink);">${e.title} <span class="te-badge">${e.badge}</span></div><div class="care-desc">${e.detail}</div></div></div>`).join('');
+  }
+
+  if (mo?.tasks?.length) {
+    html += `<div class="section-label">${isCur ? 'This month\'s tasks' : 'Monthly tasks'}</div>`;
+    html += mo.tasks.map(t => {
+      const checked = !!monthChecks[t.id];
+      return `<div class="cl-task${checked?' done':''}">
+        <input type="checkbox" ${checked?'checked':''} onchange="toggleChecklist(${yr},'${m}','${t.id}',this)">
+        <div class="cl-task-text">${t.cat} ${t.text}</div>
+      </div>`;
+    }).join('');
+  }
+
+  if (!calEvents.length && !mo?.tasks?.length) {
+    html += `<div style="color:var(--muted);font-size:.83rem;padding:10px 0;">No calendar entries for this month.</div>`;
+  }
+
+  document.getElementById('month-detail').innerHTML = html;
+  document.getElementById('month-detail').style.display = '';
+  document.getElementById('almanac-main').style.display = 'none';
+}
+
+function closeMonthDetail() {
+  selectedAlmanacMonth = null;
+  document.querySelectorAll('#year-strip .tys').forEach(el => el.classList.remove('sel'));
+  document.getElementById('month-detail').style.display = 'none';
+  document.getElementById('almanac-main').style.display = '';
 }
 
 // ════════════════════════════════════════
