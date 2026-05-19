@@ -2530,17 +2530,26 @@ function renderFreeformBed(bed) {
   const zones = (db.bedZones||{})[bed.key] || [];
 
   const zonesHtml = zones.map(zone => {
+    const zoneOpts = zones.map(z=>`<option value="${z.id}"${z.id===zone.id?' selected':''}>${z.name}</option>`).join('');
     const plantsHtml = (zone.plants||[]).length
       ? (zone.plants||[]).map((entry, i) => {
           const sc = STATUS_C[entry.status]||'var(--muted)';
+          const safeNotes = (entry.notes||'').replace(/"/g,'&quot;');
           return `<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-top:1px solid var(--rule);">
             <div style="font-size:1.25rem;flex-shrink:0;line-height:1;">${entry.emoji}</div>
             <div style="flex:1;min-width:0;">
               <div style="font-size:.88rem;font-weight:600;">${entry.name}</div>
-              ${entry.notes?`<div style="font-size:.75rem;color:var(--muted);margin-top:1px;">${entry.notes}</div>`:''}
-              <div style="margin-top:4px;"><select onchange="updateZonePlant('${bed.key}','${zone.id}',${i},this.value)" style="font-size:.75rem;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;background:white;color:${sc};">
-                ${['established','planted','planned'].map(s=>`<option value="${s}"${entry.status===s?' selected':''}>${STATUS_L[s]}</option>`).join('')}
-              </select></div>
+              <input value="${safeNotes}" placeholder="Add notes…"
+                style="width:100%;font-size:.75rem;color:var(--muted);border:none;border-bottom:1px dashed transparent;background:transparent;outline:none;padding:1px 0;box-sizing:border-box;margin-top:2px;cursor:text;"
+                onfocus="this.style.borderBottomColor='var(--rule)'"
+                onblur="this.style.borderBottomColor='transparent';editZonePlantNotes('${bed.key}','${zone.id}',${i},this.value)"
+                onkeydown="if(event.key==='Enter')this.blur()">
+              <div style="display:flex;gap:5px;margin-top:5px;flex-wrap:wrap;align-items:center;">
+                <select onchange="updateZonePlant('${bed.key}','${zone.id}',${i},this.value)" style="font-size:.73rem;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;background:white;color:${sc};">
+                  ${['established','planted','planned'].map(s=>`<option value="${s}"${entry.status===s?' selected':''}>${STATUS_L[s]}</option>`).join('')}
+                </select>
+                ${zones.length>1?`<select onchange="moveZonePlant('${bed.key}','${zone.id}',${i},this.value)" style="font-size:.73rem;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;background:white;color:var(--muted);max-width:130px;" title="Move to zone">${zoneOpts}</select>`:''}
+              </div>
             </div>
             <button onclick="removeZonePlant('${bed.key}','${zone.id}',${i})" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:2px 4px;flex-shrink:0;">×</button>
           </div>`;
@@ -2649,6 +2658,26 @@ function updateZonePlant(bedKey, zoneId, plantIdx, status) {
   const zone=(db.bedZones?.[bedKey]||[]).find(z=>z.id===zoneId); if(!zone||!zone.plants[plantIdx])return;
   zone.plants[plantIdx].status=status;
   saveDB(db); buildBedSelector();
+}
+
+function editZonePlantNotes(bedKey, zoneId, plantIdx, notes) {
+  const zone=(db.bedZones?.[bedKey]||[]).find(z=>z.id===zoneId); if(!zone||!zone.plants[plantIdx])return;
+  if(zone.plants[plantIdx].notes===notes)return;
+  zone.plants[plantIdx].notes=notes;
+  saveDB(db);
+}
+
+function moveZonePlant(bedKey, fromZoneId, plantIdx, toZoneId) {
+  if(fromZoneId===toZoneId)return;
+  const allZones=db.bedZones?.[bedKey]||[];
+  const from=allZones.find(z=>z.id===fromZoneId);
+  const to=allZones.find(z=>z.id===toZoneId);
+  if(!from||!to)return;
+  const plant=from.plants.splice(plantIdx,1)[0];
+  to.plants=to.plants||[];
+  to.plants.push(plant);
+  saveDB(db);
+  renderFreeformBed(db.beds.find(b=>b.key===bedKey));
 }
 
 function addZone(bedKey) {
