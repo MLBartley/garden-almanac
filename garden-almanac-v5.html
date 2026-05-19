@@ -100,6 +100,9 @@ html,body{height:100%;overflow:hidden;font-family:'Crimson Pro',Georgia,serif;ba
 .cl-task input[type=checkbox]{width:16px;height:16px;flex-shrink:0;margin-top:2px;accent-color:var(--moss);cursor:pointer;}
 .cl-task-text{font-size:.85rem;line-height:1.4;flex:1;}
 .cl-task.done .cl-task-text{text-decoration:line-through;color:var(--muted);}
+.cl-past-toggle{cursor:pointer;padding:8px 12px;margin-bottom:8px;border-radius:var(--radius);background:var(--surface);border:1px solid var(--rule);display:flex;align-items:center;justify-content:space-between;user-select:none;color:var(--muted);}
+.cl-past-toggle:hover{background:#e8e4d8;}
+.cl-past-months .cl-month-hd{color:var(--muted);}
 .cl-cat{font-size:13px;flex-shrink:0;opacity:.7;}
 .hist-bed-block{background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:12px 13px;margin-bottom:9px;}
 .hist-bed-hd{font-weight:600;font-size:.92rem;margin-bottom:6px;}
@@ -4644,25 +4647,66 @@ function renderChecklists(){
   const el=document.getElementById('cl-content');if(!el)return;
   const labelEl=document.getElementById('cl-year-label');if(labelEl)labelEl.textContent=clYear;
   const now=new Date();const curMonth=now.getMonth()+1;
+  const isCurrentYear=clYear===now.getFullYear();
   const yearChecks=(db.checklists||{})[clYear]||{};
-  let html='';
-  for(let m=1;m<=12;m++){
-    const mo=MONTHLY_TASKS[m];if(!mo)continue;
-    const isCurrent=clYear===now.getFullYear()&&m===curMonth;
+
+  function taskRows(m){
+    const mo=MONTHLY_TASKS[m];if(!mo)return'';
     const monthChecks=yearChecks[String(m)]||{};
-    const done=mo.tasks.filter(t=>monthChecks[t.id]).length;
-    html+=`<div class="cl-month-hd${isCurrent?' current':''}">
-      ${mo.label.toUpperCase()} <span style="margin-left:8px;font-size:8px;opacity:.6;">${done}/${mo.tasks.length}</span>
-    </div>`;
-    html+=mo.tasks.map(t=>{
+    return mo.tasks.map(t=>{
       const checked=!!monthChecks[t.id];
-      return `<div class="cl-task${checked?' done':''}">
+      return`<div class="cl-task${checked?' done':''}">
         <input type="checkbox" ${checked?'checked':''} onchange="toggleChecklist(${clYear},'${m}','${t.id}',this)">
         <div class="cl-task-text">${t.cat} ${t.text}</div>
       </div>`;
     }).join('');
   }
+
+  let html='';
+
+  // Past months — collapsed by default for the current year only
+  if(isCurrentYear && curMonth>1){
+    const pastMonths=[];
+    for(let m=1;m<curMonth;m++) pastMonths.push(m);
+    const pastDone=pastMonths.reduce((s,m)=>{
+      const mo=MONTHLY_TASKS[m];if(!mo)return s;
+      return s+(mo.tasks.filter(t=>(yearChecks[String(m)]||{})[t.id]).length);
+    },0);
+    const pastTotal=pastMonths.reduce((s,m)=>{const mo=MONTHLY_TASKS[m];return s+(mo?mo.tasks.length:0);},0);
+    html+=`<div class="cl-past-toggle" onclick="togglePastMonths(this)">
+      <span style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.08em;">▶ PAST MONTHS</span>
+      <span style="font-size:8px;">${pastDone}/${pastTotal} done</span>
+    </div>
+    <div class="cl-past-months" style="display:none;">`;
+    pastMonths.forEach(m=>{
+      const mo=MONTHLY_TASKS[m];if(!mo)return;
+      const done=mo.tasks.filter(t=>(yearChecks[String(m)]||{})[t.id]).length;
+      html+=`<div class="cl-month-hd">${mo.label.toUpperCase()} <span style="margin-left:8px;font-size:8px;opacity:.6;">${done}/${mo.tasks.length}</span></div>`;
+      html+=taskRows(m);
+    });
+    html+=`</div>`;
+  }
+
+  // Current month and future months (or all months for non-current years)
+  const startM=isCurrentYear?curMonth:1;
+  for(let m=startM;m<=12;m++){
+    const mo=MONTHLY_TASKS[m];if(!mo)continue;
+    const isCurrent=isCurrentYear&&m===curMonth;
+    const monthChecks=yearChecks[String(m)]||{};
+    const done=mo.tasks.filter(t=>monthChecks[t.id]).length;
+    html+=`<div class="cl-month-hd${isCurrent?' current':''}">
+      ${mo.label.toUpperCase()} <span style="margin-left:8px;font-size:8px;opacity:.6;">${done}/${mo.tasks.length}</span>
+    </div>`;
+    html+=taskRows(m);
+  }
+
   el.innerHTML=html;
+}
+function togglePastMonths(btn){
+  const panel=btn.nextElementSibling;
+  const open=panel.style.display!=='none';
+  panel.style.display=open?'none':'block';
+  btn.querySelector('span').textContent=(open?'▶':'▼')+' PAST MONTHS';
 }
 
 // ── BED HISTORY ──
