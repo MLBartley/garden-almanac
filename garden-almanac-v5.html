@@ -1709,8 +1709,6 @@ function loadDB() {
       if (!d.harvestLog) d.harvestLog = [];
       if (!d.plantingList) d.plantingList = [];
       if (!d.bedStatuses) d.bedStatuses = {};
-      // Overwrite Amalthia Farm starts with current complete list
-      d.seeds=(d.seeds||[]).filter(s=>!(s.source||'').includes('Amalthia Farm'));
       // Additive migration: add any new defaultSeeds() IDs not yet in local data
       { const knownSeedIds = new Set((d.seeds||[]).map(s=>s.id));
         const missSeeds = defaultSeeds().filter(s=>!knownSeedIds.has(s.id));
