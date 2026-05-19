@@ -1152,6 +1152,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <button class="pp-tab" onclick="ppTab('veg',this)">Vegetables</button>
         <button class="pp-tab" onclick="ppTab('herb',this)">Herbs</button>
         <button class="pp-tab" onclick="ppTab('flower',this)">Flowers</button>
+        <button class="pp-tab" onclick="ppTab('cover',this)">Cover crops</button>
         <button class="pp-tab" onclick="ppTab('stock',this)">In stock 🌾</button>
       </div>
       <div class="plant-lib-list" id="plant-lib-list"></div>
@@ -1607,6 +1608,89 @@ const PLANT_LIB = [
    frostTol:'halfhardy',sowMethod:'direct',daysMin:45,daysMax:60,
    companions:{good:['tomato-ind','carrot','brassica-broc','bean-bush'],bad:[]},
    bestBeds:['A','B'],spacing:'8"',notes:'Hardy companion — can handle light frost. Repels aphids and whiteflies. Medicinal petals.'},
+  // ── BRASSICA VEGETABLES
+  {id:'cabbage',emoji:'🥬',name:'Cabbage',cat:'veg',sqFt:2,
+   frostTol:'hardy',sowMethod:'transplant',daysMin:70,daysMax:90,
+   companions:{good:['dill','sage','beet','nasturtium'],bad:['tomato-ind','tomato-det','strawberry']},
+   bestBeds:['B'],spacing:'18"',notes:'Start indoors 6 weeks before transplant. Use row cover for cabbage worm. Spring and fall crop — fall (start Jul 15, transplant Aug 15) is more reliable in Bozeman heat.'},
+  {id:'cauliflower',emoji:'🥦',name:'Cauliflower',cat:'veg',sqFt:2,
+   frostTol:'hardy',sowMethod:'transplant',daysMin:75,daysMax:95,
+   companions:{good:['dill','sage','beet','nasturtium'],bad:['tomato-ind','tomato-det','strawberry']},
+   bestBeds:['B'],spacing:'18"',notes:'Tie outer leaves over head when fist-sized to blanch. Fall crop (start Jul 15) is more reliable in Bozeman. Snowball, Cheddar are good varieties.'},
+  {id:'turnip',emoji:'🟣',name:'Turnip',cat:'veg',sqFt:0.25,
+   frostTol:'hardy',sowMethod:'direct',daysMin:40,daysMax:60,
+   companions:{good:['pea','nasturtium'],bad:['potato']},
+   bestBeds:['B'],spacing:'4–6"',notes:'Quick spring or fall crop. Purple Top White Globe is reliable. Greens are edible. Direct sow 6 weeks before frost for fall harvest.'},
+  {id:'parsnip',emoji:'🌱',name:'Parsnip',cat:'veg',sqFt:0.25,
+   frostTol:'hardy',sowMethod:'direct',daysMin:100,daysMax:130,
+   companions:{good:['pea','garlic','radish'],bad:[]},
+   bestBeds:['B'],spacing:'4–6"',notes:'Long season — sow in April for fall harvest. Flavor sweetens dramatically after frost. Harris Model is reliable. Use fresh seed only — viability drops fast after 1 year.'},
+  // ── NIGHTSHADE ROOT
+  {id:'potato',emoji:'🥔',name:'Potato',cat:'veg',sqFt:1,
+   frostTol:'halfhardy',sowMethod:'direct',daysMin:70,daysMax:90,
+   companions:{good:['bean-bush','marigold','nasturtium'],bad:['tomato-ind','tomato-det','tomatillo','cucumber','zucchini','squash-winter','fennel']},
+   bestBeds:['B','C'],spacing:'12"',notes:'Plant certified seed potatoes 4–6" deep after last frost. Hill soil up as plants grow. Yukon Gold and Kennebec are reliable for Bozeman. Dig after tops die back — wait 2 weeks before harvest to cure skins.'},
+  // ── LONG-SEASON VEGETABLE
+  {id:'celery',emoji:'🌿',name:'Celery',cat:'veg',sqFt:1,
+   frostTol:'halfhardy',sowMethod:'transplant',daysMin:100,daysMax:130,
+   companions:{good:['leek','tomato-ind','spinach','brassica-broc'],bad:['carrot','parsnip']},
+   bestBeds:['B','D'],spacing:'8–10"',notes:'Challenging in Bozeman — needs 100+ days and constant moisture. Start indoors Feb–Mar. Self-blanching varieties (Tango, Conquistador) are easiest. Keep roots cool; mulch heavily.'},
+  // ── GRAINS / PSEUDO-GRAINS
+  {id:'quinoa',emoji:'🌾',name:'Quinoa',cat:'veg',sqFt:1,
+   frostTol:'halfhardy',sowMethod:'direct',daysMin:90,daysMax:120,
+   companions:{good:['bean-bush','nasturtium'],bad:[]},
+   bestBeds:['A','C'],spacing:'12"',notes:'Grows 4–6 ft — plant at north end of bed to avoid shading. Brightest Brilliant is a reliable Bozeman variety. Rinse seed heads thoroughly before eating. Harvest when seeds rub off easily and heads are papery.'},
+  {id:'barley',emoji:'🌾',name:'Barley',cat:'veg',sqFt:0.25,
+   frostTol:'hardy',sowMethod:'direct',daysMin:60,daysMax:80,
+   companions:{good:['bean-bush'],bad:[]},
+   bestBeds:['A','C'],spacing:'4–6" broadcast',notes:'Fast-growing grain. Sow spring or fall. Also works as a cover crop — sow densely and till under before seed sets. Drummond and Robust are malting varieties for brewing.'},
+  // ── HERBS (perennial)
+  {id:'sage',emoji:'🌿',name:'Sage',cat:'herb',sqFt:1,
+   frostTol:'hardy',sowMethod:'transplant',daysMin:0,daysMax:0,
+   companions:{good:['brassica-broc','brassica-kale','carrot','tomato-ind'],bad:['basil','cucumber']},
+   bestBeds:['D','H','P'],spacing:'18–24"',notes:'Perennial. Very hardy in Zone 5b — survives without protection. Harvest before flowering for best flavor. Deters cabbage moth and carrot fly.'},
+  {id:'rosemary',emoji:'🌿',name:'Rosemary',cat:'herb',sqFt:1,
+   frostTol:'halfhardy',sowMethod:'transplant',daysMin:0,daysMax:0,
+   companions:{good:['bean-bush','carrot','sage'],bad:[]},
+   bestBeds:['D','H'],spacing:'18–24"',notes:'Marginally hardy in Zone 5b — mulch crown in winter or overwinter indoors. Arp is the most cold-tolerant variety. Requires well-draining soil — susceptible to crown rot in wet winters.'},
+  {id:'mint',emoji:'🌿',name:'Mint',cat:'herb',sqFt:1,
+   frostTol:'hardy',sowMethod:'transplant',daysMin:0,daysMax:0,
+   companions:{good:['brassica-broc','brassica-kale','tomato-ind','pea'],bad:[]},
+   bestBeds:['D','H','P'],spacing:'12"',notes:'Perennial. Highly invasive — always grow in a buried container or dedicated bed. Excellent pest deterrent near brassicas. Spearmint and peppermint both thrive in Bozeman.'},
+  {id:'sorrel',emoji:'🌿',name:'French Sorrel',cat:'herb',sqFt:1,
+   frostTol:'hardy',sowMethod:'both',daysMin:0,daysMax:0,
+   companions:{good:['lettuce','spinach'],bad:[]},
+   bestBeds:['D','H','P'],spacing:'12"',notes:'Perennial. One of the first greens ready each spring. Lemony flavor — use young leaves in salads or soup. Remove flower stalks to maintain leaf production. Very cold hardy in Zone 5b.'},
+  {id:'fennel',emoji:'🌿',name:'Fennel (Florence)',cat:'herb',sqFt:2,
+   frostTol:'halfhardy',sowMethod:'direct',daysMin:80,daysMax:100,
+   companions:{good:[],bad:['tomato-ind','tomato-det','pepper','bean-bush','kohlrabi','brassica-broc','brassica-kale','potato']},
+   bestBeds:['A'],spacing:'12"',notes:'Allelopathic — keep isolated from most vegetables. Direct sow only; resents transplanting. Harvest bulb when golf-ball size. Fronds, pollen, and seeds are all edible. Zefa Fino is best bulbing variety.'},
+  // ── FLOWERS
+  {id:'sunflower',emoji:'🌻',name:'Sunflower',cat:'flower',sqFt:1,
+   frostTol:'tender',sowMethod:'direct',daysMin:70,daysMax:90,
+   companions:{good:['cucumber','bean-bush'],bad:['potato']},
+   bestBeds:['A','C'],spacing:'12–24"',notes:'Plant at north end of bed to avoid shading shorter crops. Direct sow after last frost. Mammoth varieties produce seed for birds. Velvet Queen and Italian White are ornamental types. Excellent pollinator plants.'},
+  {id:'sweet-pea',emoji:'🌸',name:'Sweet Pea (ornamental)',cat:'flower',sqFt:0.25,
+   frostTol:'halfhardy',sowMethod:'direct',daysMin:60,daysMax:90,
+   companions:{good:['borage','nasturtium'],bad:[]},
+   bestBeds:['A','B','C'],spacing:'6" on trellis',notes:'Ornamental only — DO NOT eat seeds or pods (toxic). Sow April — needs cool temps to establish before flowering. Nick seeds with file and soak 24 hrs. Spencer varieties are fragrant. Requires trellis.'},
+  // ── COVER CROPS
+  {id:'cover-winter-rye',emoji:'🌾',name:'Winter Rye (cover)',cat:'cover',sqFt:0.1,
+   frostTol:'hardy',sowMethod:'direct',daysMin:0,daysMax:0,
+   companions:{good:[],bad:[]},
+   bestBeds:['A','B','C'],spacing:'broadcast',notes:'Sow Aug 15–Sept 15 at 2 lbs per 100 sq ft. Overwinters; terminate with tillage or crimping 2 weeks before planting. Best erosion control and weed suppression of any cover crop. Wait 2–3 weeks after termination before direct seeding.'},
+  {id:'cover-buckwheat',emoji:'🌾',name:'Buckwheat (cover)',cat:'cover',sqFt:0.1,
+   frostTol:'tender',sowMethod:'direct',daysMin:30,daysMax:45,
+   companions:{good:[],bad:[]},
+   bestBeds:['A','B','C'],spacing:'broadcast',notes:'Summer cover crop — sow June–Aug in empty beds. Mow or till before seed sets (30–45 days from sow). Smothers weeds, attracts pollinators, scavenges phosphorus. NOT winter-hardy — use between crops or in a gap.'},
+  {id:'cover-clover',emoji:'🌿',name:'White Clover (cover)',cat:'cover',sqFt:0.1,
+   frostTol:'hardy',sowMethod:'direct',daysMin:0,daysMax:0,
+   companions:{good:[],bad:[]},
+   bestBeds:['A','B','C'],spacing:'broadcast',notes:'Fixes 50–100 lbs nitrogen/acre/year. Sow spring or fall at 4–6 oz per 100 sq ft. Mow rather than till to maintain N benefit. Best for beds resting a full season. White Dutch clover is most common.'},
+  {id:'cover-oat',emoji:'🌾',name:'Oat (winter-kill cover)',cat:'cover',sqFt:0.1,
+   frostTol:'halfhardy',sowMethod:'direct',daysMin:0,daysMax:0,
+   companions:{good:[],bad:[]},
+   bestBeds:['A','B','C'],spacing:'broadcast',notes:'Sow Aug 1–Sept 1. Winter-kills naturally in Zone 5b, leaving a straw mulch mat that suppresses weeds and is easy to till in spring. No spring termination needed. Pairs well with field peas for nitrogen + biomass combo.'},
 ];
 
 // Index by id
@@ -3295,7 +3379,9 @@ function seedToLibId(seed) {
   if (n === 'tomatillo' || n === 'tomatillos') return 'tomatillo';
   if (n === 'kale') return 'brassica-kale';
   if (n === 'broccoli') return 'brassica-broc';
-  if (n === 'bok choy' || n === 'pak choi' || n === 'cabbage' || n === 'cauliflower' || n === 'brussels sprouts') return 'brassica-kale';
+  if (n === 'bok choy' || n === 'pak choi' || n === 'brussels sprouts') return 'brassica-kale';
+  if (n === 'cabbage') return 'cabbage';
+  if (n === 'cauliflower') return 'cauliflower';
   if (n === 'kohlrabi') return 'kohlrabi';
   if (n === 'pepper' || n === 'peppers' || n === 'chili' || n === 'hot pepper') return 'pepper';
   if (n === 'chard' || n === 'swiss chard' || n === 'rainbow chard') return 'chard';
@@ -3325,12 +3411,29 @@ function seedToLibId(seed) {
   if (n === 'parsley') return 'parsley';
   if (n === 'chives') return 'chives';
   if (n === 'eggplant' || n === 'aubergine') return 'eggplant';
-  if (n === 'okra') return 'eggplant'; // similar placement/care needs
-  if (n === 'thyme' || n === 'rosemary' || n === 'sage' || n === 'lavender') return 'thyme';
+  if (n === 'okra') return 'eggplant';
+  if (n === 'potato' || n === 'potatoes') return 'potato';
+  if (n === 'turnip' || n === 'turnips') return 'turnip';
+  if (n === 'parsnip' || n === 'parsnips') return 'parsnip';
+  if (n === 'celery') return 'celery';
+  if (n === 'fennel' || n === 'florence fennel' || n === 'bulb fennel') return 'fennel';
+  if (n === 'quinoa') return 'quinoa';
+  if (n === 'barley') return 'barley';
+  if (n === 'sunflower' || n === 'sunflowers') return 'sunflower';
+  if (n === 'sweet pea' || n === 'sweet peas') return 'sweet-pea';
+  if (n === 'thyme' || n === 'lavender') return 'thyme';
+  if (n === 'sage') return 'sage';
+  if (n === 'rosemary') return 'rosemary';
+  if (n === 'mint' || n === 'spearmint' || n === 'peppermint') return 'mint';
+  if (n === 'sorrel' || n === 'french sorrel') return 'sorrel';
   if (n === 'oregano' || n === 'marjoram') return 'oregano';
-  if (n === 'marigold' || n === 'marigolds' || n === 'calendula') return 'marigold';
-  if (n === 'nasturtium' || n === 'nasturtiums') return 'marigold';
-  if (n === 'mint') return null;
+  if (n === 'marigold' || n === 'marigolds') return 'marigold';
+  if (n === 'calendula') return 'calendula';
+  if (n === 'nasturtium' || n === 'nasturtiums') return 'nasturtium';
+  if (n === 'winter rye' || n === 'rye' || n === 'cereal rye') return 'cover-winter-rye';
+  if (n === 'buckwheat') return 'cover-buckwheat';
+  if (n === 'white clover' || n === 'red clover' || n === 'clover') return 'cover-clover';
+  if (n === 'oat' || n === 'oats') return 'cover-oat';
   // ── Fuzzy fallback: match seed name words against PLANT_LIB names ──────
   // Avoids silent drops for names like "Cherry Tomato", "Lacinato Kale", etc.
   const nWords = n.split(/\s+/);
@@ -3773,6 +3876,7 @@ function fillRecommendedPass(designs, statuses, capacities, inventorySq={}, allo
       if (!p.bestBeds.includes(key)) return false;
       if (badIds.has(p.id)) return false;
       if (p.id === 'radish') return false; // personal preference
+      if (p.cat === 'cover') return false; // cover crops are manually placed
       // Bags: compact plants only
       if (bed.type === 'bag' && p.sqFt > 2) return false;
       // Partial shade: avoid very tender crops that need full sun heat
@@ -3785,6 +3889,7 @@ function fillRecommendedPass(designs, statuses, capacities, inventorySq={}, allo
       pool = PLANT_LIB.filter(p => {
         if (badIds.has(p.id)) return false;
         if (p.id === 'radish') return false; // personal preference
+        if (p.cat === 'cover') return false;
         if (bed.shade === 'partial') return p.frostTol === 'hardy' || p.frostTol === 'halfhardy';
         return p.cat === 'veg' || p.cat === 'herb';
       });
@@ -3885,6 +3990,7 @@ function renderPlantLib() {
   if (ppCategory === 'veg') plants = plants.filter(p => p.cat === 'veg');
   else if (ppCategory === 'herb') plants = plants.filter(p => p.cat === 'herb');
   else if (ppCategory === 'flower') plants = plants.filter(p => p.cat === 'flower');
+  else if (ppCategory === 'cover') plants = plants.filter(p => p.cat === 'cover');
   else if (ppCategory === 'stock') plants = plants.filter(p => stockNames.has(p.name.toLowerCase()) || (db.seeds||[]).some(s => p.name.toLowerCase().includes(s.name.toLowerCase())));
 
   // Sort: best for this bed first
@@ -4662,6 +4768,8 @@ const MONTHLY_TASKS={
     {id:'au4',cat:'🫙',text:'Assess grow bag plants for overwinter potential — reduce watering to slow growth'},
     {id:'au5',cat:'📋',text:'Start planning next year wishlist — what worked, what to try, rotation plan'},
     {id:'au6',cat:'🌾',text:'Save seeds from open-pollinated varieties at peak ripeness'},
+    {id:'au7',cat:'🌿',text:'Cover crops: sow buckwheat in any empty bed to smother weeds and feed pollinators (till under in 30–45 days before seed sets)'},
+    {id:'au8',cat:'🌾',text:'Cover crops: sow winter rye Aug 15–Sept 15 in beds you want protected through winter (2 lbs per 100 sq ft, broadcast)'},
   ]},
   9:{label:'September',tasks:[
     {id:'s1',cat:'❄️',text:'First frost watch ~Sept 20 — keep row cover and frost cloth ready'},
@@ -4670,6 +4778,8 @@ const MONTHLY_TASKS={
     {id:'s4',cat:'🥬',text:'Harvest remaining warm-season crops before frost; row cover extends brassicas'},
     {id:'s5',cat:'🌱',text:'Transplant fall brassica starts (from July sow) after Aug 15'},
     {id:'s6',cat:'🌾',text:'Asters blooming — critical late-season nectar for pollinators; do not cut'},
+    {id:'s7',cat:'🌿',text:'Cover crops: last chance to sow winter rye (by Sept 15) or oats (by Sept 1) for winter-kill mulch — leave oat mat in place until spring tillage'},
+    {id:'s8',cat:'🌿',text:'Cover crops: sow white clover in any bed resting next year — mow (do not till) to preserve nitrogen benefit through winter'},
   ]},
   10:{label:'October',tasks:[
     {id:'o1',cat:'🧄',text:'Finish garlic planting by Oct 15 — top-dress beds with 2–3" compost'},
@@ -6275,14 +6385,14 @@ function snapshotBedHistory(){
   renderBedHistory();
 }
 const FAMILY_MAP={
-  nightshade:['tomato','pepper','eggplant','tomatillo'],
+  nightshade:['tomato','pepper','eggplant','tomatillo','potato'],
   brassica:['broccoli','cabbage','kale','cauliflower','kohlrabi','arugula','radish','turnip'],
   root:['carrot','beet','parsnip','celeriac'],
   allium:['onion','garlic','leek','chive','shallot'],
-  legume:['bean','pea'],
+  legume:['bean','pea','clover'],
   cucurbit:['cucumber','squash','zucchini','melon','pumpkin'],
   leafy:['lettuce','spinach','chard','sorrel','celery'],
-  grass:['corn'],
+  grass:['corn','barley','oat','rye','buckwheat','quinoa'],
 };
 function getFamily(libId){
   const p=PLANT_IDX[libId];if(!p)return null;
