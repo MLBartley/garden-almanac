@@ -693,7 +693,8 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
           <span>🌽🫘🎃 <strong>Three Sisters</strong> — corn + beans + squash together</span>
         </label>
       </div>
-      <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:12px;font-size:.82rem;" onclick="autoPopulateAllBeds()">✨ Auto-suggest all beds from inventory</button>
+      <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:6px;font-size:.82rem;" onclick="autoPopulateAllBeds()">✨ Auto-suggest all beds from inventory</button>
+      <button class="btn-sm" style="width:100%;padding:6px;margin-bottom:12px;font-size:.78rem;background:none;color:var(--muted);border-color:var(--rule);" onclick="clearAllSuggestions()">✕ Clear all suggestions</button>
 
       <!-- Companion panel -->
       <div id="companion-panel-wrap"></div>
@@ -1351,6 +1352,10 @@ const PLANT_LIB = [
    frostTol:'tender',sowMethod:'direct',daysMin:50,daysMax:68,
    companions:{good:['carrot','cucumber','corn','squash-winter','beet'],bad:['onion','fennel']},
    bestBeds:['A','C'],spacing:'6"',notes:'Direct sow after LF. Fix nitrogen. THREE SISTERS: plant around corn when corn is 4–6" tall. Succession sow every 2 weeks.'},
+  {id:'pea',emoji:'🫛',name:'Snap/Shell Pea',cat:'veg',sqFt:0.25,
+   frostTol:'hardy',sowMethod:'direct',daysMin:60,daysMax:70,
+   companions:{good:['carrot','radish','spinach','lettuce','mint'],bad:['onion','garlic']},
+   bestBeds:['B','C'],spacing:'4–6" on trellis',notes:'Direct sow as early as soil can be worked — frost hardy. Done by mid-summer; follow with warm-season crop. Snap peas need trellis.'},
   {id:'corn',emoji:'🌽',name:'Corn',cat:'veg',sqFt:1,
    frostTol:'tender',sowMethod:'direct',daysMin:68,daysMax:80,
    companions:{good:['bean-bush','squash-winter'],bad:['tomato-ind','tomato-det']},
@@ -1529,6 +1534,14 @@ function getPlantingStatus(plant, wxForecast) {
 function fmtDate(d) {
   if (!d) return '—';
   return d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+}
+// Estimated harvest date from today. Uses seed.days if set, else plant library midpoint.
+function estimatedHarvest(seed, plant) {
+  const days = parseInt(seed?.days) || (plant ? Math.round((plant.daysMin + (plant.daysMax || plant.daysMin)) / 2) : 0);
+  if (!days) return null;
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d;
 }
 
 // ════════════════════════════════════════
@@ -2198,13 +2211,20 @@ function renderDesign() {
   grid.style.gridTemplateColumns = `repeat(${bed.cols}, 44px)`;
   grid.innerHTML = '';
 
-  // Build companion warning map
+  // Build companion warning map (bidirectional)
   const placedIds = Object.values(activeBedDesign);
   const badPairs = new Set();
+  const conflictFor = {}; // plantId → [conflicting plant names]
   placedIds.forEach(id => {
     const p = PLANT_IDX[id]; if (!p) return;
     (p.companions?.bad || []).forEach(badId => {
-      if (placedIds.includes(badId)) badPairs.add(id+':'+badId);
+      if (placedIds.includes(badId)) {
+        badPairs.add(id+':'+badId);
+        conflictFor[id] = conflictFor[id] || [];
+        if (!conflictFor[id].includes(badId)) conflictFor[id].push(badId);
+        conflictFor[badId] = conflictFor[badId] || [];
+        if (!conflictFor[badId].includes(id)) conflictFor[badId].push(id);
+      }
     });
   });
 
@@ -2212,7 +2232,8 @@ function renderDesign() {
     const plantId = activeBedDesign[i];
     const plant = plantId ? PLANT_IDX[plantId] : null;
     const status = activeBedStatuses[i];
-    const hasBadNeighbor = plant && [...badPairs].some(pair => pair.startsWith(plantId+':'));
+    const conflicts = plantId ? (conflictFor[plantId] || []) : [];
+    const hasBadNeighbor = conflicts.length > 0;
     const sq = document.createElement('div');
     let cls = 'sq';
     if (!plant) cls += ' empty-sq';
@@ -2222,6 +2243,7 @@ function renderDesign() {
     else cls += ' occupied';
     if (hasBadNeighbor) cls += ' warn';
     sq.className = cls;
+    if (hasBadNeighbor) sq.title = `⚠️ Conflict: bad companions in this bed — ${conflicts.map(id=>PLANT_IDX[id]?.name||id).join(', ')}`;
     if (plant) {
       const badge = status === 'suggested' ? '<div class="sq-status-badge">?</div>'
                   : status === 'recommended' ? '<div class="sq-status-badge" style="color:#c4922a;">★</div>'
@@ -2334,10 +2356,13 @@ function renderPlanSummary(bed, placedIds) {
   const rows = Object.entries(counts).map(([id, cnt]) => {
     const p = PLANT_IDX[id]; if (!p) return '';
     const timing = getPlantingStatus(p, wxData);
+    const seedMatch = (db.seeds||[]).find(s=>seedToLibId(s)===id);
+    const harvest = estimatedHarvest(seedMatch, p);
+    const harvestStr = harvest ? ` · 🗓 ~${fmtDate(harvest)}` : '';
     return `<div class="plan-item">
       <div class="plan-item-emoji">${p.emoji}</div>
-      <div class="plan-item-name">${p.name}${p.name!==p.name?'':''}</div>
-      <div class="plan-item-meta">${cnt} sq · ${p.spacing}<br><span class="status-pill ${timing.cls}">${timing.label.split(' ').slice(0,3).join(' ')}</span></div>
+      <div class="plan-item-name">${p.name}</div>
+      <div class="plan-item-meta">${cnt} sq · ${p.spacing}${harvestStr}<br><span class="status-pill ${timing.cls}">${timing.label.split(' ').slice(0,3).join(' ')}</span></div>
     </div>`;
   }).join('');
   document.getElementById('plan-summary').innerHTML = `
@@ -2472,7 +2497,7 @@ function seedToLibId(seed) {
   if (n === 'onion') return 'onion';
   if (n === 'garlic') return 'garlic';
   if (n === 'leek' || n === 'shallot') return 'onion';
-  if (n === 'peas') return null;
+  if (n === 'peas' || n === 'pea') return 'pea';
   if (n === 'corn') return 'corn';
   if (n === 'basil') return 'basil';
   if (n === 'cilantro') return 'cilantro';
@@ -2599,6 +2624,28 @@ function autoPopulateAllBeds() {
   saveDB(db);
   activeBedDesign = {...designs[activeBedKey]};
   activeBedStatuses = {...statuses[activeBedKey]};
+  buildBedSelector();
+  renderDesign();
+}
+
+function clearAllSuggestions() {
+  db.bedDesigns = db.bedDesigns || {};
+  db.bedStatuses = db.bedStatuses || {};
+  db.beds.forEach(b => {
+    const d = db.bedDesigns[b.key] || {};
+    const s = db.bedStatuses[b.key] || {};
+    const cap = b.cols * b.rows;
+    for (let i = 0; i < cap; i++) {
+      if (!s[i] || s[i] === 'suggested' || s[i] === 'recommended') {
+        delete d[i]; delete s[i];
+      }
+    }
+    db.bedDesigns[b.key] = d;
+    db.bedStatuses[b.key] = s;
+  });
+  saveDB(db);
+  activeBedDesign = {...(db.bedDesigns[activeBedKey] || {})};
+  activeBedStatuses = {...(db.bedStatuses[activeBedKey] || {})};
   buildBedSelector();
   renderDesign();
 }
@@ -2956,6 +3003,27 @@ function renderJournal(){
 //  SEEDS
 // ════════════════════════════════════════
 let currentScanImageB64=null, scanQty=1, activeSeedFilter='all';
+// Typical years until germination rate drops below ~50%
+const SEED_VIABILITY_YRS = {
+  tomato:4,pepper:3,corn:1,kale:4,broccoli:4,arugula:4,spinach:3,lettuce:3,
+  carrot:2,parsley:1,peas:2,pea:2,beans:2,bean:2,cucumber:5,squash:4,
+  pumpkin:4,zucchini:4,beet:4,chard:4,onion:1,leek:1,shallot:1,garlic:3,
+  radish:4,basil:5,cilantro:2,dill:2,chives:1,oregano:2,thyme:3,
+  'french sorrel':4,'bok choy':4,'corn salad':3
+};
+function seedAgeYrs(seed) {
+  if (seed.addedDate) return new Date().getFullYear() - parseInt(seed.addedDate.slice(0,4));
+  const m = (seed.source||'').match(/\b(20\d\d)\b/);
+  return m ? new Date().getFullYear() - parseInt(m[1]) : null;
+}
+function seedViabilityWarn(seed) {
+  if (seed.storage === 'live') return null;
+  const age = seedAgeYrs(seed); if (age === null || age < 0) return null;
+  const max = SEED_VIABILITY_YRS[seed.name.toLowerCase()] || 3;
+  if (age >= max) return 'old';
+  if (age >= max - 1) return 'watch';
+  return null;
+}
 const BED_INFO={A:{label:'Bed A',cls:'bed-a-tag',emoji:'🍅'},B:{label:'Bed B',cls:'bed-b-tag',emoji:'🥦'},C:{label:'Bed C',cls:'bed-c-tag',emoji:'🥒'},D:{label:'Bed D',cls:'bed-d-tag',emoji:'🌿'},A1:{label:'Bag A',cls:'bed-a-tag',emoji:'🫙'},B1:{label:'Bag B',cls:'bed-b-tag',emoji:'🫙'},C1:{label:'Bag C',cls:'bed-c-tag',emoji:'🫙'},any:{label:'Unassigned',cls:'bed-any-tag',emoji:'📦'}};
 const STORAGE_INFO={fridge:{label:'Fridge',cls:'store-fridge',icon:'🧊'},freezer:{label:'Freezer',cls:'store-freezer',icon:'❄️'},cool:{label:'Cool dark',cls:'store-cool',icon:'🏠'},ambient:{label:'Shelf',cls:'store-ambient',icon:'📦'},live:{label:'Plant soon',cls:'store-live',icon:'🌱'}};
 function toggleStorageGuide(){
@@ -3043,6 +3111,9 @@ function renderSeeds(){
     const bed=BED_INFO[s.bed]||BED_INFO.any;const store=STORAGE_INFO[s.storage]||STORAGE_INFO.cool;
     const thumbHtml=s.thumb?`<img class="seed-thumb" src="data:${s.thumbType};base64,${s.thumb}" alt="">`:`<div class="seed-thumb-ph">${isStart?'🌱':bed.emoji}</div>`;
     const timingBadge=isStart?seedTimingBadge(s):'';
+    const viab=isStart?null:seedViabilityWarn(s);
+    const viabBadge=viab==='old'?`<span class="plant-pill" style="background:#fde8e8;color:#8a2000;" title="Germination rate may be low — consider testing viability or replacing">⚠️ Low viability</span>`
+      :viab==='watch'?`<span class="plant-pill" style="background:#fff3e0;color:#7a4000;" title="Approaching end of typical viability — use this season">⏳ Use this year</span>`:'';
     let bodyContent;
     if(isStart){
       const rec=seedPlantingRec(s);
@@ -3056,7 +3127,7 @@ function renderSeeds(){
     }else{
       bodyContent=`<div class="seed-meta-row"><span class="storage-badge ${store.cls}">${store.icon} ${store.label}</span>${s.source?`<span class="plant-pill pill-sage">${s.source}</span>`:''}</div>${s.notes?`<div class="seed-detail">${s.notes}</div>`:''}<div style="margin-top:8px;"><button class="seed-skip-btn" onclick="skipSeed('${s.id}')">💤 Not this year</button></div>`;
     }
-    return`<div class="seed-card${isSkipped?' skipped':''}"><div class="seed-card-header">${thumbHtml}<div style="flex:1;min-width:0;"><div class="seed-name">${s.name}</div><div class="seed-variety">${s.variety||'—'}</div><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;"><span class="seed-bed-tag ${bed.cls}">${bed.label}</span>${s.days?`<span class="plant-pill pill-ink">⏱ ${s.days}d</span>`:''}<span class="plant-pill pill-gold">×${s.qty||1}</span>${timingBadge}</div></div><button onclick="deleteSeed('${s.id}')" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:4px;flex-shrink:0;">×</button></div><div class="seed-body">${bodyContent}</div></div>`;
+    return`<div class="seed-card${isSkipped?' skipped':''}"><div class="seed-card-header">${thumbHtml}<div style="flex:1;min-width:0;"><div class="seed-name">${s.name}</div><div class="seed-variety">${s.variety||'—'}</div><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;"><span class="seed-bed-tag ${bed.cls}">${bed.label}</span>${s.days?`<span class="plant-pill pill-ink">⏱ ${s.days}d</span>`:''}<span class="plant-pill pill-gold">×${s.qty||1}</span>${timingBadge}${viabBadge}</div></div><button onclick="deleteSeed('${s.id}')" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:4px;flex-shrink:0;">×</button></div><div class="seed-body">${bodyContent}</div></div>`;
   }
   const el=document.getElementById('seed-list');
   if(activeSeedFilter==='starts'){
@@ -4212,9 +4283,11 @@ function renderReadyToPlant() {
       const hardenBtn=isHardening
         ?`<span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--moss);">🌿 Hardening in progress</span>`
         :`<button class="rtp-btn rtp-btn-harden" onclick="startHardeningFromSeed('${s.id}')">🌿 Start hardening</button>`;
+      const harvest = estimatedHarvest(s, plant);
+      const harvestLine = harvest ? `<span style="color:var(--moss);">🗓 ~${fmtDate(harvest)}</span>` : '';
       return `<div class="rtp-card"><div class="rtp-emoji">${emoji}</div><div class="rtp-body">
         <div class="rtp-name">${s.name}${s.variety?' · '+s.variety:''} ×${s.qty||1}</div>
-        <div class="rtp-meta">${bed.label}${sqFt?' · '+sqFt:''}</div>
+        <div class="rtp-meta">${bed.label}${sqFt?' · '+sqFt:''}${harvest?' · '+harvestLine:''}</div>
         <div class="rtp-actions">
           <button class="rtp-btn rtp-btn-plant" onclick="logStartAsTransplanted('${s.id}')">🌱 Log as transplanted</button>
           ${hardenBtn}
