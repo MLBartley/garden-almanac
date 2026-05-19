@@ -747,6 +747,9 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       <!-- Ground planting suggestions -->
       <div class="section-label">What can go in the ground?</div>
       <div id="ground-suggestions"></div>
+
+      <!-- Seed inventory assigned to this bed -->
+      <div id="bed-inventory-panel" style="display:none;background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-top:10px;"></div>
     </div>
 
     <!-- SEEDS -->
@@ -2316,6 +2319,9 @@ function renderDesign() {
   // Ground planting suggestions
   renderGroundSuggestions();
 
+  // Seeds inventory assigned to this bed
+  renderBedInventoryPanel();
+
   // Refresh bed selector labels to reflect current design state
   buildBedSelector();
 }
@@ -2517,6 +2523,34 @@ function renderGroundSuggestions() {
     return;
   }
   el.innerHTML = cards.join('');
+}
+
+// ── Bed inventory panel (Design page) ──
+function renderBedInventoryPanel(){
+  const el=document.getElementById('bed-inventory-panel');
+  if(!el)return;
+  const seeds=db.seeds||[];
+  // Seeds assigned to this bed
+  const assigned=seeds.filter(s=>s.bed===activeBedKey);
+  if(!assigned.length){el.innerHTML='';el.style.display='none';return;}
+  el.style.display='block';
+  const design=db.bedDesigns[activeBedKey]||{};
+  const rows=assigned.map(s=>{
+    const libId=seedToLibId(s);
+    const inDesign=libId&&Object.values(design).includes(libId);
+    const isStart=s.storage==='live';
+    const statusDot=inDesign
+      ?`<span style="color:var(--moss);font-size:.75rem;">✓ In design</span>`
+      :`<span style="color:var(--muted);font-size:.75rem;">Not placed</span>`;
+    const mismatch=seedBedMismatch(s);
+    const plant=PLANT_IDX[libId];
+    const mismatchNote=mismatch?`<span style="color:#7a1a1a;font-size:.72rem;"> · Best: Bed ${(plant?.bestBeds||[]).join('/')}</span>`:'';
+    return`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-top:1px solid var(--rule);gap:6px;">
+      <div style="font-size:.82rem;flex:1;min-width:0;"><strong>${s.name}</strong>${s.variety&&!s.variety.startsWith('(')?` <span style="opacity:.6;">${s.variety}</span>`:''} ${isStart?'<span style="font-family:\'Space Mono\',monospace;font-size:7px;background:#e2f0e4;color:#2a6a2a;padding:1px 5px;border-radius:3px;">START</span>':''}<span class="plant-pill pill-gold" style="font-size:.7rem;">×${s.qty||1}</span>${mismatchNote}</div>
+      <div>${statusDot}</div>
+    </div>`;
+  }).join('');
+  el.innerHTML=`<div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:var(--muted);margin-bottom:2px;">ASSIGNED TO THIS BED</div>${rows}`;
 }
 
 // ── Auto-populate from inventory ──
@@ -3156,6 +3190,23 @@ function seedPlantingRec(seed){
   if(plant?.notes){const s=plant.notes.split('.')[0];if(s?.length>5)parts.push(s);}
   return parts.join(' · ');
 }
+// Return bed keys where libId is present in db.bedDesigns
+function seedActualBeds(libId){
+  if(!libId)return[];
+  const designs=db.bedDesigns||{};
+  return(db.beds||[]).filter(b=>Object.values(designs[b.key]||{}).includes(libId)).map(b=>b.key);
+}
+// Return true if seed.bed conflicts with plant.bestBeds (both set and no overlap)
+function seedBedMismatch(seed){
+  if(!seed.bed||seed.bed==='any')return false;
+  const libId=seedToLibId(seed);const plant=PLANT_IDX[libId];
+  if(!plant||!plant.bestBeds||!plant.bestBeds.length)return false;
+  return!plant.bestBeds.includes(seed.bed);
+}
+function changeSeedBed(id,newBed){
+  const s=(db.seeds||[]).find(s=>s.id===id);if(!s)return;
+  s.bed=newBed;saveDB(db);renderSeeds();
+}
 function skipSeed(id){const seed=(db.seeds||[]).find(s=>s.id===id);if(!seed)return;seed.skipYear=new Date().getFullYear();seed.nextReminder=calcNextReminder(seed);saveDB(db);renderSeeds();}
 function unskipSeed(id){const seed=(db.seeds||[]).find(s=>s.id===id);if(!seed)return;delete seed.skipYear;delete seed.nextReminder;saveDB(db);renderSeeds();}
 function renderSeeds(){
@@ -3175,9 +3226,33 @@ function renderSeeds(){
     let bodyContent;
     if(isStart){
       const rec=seedPlantingRec(s);
+      const libId=seedToLibId(s);
+      const plant=PLANT_IDX[libId];
       const isHardening=(db.hardenLogs||[]).some(e=>!e.done&&e.name.toLowerCase().includes(s.name.toLowerCase()));
       const hardenHtml=isHardening?`<span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--moss);">🌿 Hardening in progress</span>`:`<button class="seed-skip-btn" style="color:var(--moss);border-color:var(--moss);" onclick="startHardeningFromSeed('${s.id}')">🌿 Start hardening</button>`;
-      bodyContent=`<div class="seed-meta-row"><span class="storage-badge store-live">🌱 Live start</span>${s.source?`<span class="plant-pill pill-sage">${s.source}</span>`:''}</div>${rec?`<div class="seed-detail seed-planting-rec">📍 ${rec}</div>`:''} ${s.notes?`<div class="seed-detail" style="margin-top:4px;">${s.notes}</div>`:''}<div style="margin-top:8px;">${hardenHtml}</div>`;
+      // Design placement status
+      const actualBeds=seedActualBeds(libId);
+      const assignedBed=s.bed&&s.bed!=='any'?s.bed:null;
+      let placementHtml='';
+      if(actualBeds.length){
+        const bedLabels=actualBeds.map(k=>(BED_INFO[k]||{}).label||k).join(', ');
+        const inAssigned=assignedBed&&actualBeds.includes(assignedBed);
+        const overflowed=assignedBed&&!inAssigned;
+        if(overflowed){
+          placementHtml=`<div style="font-size:.78rem;margin-top:5px;color:#7a4000;background:#fff3e0;border-radius:4px;padding:3px 8px;">📍 Placed in ${bedLabels} <span style="opacity:.7;">(assigned: ${BED_INFO[assignedBed]?.label||assignedBed})</span></div>`;
+        }else{
+          placementHtml=`<div style="font-size:.78rem;margin-top:5px;color:var(--moss);">📍 In design: ${bedLabels}</div>`;
+        }
+      }else{
+        placementHtml=`<div style="font-size:.78rem;margin-top:5px;color:var(--muted);">📍 Not yet in Design — run ✨ Auto-suggest</div>`;
+      }
+      // Bed mismatch warning + quick reassign
+      const mismatch=seedBedMismatch(s);
+      const bestBeds=plant?.bestBeds||[];
+      const mismatchHtml=mismatch?`<div style="font-size:.78rem;margin-top:4px;color:#7a1a1a;background:#fde8e8;border-radius:4px;padding:3px 8px;">⚠️ ${BED_INFO[assignedBed]?.label||assignedBed} not recommended — best in Bed ${bestBeds.join('/')}</div>`:'';
+      const bedOpts=['A','B','C','D','any'].map(k=>`<option value="${k}"${s.bed===k?' selected':''}>${BED_INFO[k]?.label||k}</option>`).join('');
+      const bedChangeHtml=`<div style="margin-top:6px;display:flex;align-items:center;gap:6px;"><span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">ASSIGN TO</span><select style="font-size:.78rem;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;background:white;" onchange="changeSeedBed('${s.id}',this.value)">${bedOpts}</select></div>`;
+      bodyContent=`<div class="seed-meta-row"><span class="storage-badge store-live">🌱 Live start</span>${s.source?`<span class="plant-pill pill-sage">${s.source}</span>`:''}</div>${rec?`<div class="seed-detail seed-planting-rec">📍 ${rec}</div>`:''} ${s.notes?`<div class="seed-detail" style="margin-top:4px;">${s.notes}</div>`:''} ${placementHtml}${mismatchHtml}${bedChangeHtml}<div style="margin-top:8px;">${hardenHtml}</div>`;
     }else if(isSkipped){
       const tip=storageTipForSeed(s);
       const reminderTag=s.nextReminder?`<div style="margin-top:5px;"><span class="seed-reminder-tag">🔔 Remind me ${s.nextReminder}</span></div>`:'';
