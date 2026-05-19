@@ -2104,6 +2104,8 @@ function renderCare(d) {
   const rain=d.daily.precipitation_sum[0], rainChance=d.daily.precipitation_probability_max[0];
   const wind=Math.round(c.wind_speed_10m), hum=c.relative_humidity_2m;
   const now=new Date(), mon=now.getMonth()+1, dy=now.getDate();
+  // Daily min occurs early AM; after 10 AM use tomorrow's min as the upcoming overnight low
+  const nightLo=Math.round(d.daily.temperature_2m_min[now.getHours()>=10?1:0]);
 
   // Scan bed designs for what's actually planted
   const plantedByLib={}; // libId -> {plant, beds:[]}
@@ -2123,12 +2125,12 @@ function renderCare(d) {
   const tenderLabel=(list,withBed)=>list.map(p=>`${p.plant.emoji} ${p.plant.name.replace(/ \(.*\)/,'')}${withBed?' (Bed '+p.beds.join('/')+')'  :''}`).join(', ');
 
   const tasks=[];
-  if(lo<=28){
+  if(nightLo<=28){
     const names=tender.length?tenderLabel(tender,true):'tender transplants';
-    tasks.push({cls:'urgent',icon:'🥶',title:'Hard frost tonight',desc:`Low of ${lo}°F. Cover ${names}. Fill oya pots before covering.`});
-  } else if(lo<=36){
+    tasks.push({cls:'urgent',icon:'🥶',title:'Hard frost tonight',desc:`Low of ${nightLo}°F. Cover ${names}. Fill oya pots before covering.`});
+  } else if(nightLo<=36){
     const names=tender.length?tenderLabel(tender,false):halfhardy.length?tenderLabel(halfhardy,false):'tender transplants';
-    tasks.push({cls:'urgent',icon:'🌡️',title:'Frost risk tonight',desc:`Low of ${lo}°F. Cover ${names}.`});
+    tasks.push({cls:'urgent',icon:'🌡️',title:'Frost risk tonight',desc:`Low of ${nightLo}°F. Cover ${names}.`});
   }
   if(rain>0.3||rainChance>70)tasks.push({cls:'info',icon:'🌧',title:'Skip oya top-off',desc:`${rain>0?rain+'" rain':rainChance+'% chance'}. Let nature handle irrigation.`});
   else if(hi>=82)tasks.push({cls:'urgent',icon:'💧',title:'Top off all oya pots',desc:`High of ${hi}°F. Refill all 8 oya pots.`});
@@ -2176,17 +2178,21 @@ function renderFrostAlert(d) {
   const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const now = new Date();
   const year = now.getFullYear();
+  // Daily min temps occur early AM (~5 AM). After 10 AM today's low has already passed —
+  // start from index 1 so "Tonight" refers to the upcoming overnight, not this morning.
+  const startIdx = now.getHours() >= 10 ? 1 : 0;
 
   // Scan next 10 days for frost risk
   const frostDays = [];
-  for (let i = 0; i < Math.min(10, d.daily.time.length); i++) {
+  for (let i = startIdx; i < Math.min(10, d.daily.time.length); i++) {
     const lo = Math.round(d.daily.temperature_2m_min[i]);
     const hi = Math.round(d.daily.temperature_2m_max[i]);
     const dt = new Date(d.daily.time[i] + 'T12:00:00');
-    const dayName = i === 0 ? 'Tonight' : i === 1 ? 'Tomorrow' : days[dt.getDay()];
+    const rel = i - startIdx; // 0=tonight, 1=tomorrow, 2+
+    const dayName = rel === 0 ? 'Tonight' : rel === 1 ? 'Tomorrow' : days[dt.getDay()];
     if (lo <= 36) {
       frostDays.push({
-        i, lo, hi, dt, dayName,
+        i: rel, actualIdx: i, lo, hi, dt, dayName,
         hard: lo <= 28,
         killing: lo <= 24,
         dateStr: dt.toLocaleDateString('en-US', {month:'short', day:'numeric'})
@@ -2291,9 +2297,9 @@ function renderFrostAlert(d) {
   }
 
   // Upcoming clear window after frosts
-  const lastFrostIdx = frostDays[frostDays.length-1].i;
-  if (lastFrostIdx < 9) {
-    const clearDate = new Date(d.daily.time[lastFrostIdx+1] + 'T12:00:00');
+  const lastFrostActualIdx = frostDays[frostDays.length-1].actualIdx;
+  if (lastFrostActualIdx < 9) {
+    const clearDate = new Date(d.daily.time[lastFrostActualIdx+1] + 'T12:00:00');
     const clearStr = clearDate.toLocaleDateString('en-US', {month:'short', day:'numeric'});
     actions.push(`Clear after ${clearStr} — safe to plant tender crops then`);
   }
@@ -2326,9 +2332,10 @@ function renderTodayBar(d) {
   document.getElementById('tbar-temp').textContent=temp+'°F';
   document.getElementById('tbar-hilo').textContent=`${hi}/${lo}°`;
   document.getElementById('tbar-alert-icon').textContent=icon;
+  const nightLo=Math.round(d.daily.temperature_2m_min[new Date().getHours()>=10?1:0]);
   let alertIcon='💧',alertText='Check oya levels',urgent=false;
-  if(lo<=28){alertIcon='🥶';alertText=`Hard frost tonight — ${lo}°F`;urgent=true;}
-  else if(lo<=36){alertIcon='🌡️';alertText=`Frost risk tonight — ${lo}°F`;urgent=true;}
+  if(nightLo<=28){alertIcon='🥶';alertText=`Hard frost tonight — ${nightLo}°F`;urgent=true;}
+  else if(nightLo<=36){alertIcon='🌡️';alertText=`Frost risk tonight — ${nightLo}°F`;urgent=true;}
   else if(wind>=20){alertIcon='💨';alertText=`Wind ${wind} mph — secure cages`;urgent=true;}
   else if(hi>=85){alertIcon='☀️';alertText=`Heat ${hi}°F — water early AM`;urgent=true;}
   else if(rain>0.3||rainChance>70){alertIcon='🌧';alertText=`Rain likely — skip irrigation`;}
