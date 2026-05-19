@@ -5069,9 +5069,11 @@ function saveHardenLog() {
 function advanceHarden(id) {
   const entry = (db.hardenLogs||[]).find(e=>e.id===id);
   if (!entry) return;
-  const nextDay = entry.completedDays.length; // 0-indexed → next step
+  const today = new Date().toISOString().slice(0,10);
+  if (entry.lastAdvancedDate === today) return; // already done today
+  const nextDay = entry.completedDays.length;
   if (nextDay >= HARDEN_STEPS.length) { entry.done=true; }
-  else { entry.completedDays.push(nextDay); }
+  else { entry.completedDays.push(nextDay); entry.lastAdvancedDate = today; }
   if (entry.completedDays.length >= HARDEN_STEPS.length) {
     entry.done = true;
     db.journal.unshift({id:'j'+Date.now(),date:new Date().toISOString(),mood:'🌱',
@@ -5086,13 +5088,22 @@ function deleteHarden(id) {
   saveDB(db); renderSpring();
 }
 
-function advanceAllHarden() {
+function resetAllHarden() {
   const active = (db.hardenLogs||[]).filter(e=>!e.done);
   if (!active.length) return;
-  active.forEach(entry => {
+  active.forEach(e => { e.completedDays = []; delete e.lastAdvancedDate; });
+  saveDB(db); renderSpring();
+}
+
+function advanceAllHarden() {
+  const today = new Date().toISOString().slice(0,10);
+  const toAdvance = (db.hardenLogs||[]).filter(e=>!e.done && e.lastAdvancedDate !== today);
+  if (!toAdvance.length) return;
+  toAdvance.forEach(entry => {
     const nextDay = entry.completedDays.length;
     if (nextDay >= HARDEN_STEPS.length) { entry.done=true; return; }
     entry.completedDays.push(nextDay);
+    entry.lastAdvancedDate = today;
     if (entry.completedDays.length >= HARDEN_STEPS.length) {
       entry.done = true;
       db.journal.unshift({id:'j'+Date.now(),date:new Date().toISOString(),mood:'🌱',
@@ -5109,15 +5120,23 @@ function renderHardening() {
     el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌿</div><div class="empty-text">No hardening schedules active.<br>Tap "+ Start hardening schedule" when starts are ready to go outside.</div></div>`;
     return;
   }
+  const today = new Date().toISOString().slice(0,10);
   const activeCount = logs.filter(e=>!e.done).length;
+  const pendingCount = logs.filter(e=>!e.done && e.lastAdvancedDate !== today).length;
   const allDoneBtn = activeCount > 1
-    ? `<button class="btn-sm" style="width:100%;padding:9px;margin-bottom:8px;color:var(--moss);border-color:var(--moss);" onclick="advanceAllHarden()">✓ All done today's step (${activeCount})</button>`
+    ? pendingCount > 0
+      ? `<button class="btn-sm" style="width:100%;padding:9px;margin-bottom:8px;color:var(--moss);border-color:var(--moss);" onclick="advanceAllHarden()">✓ All done today's step (${pendingCount})</button>`
+      : `<button class="btn-sm" style="width:100%;padding:9px;margin-bottom:8px;opacity:.45;cursor:default;" disabled>✓ All done for today</button>`
     : '';
-  el.innerHTML = allDoneBtn + logs.map(e => {
+  const resetBtn = activeCount > 0
+    ? `<button class="btn-sm" style="width:100%;padding:9px;margin-bottom:12px;color:#7a1a1a;border-color:#e8b0b0;" onclick="if(confirm('Reset all active schedules to Day 1?'))resetAllHarden()">↺ Reset all to Day 1</button>`
+    : '';
+  el.innerHTML = allDoneBtn + resetBtn + logs.map(e => {
     const completed = e.completedDays.length;
     const currentStep = HARDEN_STEPS[completed] || HARDEN_STEPS[HARDEN_STEPS.length-1];
     const plant = PLANT_LIB.find(p=>p.name.toLowerCase().includes(e.name.toLowerCase()));
     const emoji = plant?.emoji || '🌿';
+    const doneToday = !e.done && e.lastAdvancedDate === today;
     let stageCls, stageText;
     if (e.done) { stageCls='hs-done'; stageText='Hardened ✓'; }
     else if (completed <= 2) { stageCls='hs-early'; stageText=`Day ${completed+1} of 7`; }
@@ -5141,7 +5160,10 @@ function renderHardening() {
         <div class="harden-steps">${stepsHtml}</div>
         <div class="harden-detail">${e.done?'Fully hardened — safe to transplant outside.':`Today: ${currentStep.desc}`}</div>
         <div class="harden-actions">
-          ${!e.done?`<button class="germ-btn good" onclick="advanceHarden('${e.id}')">✓ Done today's step</button>`:''}
+          ${!e.done ? (doneToday
+            ? `<button class="germ-btn good" disabled style="opacity:.45;cursor:default;">✓ Done today</button>`
+            : `<button class="germ-btn good" onclick="advanceHarden('${e.id}')">✓ Done today's step</button>`)
+          : ''}
           <button class="germ-btn" onclick="deleteHarden('${e.id}')">Remove</button>
         </div>
       </div>
