@@ -103,6 +103,35 @@ html,body{height:100%;overflow:hidden;font-family:'Crimson Pro',Georgia,serif;ba
 .cl-past-toggle{cursor:pointer;padding:8px 12px;margin-bottom:8px;border-radius:var(--radius);background:var(--surface);border:1px solid var(--rule);display:flex;align-items:center;justify-content:space-between;user-select:none;color:var(--muted);}
 .cl-past-toggle:hover{background:#e8e4d8;}
 .cl-past-months .cl-month-hd{color:var(--muted);}
+/* ── YEAR PAGE ADDITIONS ── */
+.countdown-card{background:var(--ink);color:var(--paper);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px;}
+.countdown-label{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:#9fc9a0;margin-bottom:4px;}
+.countdown-num{font-family:'Space Mono',monospace;font-size:2.2rem;font-weight:700;line-height:1.1;}
+.countdown-sub{font-size:.78rem;opacity:.7;margin-top:3px;}
+.cl-progress-bar{height:7px;background:var(--rule);border-radius:5px;overflow:hidden;margin-bottom:6px;}
+.cl-progress-fill{height:100%;border-radius:5px;background:var(--moss);transition:width .4s;}
+.cl-year-summary{font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:14px;}
+.rotation-conflict{background:#fde8e8;border:1px solid #e8b0b0;border-radius:var(--radius);padding:9px 12px;margin-bottom:7px;font-size:.82rem;line-height:1.4;color:#7a1a1a;}
+.planting-table{width:100%;border-collapse:collapse;font-size:.77rem;}
+.planting-table th{font-family:'Space Mono',monospace;font-size:7px;letter-spacing:.06em;color:var(--muted);text-align:left;padding:4px 4px;border-bottom:1px solid var(--rule);}
+.planting-table td{padding:5px 4px;border-bottom:1px solid var(--rule);vertical-align:middle;line-height:1.3;}
+.planting-table tr.past-row td{opacity:.4;}
+.planting-table tr.now-row td{background:var(--surface);font-weight:600;}
+.season-totals{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+.st-stat{flex:1;min-width:80px;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);padding:10px 12px;}
+.st-label{font-family:'Space Mono',monospace;font-size:7px;letter-spacing:.06em;color:var(--muted);margin-bottom:3px;}
+.st-value{font-family:'Space Mono',monospace;font-size:1rem;font-weight:700;color:var(--moss);}
+.st-vs{font-size:.72rem;color:var(--muted);margin-top:1px;}
+.cn-pill{font-family:'Space Mono',monospace;font-size:8px;padding:3px 9px;border-radius:8px;display:inline-block;margin-top:6px;}
+.cn-good{background:rgba(126,200,126,.2);color:#1a5a1a;}
+.cn-brown{background:#f5edd8;color:#8a6010;}
+.cn-green{background:#fde8d8;color:var(--clay);}
+.amend-hist{margin-top:6px;border-top:1px dashed var(--rule);padding-top:5px;}
+.amend-hist-row{font-size:.75rem;color:var(--muted);padding:2px 0;}
+.review-form{display:flex;flex-direction:column;gap:10px;margin-bottom:10px;}
+.review-q{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.06em;color:var(--muted);margin-bottom:4px;}
+.review-field{width:100%;border:1px solid var(--rule);border-radius:4px;padding:8px 10px;font-family:'Crimson Pro',serif;font-size:.92rem;background:white;outline:none;box-sizing:border-box;}
+.review-saved{background:#e8f5e8;color:#1a5a1a;border-radius:var(--radius);padding:10px 13px;font-size:.83rem;line-height:1.5;}
 .cl-cat{font-size:13px;flex-shrink:0;opacity:.7;}
 .hist-bed-block{background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:12px 13px;margin-bottom:9px;}
 .hist-bed-hd{font-weight:600;font-size:.92rem;margin-bottom:6px;}
@@ -886,6 +915,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
           <span id="cl-year-label" style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;flex:1;text-align:center;"></span>
           <button class="btn-sm" onclick="stepClYear(1)">›</button>
         </div>
+        <div id="cl-year-progress" style="margin-bottom:4px;"></div>
         <div id="cl-content"></div>
       </div>
 
@@ -950,6 +980,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 
       <!-- ── NEXT SEASON ── -->
       <div id="yr-plan" style="display:none;">
+        <div id="season-review-wrap"></div>
         <div class="section-label" style="margin-top:0;">This week last year</div>
         <div id="yoy-entries"></div>
         <div class="section-label">Wishlist</div>
@@ -1019,9 +1050,21 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
     <div class="modal-sheet">
       <div class="modal-handle"></div>
       <div class="modal-title">Add material to tumbler</div>
-      <div style="margin-top:14px;">
-        <div class="ai-field"><div class="ai-field-label">WHAT DID YOU ADD?</div>
-          <textarea id="ca-notes" placeholder="e.g. Kitchen scraps, coffee grounds, garden waste…" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:9px 11px;font-family:'Crimson Pro',serif;font-size:.95rem;background:white;outline:none;resize:none;min-height:80px;"></textarea>
+      <div style="margin-top:14px;display:flex;flex-direction:column;gap:10px;">
+        <div class="ai-field"><div class="ai-field-label">MATERIAL TYPE</div>
+          <select id="ca-type" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:8px 10px;font-family:'Crimson Pro',serif;font-size:.95rem;background:white;outline:none;">
+            <option value="kitchen">🟢 Kitchen scraps (greens)</option>
+            <option value="grass">🟢 Grass clippings (greens)</option>
+            <option value="garden">🟢 Garden waste (greens)</option>
+            <option value="coffee">🟢 Coffee grounds (greens)</option>
+            <option value="leaves">🟤 Dry leaves (browns)</option>
+            <option value="straw">🟤 Straw (browns)</option>
+            <option value="cardboard">🟤 Cardboard / paper (browns)</option>
+            <option value="chips">🟤 Wood chips (browns)</option>
+          </select>
+        </div>
+        <div class="ai-field"><div class="ai-field-label">NOTES (OPTIONAL)</div>
+          <textarea id="ca-notes" placeholder="e.g. About a gallon of scraps, spent seedling trays…" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:9px 11px;font-family:'Crimson Pro',serif;font-size:.95rem;background:white;outline:none;resize:none;min-height:60px;"></textarea>
         </div>
       </div>
       <button class="btn-primary" style="width:100%;padding:11px;margin-top:14px;" onclick="saveCompostAdd()">Log addition</button>
@@ -1600,6 +1643,7 @@ function loadDB() {
       if(!d.rainfallLog)d.rainfallLog=[];
       if(!d.soilTempLog)d.soilTempLog=[];
       if(!d.gddLog)d.gddLog=[];
+      if(!d.seasonReview)d.seasonReview={};
       if(!(d.sowLogs||[]).some(e=>e.id==='sl-corn-live-2026')){
         d.sowLogs=d.sowLogs||[];
         d.sowLogs.unshift({id:'sl-corn-live-2026',name:'Corn',variety:'Ashworth Sweet',method:'indoor',bed:'A',qty:24,date:'2026-05-18',status:'started',notes:'24 plants started from seed indoors. Transplant after last frost; plant in 3×3+ block in Bed A for wind pollination.'});
@@ -1617,7 +1661,7 @@ function defaultDB() {
   return { journal:[], plants:defaultPlants(), beds:defaultBeds(), seeds:defaultSeeds(), bedDesigns:{}, bedStatuses:{},
     sowLogs:[], hardenLogs:[], oyaLogs:{}, harvestLog:[], plantingList:[], settings:{},
     bedHistory:{}, amendments:[], compostLog:[], wishlist:[], seedSaving:[], checklists:{},
-    rainfallLog:[], soilTempLog:[], gddLog:[] };
+    rainfallLog:[], soilTempLog:[], gddLog:[], seasonReview:{} };
 }
 function defaultSeeds() {
   const td='Triple Divide Organic Seeds 2026', bc='Baker Creek Heirloom Seeds 2026',
@@ -4467,8 +4511,70 @@ function renderMoonWidget(){
 function renderAlmanacExtras(){
   const el=document.getElementById('almanac-extras');if(!el)return;
   const now=new Date();const curMonth=now.getMonth()+1;
+  const yr=now.getFullYear();
+  const lastFrost=new Date(yr,LAST_FROST_MONTH,LAST_FROST_DAY);
+  const firstFrost=new Date(yr,FIRST_FROST_MONTH,FIRST_FROST_DAY);
+
+  // ── Season countdown card ──
+  let countdownHtml;
+  if(now>=lastFrost&&now<=firstFrost){
+    const daysLeft=Math.ceil((firstFrost-now)/86400000);
+    const totalDays=Math.ceil((firstFrost-lastFrost)/86400000);
+    const pct=Math.min(100,Math.round((now-lastFrost)/86400000/totalDays*100));
+    countdownHtml=`<div class="countdown-card">
+      <div class="countdown-label">Growing season</div>
+      <div class="countdown-num">${daysLeft}</div>
+      <div class="countdown-sub">days until first frost · Sept 20</div>
+      <div class="gdd-bar" style="margin:10px 0 4px;"><div class="gdd-fill" style="width:${pct}%;"></div></div>
+      <div style="font-family:'Space Mono',monospace;font-size:7px;color:rgba(255,255,255,.5);display:flex;justify-content:space-between;"><span>May 15</span><span>${pct}% through season</span><span>Sept 20</span></div>
+    </div>`;
+  } else {
+    const nextLF=now<lastFrost?lastFrost:new Date(yr+1,LAST_FROST_MONTH,LAST_FROST_DAY);
+    const daysLeft=Math.ceil((nextLF-now)/86400000);
+    countdownHtml=`<div class="countdown-card">
+      <div class="countdown-label">Off season</div>
+      <div class="countdown-num">${daysLeft}</div>
+      <div class="countdown-sub">days until last frost (May 15) · plan &amp; order seeds now</div>
+    </div>`;
+  }
+
+  // ── Planting date table for current inventory ──
+  const seenIds=new Set();
+  const tableRows=[];
+  (db.seeds||[]).filter(s=>s.storage!=='live').forEach(seed=>{
+    const libId=seedToLibId(seed);
+    if(!libId||seenIds.has(libId))return;
+    seenIds.add(libId);
+    const plant=PLANT_IDX[libId];if(!plant||!plant.daysMin)return;
+    let indoorDate=null,outdoorDate=null;
+    if(plant.sowMethod==='transplant'){
+      const wks=plant.daysMin>70?10:plant.daysMin>50?8:6;
+      indoorDate=new Date(lastFrost);indoorDate.setDate(indoorDate.getDate()-wks*7);
+      outdoorDate=new Date(lastFrost);
+    } else {
+      outdoorDate=new Date(lastFrost);
+      if(plant.frostTol==='hardy')outdoorDate.setDate(outdoorDate.getDate()-28);
+      else if(plant.frostTol==='halfhardy')outdoorDate.setDate(outdoorDate.getDate()-14);
+    }
+    const harvestDate=new Date(outdoorDate);harvestDate.setDate(harvestDate.getDate()+plant.daysMin);
+    const isPast=harvestDate<now;
+    const isNow=!isPast&&outdoorDate<=now;
+    tableRows.push({plant,seed,indoorDate,outdoorDate,harvestDate,isPast,isNow});
+  });
+  tableRows.sort((a,b)=>a.outdoorDate-b.outdoorDate);
+  const tableHtml=tableRows.length?`<div class="section-label">Planting calendar — ${yr}</div>
+    <div class="card" style="padding:10px;overflow-x:auto;">
+    <table class="planting-table"><thead><tr><th>Crop</th><th>Start indoors</th><th>Outdoors</th><th>~Harvest</th></tr></thead><tbody>
+    ${tableRows.map(r=>`<tr class="${r.isPast?'past-row':r.isNow?'now-row':''}">
+      <td>${r.plant.emoji} ${r.plant.name.split(' ')[0]}</td>
+      <td style="color:var(--muted);">${r.indoorDate?fmtDate(r.indoorDate):'—'}</td>
+      <td>${fmtDate(r.outdoorDate)}</td>
+      <td>${fmtDate(r.harvestDate)}</td>
+    </tr>`).join('')}
+    </tbody></table></div>`:'';
+
   // Climate normals
-  let html=`<div class="section-label">Bozeman climate normals</div><div class="card" style="padding:10px;overflow-x:auto;"><table class="climate-table"><thead><tr><th>Month</th><th>Hi °F</th><th>Lo °F</th><th>Precip"</th></tr></thead><tbody>`;
+  let html=countdownHtml+tableHtml+`<div class="section-label">Bozeman climate normals</div><div class="card" style="padding:10px;overflow-x:auto;"><table class="climate-table"><thead><tr><th>Month</th><th>Hi °F</th><th>Lo °F</th><th>Precip"</th></tr></thead><tbody>`;
   BOZEMAN_CLIMATE.forEach((m,i)=>{
     const cur=i+1===curMonth?' class="cm-current"':'';
     html+=`<tr${cur}><td>${m.m}</td><td>${m.hi}</td><td>${m.lo}</td><td>${m.precip}</td></tr>`;
@@ -4586,13 +4692,29 @@ function renderGDD(){
 }
 function renderRainLog(){
   const el=document.getElementById('rain-log');if(!el)return;
-  const log=(db.rainfallLog||[]).slice(0,12);
-  if(!log.length){el.innerHTML='<div style="color:var(--muted);font-size:.82rem;padding:6px 0 12px;">No rainfall logged yet.</div>';return;}
-  // rolling 30-day total
+  const allLog=db.rainfallLog||[];
+  const log=allLog.slice(0,12);
+  // Season total since May 15
+  const yr=new Date().getFullYear();
+  const seasonStart=new Date(yr,4,15);
+  const seasonTotal=allLog.filter(e=>new Date(e.date+'T12:00')>=seasonStart).reduce((s,e)=>s+e.amount,0);
+  // Bozeman May–Sept normal: sum months 5–9
+  const normalMaySept=BOZEMAN_CLIMATE.slice(4,9).reduce((s,m)=>s+m.precip,0);
+  // Season GDD total for comparison card
+  const gddTotal=Math.round((db.gddLog||[]).filter(e=>new Date(e.date)>=seasonStart).reduce((s,e)=>s+e.gdd,0));
+  const curMo=new Date().getMonth();
+  const normalThrough=BOZEMAN_CLIMATE.slice(4,Math.max(5,curMo+1)).reduce((s,m)=>s+m.precip,0);
+  const rainDiff=seasonTotal-normalThrough;
+  const rainColor=rainDiff>=-0.5?'var(--moss)':rainDiff>=-1?'#c4922a':'var(--clay)';
+  const totalsHtml=`<div class="season-totals">
+    <div class="st-stat"><div class="st-label">SEASON RAINFALL</div><div class="st-value" style="color:${rainColor};">${seasonTotal.toFixed(2)}"</div><div class="st-vs">of ~${normalMaySept.toFixed(1)}" May–Sept avg</div></div>
+    <div class="st-stat"><div class="st-label">SEASON GDD</div><div class="st-value">${gddTotal}</div><div class="st-vs">since May 15 · base 50°F</div></div>
+  </div>`;
+  if(!log.length){el.innerHTML=totalsHtml+'<div style="color:var(--muted);font-size:.82rem;padding:6px 0 12px;">No rainfall logged yet.</div>';return;}
   const cutoff=new Date();cutoff.setDate(cutoff.getDate()-30);
-  const total30=log.filter(e=>new Date(e.date)>=cutoff).reduce((s,e)=>s+e.amount,0);
+  const total30=log.filter(e=>new Date(e.date+'T12:00')>=cutoff).reduce((s,e)=>s+e.amount,0);
   const norm=BOZEMAN_CLIMATE[new Date().getMonth()].precip;
-  el.innerHTML=`<div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:8px;">30-day total: <strong style="color:var(--ink);">${total30.toFixed(2)}"</strong> vs ${norm}" avg</div>`+log.map(e=>`<div class="clim-log-row"><span class="clim-badge clb-rain">RAIN</span><span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">${new Date(e.date+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span><span style="flex:1;text-align:right;font-size:.88rem;">${e.amount}"</span><button onclick="deleteRainEntry('${e.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:1px 5px;">✕</button></div>`).join('');
+  el.innerHTML=totalsHtml+`<div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:8px;">30-day total: <strong style="color:var(--ink);">${total30.toFixed(2)}"</strong> vs ${norm}" avg this month</div>`+log.map(e=>`<div class="clim-log-row"><span class="clim-badge clb-rain">RAIN</span><span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">${new Date(e.date+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span><span style="flex:1;text-align:right;font-size:.88rem;">${e.amount}"</span><button onclick="deleteRainEntry('${e.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:1px 5px;">✕</button></div>`).join('');
 }
 function renderSoilLog(){
   const el=document.getElementById('soil-log');if(!el)return;
@@ -4647,6 +4769,15 @@ function renderChecklists(){
   const el=document.getElementById('cl-content');if(!el)return;
   const labelEl=document.getElementById('cl-year-label');if(labelEl)labelEl.textContent=clYear;
   const now=new Date();const curMonth=now.getMonth()+1;
+  // Year progress bar
+  const progEl=document.getElementById('cl-year-progress');
+  if(progEl){
+    const yearChecksAll=(db.checklists||{})[clYear]||{};
+    let totalDone=0,totalAll=0;
+    for(let m=1;m<=12;m++){const mo=MONTHLY_TASKS[m];if(!mo)continue;totalAll+=mo.tasks.length;totalDone+=mo.tasks.filter(t=>(yearChecksAll[String(m)]||{})[t.id]).length;}
+    const pct=totalAll?Math.round(totalDone/totalAll*100):0;
+    progEl.innerHTML=`<div class="cl-progress-bar"><div class="cl-progress-fill" style="width:${pct}%;"></div></div><div class="cl-year-summary"><span>${clYear} checklist</span><span>${totalDone} / ${totalAll} tasks · ${pct}%</span></div>`;
+  }
   const isCurrentYear=clYear===now.getFullYear();
   const yearChecks=(db.checklists||{})[clYear]||{};
 
@@ -4754,6 +4885,23 @@ function renderBedHistory(){
     histEl.innerHTML=`<div class="card" style="text-align:center;color:var(--muted);font-size:.88rem;padding:18px;">No snapshot for ${histYear}.<br>Use "Snapshot this season's beds" to record what's growing.</div>`;
     rotEl.innerHTML='';return;
   }
+  // Cross-check current design against this snapshot for rotation conflicts
+  const currentYr=new Date().getFullYear();
+  const prevSnap=(db.bedHistory||{})[histYear-1];
+  let conflictsHtml='';
+  if(histYear===currentYr&&prevSnap){
+    const conflictLines=[];
+    db.beds.filter(b=>b.type!=='bag').forEach(b=>{
+      const prev=prevSnap[b.key];if(!prev)return;
+      const prevFams=new Set(Object.keys(prev.plants||{}).map(id=>getFamily(id)).filter(f=>f&&f!=='other'));
+      const currIds=Object.values(db.bedDesigns[b.key]||{}).filter(Boolean);
+      const currFams=new Set(currIds.map(id=>getFamily(id)).filter(f=>f&&f!=='other'));
+      const clash=[...prevFams].filter(f=>currFams.has(f));
+      if(clash.length)conflictLines.push(`<div class="rotation-conflict">⚠️ <strong>${(BED_INFO[b.key]||{}).label||b.key}:</strong> ${clash.join(', ')} also planted here in ${histYear-1} — consider rotating</div>`);
+    });
+    if(conflictLines.length)conflictsHtml=`<div class="section-label" style="color:var(--clay);">Rotation conflicts — current plan</div>`+conflictLines.join('');
+  }
+
   let html='';
   const beds=db.beds.filter(b=>b.type!=='bag');
   beds.forEach(b=>{
@@ -4762,9 +4910,12 @@ function renderBedHistory(){
     const plantList=plantEntries.map(([id,count])=>{
       const p=PLANT_IDX[id];return p?`${p.emoji} ${p.name}${count>1?' ×'+count:''}`:id;
     }).join(', ')||'<em style="color:var(--muted)">Empty</em>';
-    html+=`<div class="hist-bed-block"><div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.1em;color:var(--muted);margin-bottom:5px;">${(BED_INFO[b.key]||{}).label||b.key} — ${data.dims||''}</div><div style="font-size:.88rem;">${plantList}</div></div>`;
+    // Amendments for this bed in the snapshotted year
+    const yearAmends=(db.amendments||[]).filter(a=>a.bed===b.key&&(a.date||'').startsWith(String(histYear)));
+    const amendHtml=yearAmends.length?`<div class="amend-hist">${yearAmends.map(a=>`<div class="amend-hist-row">🧪 ${a.type}${a.amount?' — '+a.amount:''}</div>`).join('')}</div>`:'';
+    html+=`<div class="hist-bed-block"><div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.1em;color:var(--muted);margin-bottom:5px;">${(BED_INFO[b.key]||{}).label||b.key} — ${data.dims||''}</div><div style="font-size:.88rem;">${plantList}</div>${amendHtml}</div>`;
   });
-  histEl.innerHTML=html||'<div class="card" style="color:var(--muted);text-align:center;padding:14px;">No beds recorded for '+histYear+'.</div>';
+  histEl.innerHTML=(conflictsHtml||'')+html||'<div class="card" style="color:var(--muted);text-align:center;padding:14px;">No beds recorded for '+histYear+'.</div>';
   // Rotation guide from prior year
   const prevSnapshot=(db.bedHistory||{})[histYear-1];
   if(!prevSnapshot){rotEl.innerHTML=`<div class="rotation-card"><div style="font-size:.82rem;color:var(--muted);">Rotation guide available after two consecutive seasons are snapshotted.</div></div>`;return;}
@@ -4801,12 +4952,17 @@ function logTumblerHarvest(){
   db.compostLog.unshift({id:'cl-'+Date.now(),type:'harvest',date:new Date().toISOString(),notes:'Compost harvested'});
   saveDB(db);renderCompost();
 }
+// C:N ratios (approximate) for each material type
+const CN_RATIOS={kitchen:25,grass:20,garden:30,coffee:20,leaves:60,straw:80,cardboard:350,chips:400};
+const CN_GREEN=new Set(['kitchen','grass','garden','coffee']);
 function saveCompostAdd(){
   const notes=document.getElementById('ca-notes')?.value.trim()||'';
-  if(!notes)return;
+  const material=document.getElementById('ca-type')?.value||'kitchen';
   if(!db.compostLog)db.compostLog=[];
-  db.compostLog.unshift({id:'cl-'+Date.now(),type:'add',date:new Date().toISOString(),notes});
-  saveDB(db);closeModal('compost-add-modal');document.getElementById('ca-notes').value='';renderCompost();
+  db.compostLog.unshift({id:'cl-'+Date.now(),type:'add',date:new Date().toISOString(),notes,material});
+  saveDB(db);closeModal('compost-add-modal');
+  document.getElementById('ca-notes').value='';
+  renderCompost();
 }
 function saveAmendment(){
   const bed=document.getElementById('am-bed')?.value||'';
@@ -4838,6 +4994,18 @@ function renderTumblerStatus(){
     const label=daysLeft===0?'Ready to harvest!':daysLeft<14?`~${daysLeft} days to ready`:`~${daysLeft} days to ready`;
     readyHtml=`<div class="tumbler-ready ${cls}">${label}</div>`;
   }
+  // Estimate C:N from recent additions (since last harvest)
+  const lastHarvestDate=lastHarvest?new Date(lastHarvest.date):new Date(0);
+  const additions=log.filter(e=>e.type==='add'&&new Date(e.date)>lastHarvestDate&&e.material);
+  let cnHtml='';
+  if(additions.length){
+    const greens=additions.filter(e=>CN_GREEN.has(e.material)).length;
+    const browns=additions.filter(e=>!CN_GREEN.has(e.material)).length;
+    const ratio=greens&&browns?(browns/greens*30).toFixed(0):greens?'<25 (add browns)':'>100 (add greens)';
+    const cls=greens&&browns?'cn-good':greens?'cn-green':'cn-brown';
+    const advice=greens&&browns?'Mix looks balanced':greens&&!browns?'Needs more browns (leaves/cardboard)':'Needs more greens (scraps/clippings)';
+    cnHtml=`<div class="cn-pill ${cls}">C:N ~${ratio} · ${advice}</div>`;
+  }
   const fmt=d=>d?new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric'}):'Never';
   el.innerHTML=`<div class="tumbler-card">
     <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.12em;color:#9fc9a0;margin-bottom:8px;">🌀 TUMBLER STATUS</div>
@@ -4846,7 +5014,7 @@ function renderTumblerStatus(){
       <div class="tumbler-stat"><div style="font-size:.7rem;opacity:.6;">Last addition</div><strong>${fmt(lastAdd?.date)}</strong></div>
       <div class="tumbler-stat"><div style="font-size:.7rem;opacity:.6;">Last harvest</div><strong>${fmt(lastHarvest?.date)}</strong></div>
     </div>
-    ${readyHtml}
+    ${readyHtml}${cnHtml}
   </div>`;
 }
 function renderTumblerLog(){
@@ -4855,10 +5023,11 @@ function renderTumblerLog(){
   if(!log.length){el.innerHTML='<div style="color:var(--muted);font-size:.85rem;padding:10px 0;">No log entries yet.</div>';return;}
   const clsMap={turn:'cb-turn',add:'cb-add',harvest:'cb-harvest'};
   const labelMap={turn:'↺ TURN',add:'+ ADD',harvest:'🌱 HARVEST'};
+  const matLabel={kitchen:'Kitchen scraps',grass:'Grass',garden:'Garden waste',coffee:'Coffee',leaves:'Dry leaves',straw:'Straw',cardboard:'Cardboard',chips:'Wood chips'};
   el.innerHTML=log.map(e=>`<div class="comp-log-row">
     <span class="comp-badge ${clsMap[e.type]||''}">${labelMap[e.type]||e.type.toUpperCase()}</span>
     <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);margin-left:6px;">${new Date(e.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
-    ${e.notes?`<span style="font-size:.8rem;color:var(--ink);margin-left:8px;flex:1;">${e.notes}</span>`:''}
+    <span style="font-size:.8rem;color:var(--ink);margin-left:8px;flex:1;">${e.material?matLabel[e.material]||e.material:''}${e.notes&&e.material?' · ':''} ${e.notes||''}</span>
   </div>`).join('');
 }
 function renderAmendmentList(){
@@ -4894,7 +5063,49 @@ function renderAmendRecs(){
 }
 
 // ── NEXT SEASON ──
-function renderNextSeason(){renderYOY();renderWishlist();renderSeedSaving();}
+function renderNextSeason(){renderSeasonReview();renderYOY();renderWishlist();renderSeedSaving();}
+function renderSeasonReview(){
+  const el=document.getElementById('season-review-wrap');if(!el)return;
+  const yr=new Date().getFullYear();
+  const saved=(db.seasonReview||{})[yr];
+  // Only show during/after growing season (May onward)
+  const mo=new Date().getMonth()+1;
+  if(mo<5){el.innerHTML='';return;}
+  if(saved){
+    el.innerHTML=`<div class="section-label" style="margin-top:0;">${yr} Season review</div>
+      <div class="review-saved">
+        ${saved.best?`<div>🏆 <strong>Best crop:</strong> ${saved.best}</div>`:''}
+        ${saved.worst?`<div>📉 <strong>Underperformed:</strong> ${saved.worst}</div>`:''}
+        ${saved.rotate?`<div>🔄 <strong>Rotation notes:</strong> ${saved.rotate}</div>`:''}
+        ${saved.notes?`<div>📝 ${saved.notes}</div>`:''}
+      </div>
+      <button class="btn-sm" style="margin:8px 0 14px;padding:6px 12px;font-size:.78rem;" onclick="clearSeasonReview(${yr})">Edit review</button>`;
+    return;
+  }
+  el.innerHTML=`<div class="section-label" style="margin-top:0;">${yr} Season review</div>
+    <div class="review-form">
+      <div><div class="review-q">BEST CROP THIS SEASON?</div><input class="review-field" id="rev-best" placeholder="e.g. Tomatoes, kale, corn…"></div>
+      <div><div class="review-q">WHAT UNDERPERFORMED?</div><input class="review-field" id="rev-worst" placeholder="e.g. Peppers didn't ripen in time…"></div>
+      <div><div class="review-q">ROTATION NOTES FOR NEXT YEAR</div><input class="review-field" id="rev-rotate" placeholder="e.g. Move nightshades to Bed C…"></div>
+      <div><div class="review-q">OTHER NOTES</div><textarea class="review-field" id="rev-notes" rows="3" placeholder="Weather, pest pressure, things to try…" style="resize:none;"></textarea></div>
+    </div>
+    <button class="btn-primary" style="width:100%;padding:10px;margin-bottom:14px;" onclick="saveSeasonReview(${yr})">Save season review</button>`;
+}
+function saveSeasonReview(yr){
+  if(!db.seasonReview)db.seasonReview={};
+  db.seasonReview[yr]={
+    best:document.getElementById('rev-best')?.value.trim()||'',
+    worst:document.getElementById('rev-worst')?.value.trim()||'',
+    rotate:document.getElementById('rev-rotate')?.value.trim()||'',
+    notes:document.getElementById('rev-notes')?.value.trim()||'',
+    savedDate:new Date().toISOString()
+  };
+  saveDB(db);renderSeasonReview();
+}
+function clearSeasonReview(yr){
+  if(db.seasonReview)delete db.seasonReview[yr];
+  saveDB(db);renderSeasonReview();
+}
 function renderYOY(){
   const el=document.getElementById('yoy-entries');if(!el)return;
   const now=new Date();
