@@ -1738,6 +1738,37 @@ function loadDB() {
            plants:[{id:'zp-4o1',plantId:null,name:'Colorado 4 o\'clock',emoji:'🌺',status:e,notes:'',added:a}]},
         ];
       }
+      // Additive: insert Elderberry Island, Patio Slab, Fire Pad if missing
+      if(d.bedZones['P']){
+        const pz=d.bedZones['P'];
+        const e2='established',a2='2026-05';
+        if(!pz.find(z=>z.id==='z-strawberry')){
+          const mi=pz.findIndex(z=>z.id==='z-milkweed');
+          const nz={id:'z-strawberry',name:'Strawberry Patch',emoji:'🍓',
+            notes:'Island bed parallel to and north of Milkweed Island. Currently used for garden overflow. Strawberries, garlic, and purple asparagus planted.',
+            plants:[{id:'zp-sp1',plantId:null,name:'Strawberry',emoji:'🍓',status:e2,notes:'',added:a2},{id:'zp-sp2',plantId:null,name:'Garlic',emoji:'🧄',status:e2,notes:'',added:a2},{id:'zp-sp3',plantId:null,name:'Purple Asparagus',emoji:'🌿',status:e2,notes:'',added:a2}]};
+          if(mi>=0)pz.splice(mi,0,nz);else pz.push(nz);
+        }
+        if(!pz.find(z=>z.id==='z-elderberry')){
+          const mi=pz.findIndex(z=>z.id==='z-milkweed');
+          const nz={id:'z-elderberry',name:'Elderberry Island',emoji:'🌿',
+            notes:'North of the fire pad, on the west side of the central path. Separated from Milkweed Island by the path running from the back door, across the patio slab, to the fire pad.',
+            plants:[{id:'zp-el1',plantId:null,name:'Elderberry',emoji:'🌿',status:e2,notes:'',added:a2}]};
+          if(mi>=0)pz.splice(mi+1,0,nz);else pz.push(nz);
+        }
+        if(!pz.find(z=>z.id==='z-patio')){
+          const ei=pz.findIndex(z=>z.id==='z-elderberry');
+          const nz={id:'z-patio',name:'Patio Slab',emoji:'🪨',type:'landmark',
+            notes:'Central patio. Path runs from the back door south across the patio slab to the fire pad.'};
+          if(ei>=0)pz.splice(ei+1,0,nz);else pz.push(nz);
+        }
+        if(!pz.find(z=>z.id==='z-firepad')){
+          const pi=pz.findIndex(z=>z.id==='z-patio');
+          const nz={id:'z-firepad',name:'Fire Pad',emoji:'🔥',type:'landmark',
+            notes:'Central gathering area. Elderberry Island is to the north; paths connect to the patio slab and surrounding garden zones.'};
+          if(pi>=0)pz.splice(pi+1,0,nz);else pz.push(nz);
+        }
+      }
       if(!(d.sowLogs||[]).some(e=>e.id==='sl-corn-live-2026')){
         d.sowLogs=d.sowLogs||[];
         d.sowLogs.unshift({id:'sl-corn-live-2026',name:'Corn',variety:'Ashworth Sweet',method:'indoor',bed:'A',qty:24,date:'2026-05-18',status:'started',notes:'24 plants started from seed indoors. Transplant after last frost; plant in 3×3+ block in Bed A for wind pollination.'});
@@ -2530,6 +2561,20 @@ function renderFreeformBed(bed) {
   const zones = (db.bedZones||{})[bed.key] || [];
 
   const zonesHtml = zones.map(zone => {
+    if (zone.type === 'landmark') {
+      return `<div id="zone-card-${zone.id}" style="background:var(--surface);border:1px dashed var(--rule);border-radius:var(--radius);padding:11px 13px;margin-bottom:10px;">
+        <div style="display:flex;align-items:flex-start;gap:8px;">
+          <div style="font-size:1rem;margin-top:1px;">${zone.emoji||'📍'}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">
+              <span style="font-size:.9rem;font-weight:600;">${zone.name}</span>
+              <span style="font-family:'Space Mono',monospace;font-size:7px;background:var(--rule);color:var(--muted);padding:1px 6px;border-radius:3px;letter-spacing:.05em;">LANDMARK</span>
+            </div>
+            ${zone.notes?`<div style="font-size:.76rem;color:var(--muted);margin-top:3px;line-height:1.45;">${zone.notes}</div>`:''}
+          </div>
+        </div>
+      </div>`;
+    }
     const zoneOpts = zones.map(z=>`<option value="${z.id}"${z.id===zone.id?' selected':''}>${z.name}</option>`).join('');
     const plantsHtml = (zone.plants||[]).length
       ? (zone.plants||[]).map((entry, i) => {
@@ -2556,7 +2601,7 @@ function renderFreeformBed(bed) {
         }).join('')
       : `<div style="color:var(--muted);font-size:.8rem;padding:8px 0;">No plants yet.</div>`;
 
-    return `<div style="background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:12px 13px;margin-bottom:10px;">
+    return `<div id="zone-card-${zone.id}" style="background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:12px 13px;margin-bottom:10px;">
       <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;">
         <div style="font-size:1rem;margin-top:2px;">${zone.emoji||'🌿'}</div>
         <div style="flex:1;min-width:0;">
@@ -2603,7 +2648,153 @@ function renderFreeformBed(bed) {
       style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:6px 10px;font-size:.82rem;outline:none;box-sizing:border-box;">
   </div>`;
 
-  fv.innerHTML = noteHtml + seedPanelHtml + addZoneForm + zonesHtml + emptyMsg;
+  fv.innerHTML = buildYardMap(bed) + noteHtml + seedPanelHtml + addZoneForm + zonesHtml + emptyMsg;
+}
+
+function scrollToZone(zoneId) {
+  const el = document.getElementById('zone-card-' + zoneId);
+  if (!el) return;
+  el.scrollIntoView({behavior:'smooth', block:'nearest'});
+  el.style.outline = '2px solid var(--moss)';
+  el.style.outlineOffset = '2px';
+  setTimeout(() => { el.style.outline = ''; el.style.outlineOffset = ''; }, 1800);
+}
+
+function buildYardMap(bed) {
+  const bedKey = bed.key;
+  const allZones = (db.bedZones||{})[bedKey]||[];
+  const zm = {};
+  allZones.forEach(z => zm[z.id] = z);
+
+  function zFill(id) {
+    const z = zm[id]; if (!z) return '#e8e2d8';
+    if (z.type==='landmark') return '#e0d8cc';
+    const pp = z.plants||[];
+    if (!pp.length) return '#e4dfd7';
+    if (pp.some(p=>p.status==='established'||p.status==='planted')) return '#c4e0c8';
+    return '#faefc4';
+  }
+  function zStroke(id) {
+    return zm[id]?.type==='landmark' ? 'stroke="#bbb" stroke-dasharray="4,3"' : 'stroke="#999"';
+  }
+  function zClick(id) {
+    const z = zm[id]; if (!z||z.type==='landmark') return '';
+    return `onclick="scrollToZone('${id}')" style="cursor:pointer;"`;
+  }
+
+  // Rect zone: emoji + 1-2 label lines, auto font-size
+  function Z(id, x, y, w, h, emoji, l1, l2) {
+    const cx=x+w/2, cy=y+h/2;
+    const fs=Math.max(6.5, Math.min(8.5, Math.floor(Math.min(w,h)/6)));
+    const dy=l2?(-(fs*0.55+1)):0;
+    return `<g ${zClick(id)}>
+      <rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${zFill(id)}" ${zStroke(id)} stroke-width="1" rx="3"/>
+      <text x="${cx}" y="${cy+dy-fs*0.35}" text-anchor="middle" font-size="${fs+2}" pointer-events="none">${emoji}</text>
+      <text x="${cx}" y="${cy+dy+fs*0.8}" text-anchor="middle" font-size="${fs}" fill="#333" pointer-events="none">${l1}</text>
+      ${l2?`<text x="${cx}" y="${cy+dy+fs*1.95}" text-anchor="middle" font-size="${fs}" fill="#333" pointer-events="none">${l2}</text>`:''}
+    </g>`;
+  }
+  // Vertical strip (rotated label)
+  function VS(id, x, y, w, h, emoji, label) {
+    const cx=x+w/2, cy=y+h/2;
+    return `<g ${zClick(id)}>
+      <rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${zFill(id)}" ${zStroke(id)} stroke-width="1"/>
+      <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="7" fill="#333" transform="rotate(-90,${cx},${cy})" pointer-events="none">${emoji} ${label}</text>
+    </g>`;
+  }
+  // Horizontal strip
+  function HS(id, x, y, w, h, emoji, label) {
+    const cx=x+w/2, cy=y+h/2;
+    return `<g ${zClick(id)}>
+      <rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${zFill(id)}" ${zStroke(id)} stroke-width="1"/>
+      <text x="${cx}" y="${cy+3}" text-anchor="middle" font-size="7" fill="#333" pointer-events="none">${emoji} ${label}</text>
+    </g>`;
+  }
+  // Polygon zone
+  function PZ(id, pts, emoji, label, lx, ly) {
+    return `<g ${zClick(id)}>
+      <polygon points="${pts}" fill="${zFill(id)}" ${zStroke(id)} stroke-width="1"/>
+      <text x="${lx}" y="${ly-7}" text-anchor="middle" font-size="10" pointer-events="none">${emoji}</text>
+      <text x="${lx}" y="${ly+6}" text-anchor="middle" font-size="7.5" fill="#333" pointer-events="none">${label}</text>
+    </g>`;
+  }
+
+  return `<div style="margin-bottom:14px;">
+    <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:var(--muted);margin-bottom:5px;">YARD MAP — tap a zone to jump to it ↓</div>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+    <svg viewBox="0 0 500 444" style="min-width:340px;width:100%;max-width:540px;display:block;border-radius:6px;border:1px solid var(--rule);" xmlns="http://www.w3.org/2000/svg">
+      <rect width="500" height="444" fill="#ede8de"/>
+      <!-- House wall -->
+      <rect x="24" y="0" width="452" height="14" fill="#c2b8ae"/>
+      <!-- Back door gap -->
+      <rect x="192" y="0" width="37" height="14" fill="#8a7e74"/>
+      <text x="210" y="10" text-anchor="middle" font-size="6.5" fill="#eee" pointer-events="none">DOOR</text>
+      <!-- Along-house zone strips -->
+      ${HS('z-4oclock', 24, 0, 168, 14, '🌺', "4 o'clock")}
+      ${HS('z-raspb', 229, 0, 247, 14, '🍓', 'Raspberries')}
+      <!-- Fence strips -->
+      ${VS('z-cherryrow', 0, 14, 24, 406, '🍒', 'Cherry Row')}
+      ${VS('z-hammock', 476, 0, 24, 420, '🌳', 'Hammock Strip')}
+      ${HS('z-thimble', 24, 420, 452, 24, '🍓', 'Thimbleberry Sauna')}
+      <!-- Patio Slab (landmark) -->
+      ${Z('z-patio', 24, 14, 163, 86, '🪨', 'Patio Slab', '')}
+      <!-- Herb Bed D (east edge of patio, thin strip) -->
+      <g>
+        <rect x="185" y="14" width="20" height="152" fill="#dff0e1" stroke="#7aaa7a" stroke-width="1" rx="2"/>
+        <text x="195" y="90" dominant-baseline="middle" text-anchor="middle" font-size="6.5" fill="#2a6a2a" transform="rotate(-90,195,90)" pointer-events="none">🌿 Herb D</text>
+      </g>
+      <!-- Raised Beds A, B, C -->
+      <rect x="207" y="16" width="74" height="46" fill="#daeaf8" stroke="#6090b8" stroke-width="1.5" rx="3"/>
+      <text x="244" y="41" text-anchor="middle" font-size="9" fill="#335577" pointer-events="none">Bed A</text>
+      <rect x="286" y="16" width="74" height="46" fill="#daeaf8" stroke="#6090b8" stroke-width="1.5" rx="3"/>
+      <text x="323" y="41" text-anchor="middle" font-size="9" fill="#335577" pointer-events="none">Bed B</text>
+      <rect x="365" y="16" width="74" height="46" fill="#daeaf8" stroke="#6090b8" stroke-width="1.5" rx="3"/>
+      <text x="402" y="41" text-anchor="middle" font-size="9" fill="#335577" pointer-events="none">Bed C</text>
+      <rect x="207" y="64" width="20" height="9" fill="#c6ddf0" stroke="#6090b8" stroke-width="1" rx="1"/>
+      <text x="217" y="71" text-anchor="middle" font-size="5.5" fill="#335577" pointer-events="none">Bag▸</text>
+      <rect x="286" y="64" width="20" height="9" fill="#c6ddf0" stroke="#6090b8" stroke-width="1" rx="1"/>
+      <text x="296" y="71" text-anchor="middle" font-size="5.5" fill="#335577" pointer-events="none">Bag▸</text>
+      <rect x="365" y="64" width="20" height="9" fill="#c6ddf0" stroke="#6090b8" stroke-width="1" rx="1"/>
+      <text x="375" y="71" text-anchor="middle" font-size="5.5" fill="#335577" pointer-events="none">Bag▸</text>
+      <!-- Sugar Maple Corner -->
+      ${Z('z-maple', 24, 100, 157, 82, '🍁', 'Sugar Maple', 'Corner')}
+      <!-- Strawberry Patch (north island, east side) -->
+      ${Z('z-strawberry', 207, 76, 185, 72, '🍓', 'Strawberry', 'Patch')}
+      <!-- Milkweed Island (east side, south of Strawberry) -->
+      ${Z('z-milkweed', 207, 154, 185, 72, '🦋', 'Milkweed', 'Island')}
+      <!-- Path separator label -->
+      <text x="196" y="176" text-anchor="middle" font-size="6" fill="#aaa" pointer-events="none">·path·</text>
+      <!-- Elderberry Island (west side, south of Sugar Maple) -->
+      ${Z('z-elderberry', 32, 188, 147, 72, '🌿', 'Elderberry', 'Island')}
+      <!-- Fire Pad (landmark, center) -->
+      ${Z('z-firepad', 185, 272, 120, 52, '🔥', 'Fire Pad', '')}
+      <!-- Grassland Triangle (SW, points east) -->
+      ${PZ('z-grassland', '24,330 382,368 24,418', '🌾', 'Grassland Triangle', 108, 385)}
+      <!-- Shed label (within Cherry Row, south end) -->
+      <text x="12" y="378" text-anchor="middle" font-size="6.5" fill="#888" transform="rotate(-90,12,378)" pointer-events="none">🏚 Shed</text>
+      <!-- Raised Corner (SW) -->
+      ${Z('z-raised', 24, 390, 90, 30, '⛰️', 'Raised Corner', '')}
+      <!-- N/S compass hint -->
+      <text x="492" y="22" text-anchor="middle" font-size="7" fill="#bbb" pointer-events="none">N</text>
+      <line x1="492" y1="24" x2="492" y2="36" stroke="#ccc" stroke-width="1"/>
+      <text x="492" y="48" text-anchor="middle" font-size="7" fill="#bbb" pointer-events="none">S</text>
+    </svg>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:5px;flex-wrap:wrap;">
+      <span style="display:flex;align-items:center;gap:4px;font-size:.72rem;color:var(--muted);">
+        <span style="width:10px;height:8px;background:#c4e0c8;border:1px solid #999;display:inline-block;border-radius:1px;flex-shrink:0;"></span>established
+      </span>
+      <span style="display:flex;align-items:center;gap:4px;font-size:.72rem;color:var(--muted);">
+        <span style="width:10px;height:8px;background:#faefc4;border:1px solid #999;display:inline-block;border-radius:1px;flex-shrink:0;"></span>planned
+      </span>
+      <span style="display:flex;align-items:center;gap:4px;font-size:.72rem;color:var(--muted);">
+        <span style="width:10px;height:8px;background:#e4dfd7;border:1px solid #999;display:inline-block;border-radius:1px;flex-shrink:0;"></span>no plants
+      </span>
+      <span style="display:flex;align-items:center;gap:4px;font-size:.72rem;color:var(--muted);">
+        <span style="width:10px;height:8px;background:#daeaf8;border:1px solid #6090b8;display:inline-block;border-radius:1px;flex-shrink:0;"></span>raised bed
+      </span>
+    </div>
+  </div>`;
 }
 
 // ── Zone management ───────────────────────────────────────────────────────────
