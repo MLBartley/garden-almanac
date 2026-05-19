@@ -870,10 +870,21 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 
     <!-- PLANTS -->
     <div class="view" id="view-plants">
-      <div class="row" style="margin-bottom:11px;margin-top:4px;">
-        <div style="font-size:.83rem;color:var(--muted);">All perennials — yard + beds</div>
+      <div class="row" style="margin-bottom:8px;margin-top:4px;">
+        <div id="plant-stats-bar" style="font-size:.74rem;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap;align-items:center;"></div>
         <div class="spacer"></div>
         <button class="btn-sm" onclick="openModal('add-plant-modal')">+ Add</button>
+      </div>
+      <div id="plant-search-sort" style="display:flex;gap:6px;margin-bottom:8px;align-items:center;">
+        <input id="plant-search" type="text" placeholder="Search plants…"
+          style="flex:1;border:1px solid var(--rule);border-radius:20px;padding:6px 12px;font-size:.82rem;outline:none;background:white;"
+          oninput="plantSearchQuery=this.value;renderPlants()">
+        <select id="plant-sort-select" onchange="plantSortMode=this.value;renderPlants()"
+          style="border:1px solid var(--rule);border-radius:20px;padding:5px 10px;font-size:.78rem;background:white;color:var(--muted);outline:none;cursor:pointer;">
+          <option value="added">Recent</option>
+          <option value="alpha">A–Z</option>
+          <option value="bloom">Bloom order</option>
+        </select>
       </div>
       <div class="plant-view-toggle">
         <button class="pvt-btn active" id="pvt-list" onclick="setPlantView('list',this)">List</button>
@@ -1177,19 +1188,22 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
   <div class="modal-overlay" id="add-plant-modal">
     <div class="modal-sheet">
       <div class="modal-handle"></div>
-      <div class="modal-title">Add to plant inventory</div>
+      <div class="modal-title" id="ap-modal-title">Add to plant inventory</div>
+      <input type="hidden" id="ap-edit-id">
       <div style="background:white;border:1px solid var(--rule);border-radius:var(--radius);overflow:hidden;margin-bottom:12px;">
         <div class="form-field"><div class="form-label">Common name</div><input class="form-input" id="ap-common" placeholder="e.g. Purple Coneflower" type="text"></div>
         <div class="form-field"><div class="form-label">Latin name</div><input class="form-input" id="ap-latin" placeholder="optional" type="text"></div>
-        <div class="form-field"><div class="form-label">Category</div><select class="form-select" id="ap-category"><option value="native">Native yard plant</option><option value="edible">Perennial edible</option></select></div>
+        <div class="form-field"><div class="form-label">Category</div><select class="form-select" id="ap-category"><option value="native">Native yard plant</option><option value="edible">Perennial edible</option><option value="native,edible">Native + edible</option></select></div>
+        <div class="form-field"><div class="form-label">Status</div><select class="form-select" id="ap-status"><option value="established">Established</option><option value="planned">Planned</option><option value="noted">Noted in yard</option></select></div>
         <div class="form-field"><div class="form-label">Location</div><input class="form-input" id="ap-location" placeholder="e.g. NW bed, front border" type="text"></div>
-        <div class="form-field"><div class="form-label">Bloom / harvest month</div><select class="form-select" id="ap-bloom"><option value="">— unknown —</option><option>April</option><option>May</option><option>June</option><option>July</option><option>August</option><option>September</option><option>October</option></select></div>
-        <div class="form-field"><div class="form-label">Notes / PictureThis ID</div><input class="form-input" id="ap-notes" placeholder="optional" type="text"></div>
+        <div class="form-field"><div class="form-label">Bloom from</div><select class="form-select" id="ap-bloom"><option value="">— unknown —</option><option>March</option><option>April</option><option>May</option><option>June</option><option>July</option><option>August</option><option>September</option><option>October</option></select></div>
+        <div class="form-field"><div class="form-label">Bloom through</div><select class="form-select" id="ap-bloom-end"><option value="">— same month —</option><option>March</option><option>April</option><option>May</option><option>June</option><option>July</option><option>August</option><option>September</option><option>October</option></select></div>
+        <div class="form-field"><div class="form-label">Notes</div><input class="form-input" id="ap-notes" placeholder="optional" type="text"></div>
         <div class="form-field" style="border-bottom:none;"><div class="form-label">Emoji</div><input class="form-input" id="ap-emoji" placeholder="🌸" maxlength="4" style="font-size:1.4rem;width:50px;"></div>
       </div>
       <div style="display:flex;gap:8px;">
         <button class="btn-sm" style="flex:1;padding:11px;" onclick="closeModal('add-plant-modal')">Cancel</button>
-        <button class="btn-primary" style="flex:2;padding:11px;" onclick="savePlant()">Add to inventory →</button>
+        <button class="btn-primary" id="ap-save-btn" style="flex:2;padding:11px;" onclick="savePlant()">Add to inventory →</button>
       </div>
     </div>
   </div>
@@ -4099,55 +4113,186 @@ function deleteSeed(id){if(!confirm('Remove from inventory?'))return;db.seeds=db
 const BLOOM_C={March:'#e0d4f0',April:'#f9a8d4',May:'#86efac',June:'#60a5fa',July:'#a78bfa',August:'#fb923c',September:'#fbbf24',October:'#d97706'};
 function savePlant(){
   const common=document.getElementById('ap-common').value.trim();if(!common){alert('Enter a name.');return;}
-  db.plants.push({id:'p'+Date.now(),category:document.getElementById('ap-category').value,common,latin:document.getElementById('ap-latin').value.trim(),emoji:document.getElementById('ap-emoji').value.trim()||'🌿',location:document.getElementById('ap-location').value.trim(),bloom:document.getElementById('ap-bloom').value,notes:document.getElementById('ap-notes').value.trim(),added:new Date().toISOString().slice(0,7)});
-  saveDB(db);closeModal('add-plant-modal');['ap-common','ap-latin','ap-location','ap-notes','ap-emoji'].forEach(id=>document.getElementById(id).value='');renderPlants();
+  const editId=document.getElementById('ap-edit-id').value;
+  const data={
+    category:document.getElementById('ap-category').value,
+    common,
+    latin:document.getElementById('ap-latin').value.trim(),
+    emoji:document.getElementById('ap-emoji').value.trim()||'🌿',
+    location:document.getElementById('ap-location').value.trim(),
+    bloom:document.getElementById('ap-bloom').value,
+    bloomEnd:document.getElementById('ap-bloom-end').value,
+    status:document.getElementById('ap-status').value||'established',
+    notes:document.getElementById('ap-notes').value.trim(),
+  };
+  if(editId){
+    const idx=db.plants.findIndex(p=>p.id===editId);
+    if(idx>=0)Object.assign(db.plants[idx],data);
+  } else {
+    db.plants.push({id:'p'+Date.now(),added:new Date().toISOString().slice(0,7),...data});
+  }
+  saveDB(db);
+  closeModal('add-plant-modal');
+  document.getElementById('ap-edit-id').value='';
+  document.getElementById('ap-modal-title').textContent='Add to plant inventory';
+  document.getElementById('ap-save-btn').textContent='Add to inventory →';
+  ['ap-common','ap-latin','ap-location','ap-notes','ap-emoji'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('ap-bloom').value='';
+  document.getElementById('ap-bloom-end').value='';
+  document.getElementById('ap-status').value='established';
+  renderPlants();
 }
 function plantCard(p){
+  _plantNotesCache[p.id]=p.notes||'';
   const bg=BLOOM_C[p.bloom]||'#e8e4d8';
-  const statusBadge=p.status==='noted'?`<span class="plant-status-noted">noted</span>`:p.status==='planned'?`<span class="plant-status-planned">planned</span>`:'';
   const dimmed=p.status==='noted'?' plant-card-noted':'';
-  const addedPill=p.status==='planned'?`<span class="plant-pill pill-ink">Planned ${p.added}</span>`:`<span class="plant-pill pill-ink">Since ${p.added}</span>`;
-  return`<div class="plant-card${dimmed}"><div class="plant-header"><div class="plant-icon-circle" style="background:${bg}20;border:2px solid ${bg}60;">${p.emoji||'🌿'}</div><div><div class="plant-common">${p.common}${statusBadge}</div>${p.latin?`<div class="plant-latin">${p.latin}</div>`:''}${p.location?`<div style="font-size:.76rem;color:var(--muted);margin-top:1px;">📍 ${p.location}</div>`:''}</div></div><div class="plant-meta">${p.bloom&&p.bloom!=='—'?`<span class="plant-pill pill-gold">🌸 ${p.bloom}</span>`:''}<span>${addedPill}</span>${p.notes?`<span class="plant-pill pill-sage">${p.notes.slice(0,50)}${p.notes.length>50?'…':''}</span>`:''}</div></div>`;
+  const curStatus=p.status||'established';
+  const statusColors={established:'#2a6a2a',noted:'#777',planned:'#2a6fa8'};
+  const statusBg={established:'#e2f0e4',noted:'#e8e8e8',planned:'#d4eaf7'};
+  const statusLabel={established:'established',noted:'noted',planned:'planned'};
+  const bloomRange=p.bloomEnd&&p.bloomEnd!==p.bloom
+    ?`🌸 ${p.bloom}–${p.bloomEnd.slice(0,3)}`
+    :p.bloom&&p.bloom!=='—'?`🌸 ${p.bloom}`:'';
+  const zones=findPlantZones(p.common);
+  const locationLine=zones.length
+    ?`<div style="font-size:.72rem;color:var(--muted);margin-top:2px;">📍 ${zones.join(', ')}</div>`
+    :p.location?`<div style="font-size:.72rem;color:var(--muted);margin-top:1px;">📍 ${p.location}</div>`:'';
+  const addedLabel=curStatus==='planned'?`Planned ${p.added}`:`Since ${p.added}`;
+  const notesHtml=p.notes
+    ?p.notes.length>60
+      ?`<span id="pn-${p.id}" class="plant-pill pill-sage" style="cursor:pointer;" data-expanded="0" onclick="expandPlantNotes('${p.id}')" title="Tap to expand">${p.notes.slice(0,60)}…</span>`
+      :`<span class="plant-pill pill-sage">${p.notes}</span>`
+    :'';
+  return`<div class="plant-card${dimmed}">
+    <div class="plant-header">
+      <div class="plant-icon-circle" style="background:${bg}20;border:2px solid ${bg}60;">${p.emoji||'🌿'}</div>
+      <div style="flex:1;min-width:0;">
+        <div class="plant-common">${p.common}</div>
+        ${p.latin?`<div class="plant-latin">${p.latin}</div>`:''}
+        ${locationLine}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-end;flex-shrink:0;margin-left:6px;">
+        <button onclick="editPlant('${p.id}')" style="background:none;border:1px solid var(--rule);border-radius:4px;font-size:.68rem;padding:2px 8px;cursor:pointer;color:var(--muted);white-space:nowrap;">Edit</button>
+        <button onclick="deletePlant('${p.id}')" style="background:none;border:none;font-size:1rem;cursor:pointer;color:#ccc;padding:1px 4px;line-height:1;" title="Remove">×</button>
+      </div>
+    </div>
+    <div class="plant-meta">
+      <button onclick="togglePlantStatus('${p.id}')" style="font-family:'Space Mono',monospace;font-size:7px;padding:2px 8px;border-radius:10px;background:${statusBg[curStatus]};color:${statusColors[curStatus]};border:none;cursor:pointer;">${statusLabel[curStatus]}</button>
+      ${bloomRange?`<span class="plant-pill pill-gold">${bloomRange}</span>`:''}
+      <span class="plant-pill pill-ink">${addedLabel}</span>
+      ${notesHtml}
+    </div>
+  </div>`;
 }
-let plantViewMode='list', plantLocFilter='all';
+let plantViewMode='list', plantLocFilter='all', plantSortMode='added', plantSearchQuery='';
+const _plantNotesCache={};
 function setPlantView(mode,btn){
   plantViewMode=mode;
   document.querySelectorAll('#view-plants .pvt-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  document.getElementById('plant-list-mode').style.display=mode==='list'?'':'none';
-  document.getElementById('plant-bloom-mode').style.display=mode==='bloom'?'':'none';
-  document.getElementById('plant-loc-filter').style.display=mode==='list'?'':'none';
+  const isList=mode==='list';
+  document.getElementById('plant-list-mode').style.display=isList?'':'none';
+  document.getElementById('plant-bloom-mode').style.display=isList?'none':'';
+  document.getElementById('plant-loc-filter').style.display=isList?'':'none';
+  document.getElementById('plant-search-sort').style.display=isList?'':'none';
   renderPlants();
 }
 function setLocFilter(loc,btn){
   plantLocFilter=loc;
   renderPlants();
 }
+function expandPlantNotes(id){
+  const el=document.getElementById('pn-'+id);if(!el)return;
+  const full=_plantNotesCache[id]||'';
+  const exp=el.dataset.expanded==='1';
+  el.textContent=exp?full.slice(0,60)+(full.length>60?'…':''):full;
+  el.dataset.expanded=exp?'0':'1';
+}
+function findPlantZones(name){
+  const res=[];
+  Object.values(db.bedZones||{}).forEach(zones=>{
+    (zones||[]).forEach(z=>{
+      if(z.type==='landmark')return;
+      (z.plants||[]).forEach(e=>{if((e.name||'').toLowerCase()===name.toLowerCase())res.push(z.name);});
+    });
+  });
+  return res;
+}
+function togglePlantStatus(id){
+  const p=db.plants.find(p=>p.id===id);if(!p)return;
+  const cycle={established:'noted',noted:'planned',planned:'established'};
+  p.status=cycle[p.status||'established']||'established';
+  saveDB(db);renderPlants();
+}
+function editPlant(id){
+  const p=db.plants.find(p=>p.id===id);if(!p)return;
+  document.getElementById('ap-edit-id').value=id;
+  document.getElementById('ap-modal-title').textContent='Edit plant';
+  document.getElementById('ap-save-btn').textContent='Save changes →';
+  document.getElementById('ap-common').value=p.common||'';
+  document.getElementById('ap-latin').value=p.latin||'';
+  document.getElementById('ap-category').value=p.category||'native';
+  document.getElementById('ap-status').value=p.status||'established';
+  document.getElementById('ap-location').value=p.location||'';
+  document.getElementById('ap-bloom').value=p.bloom||'';
+  document.getElementById('ap-bloom-end').value=p.bloomEnd||'';
+  document.getElementById('ap-notes').value=p.notes||'';
+  document.getElementById('ap-emoji').value=p.emoji||'';
+  openModal('add-plant-modal');
+}
+function deletePlant(id){
+  if(!confirm('Remove this plant from the inventory?'))return;
+  db.plants=db.plants.filter(p=>p.id!==id);
+  saveDB(db);renderPlants();
+}
 function renderPlants(){
-  // Build location filter chips from unique location tokens
   const locs=['All',...new Set(db.plants.flatMap(p=>(p.location||'').split('+').map(s=>s.trim())).filter(Boolean))];
   document.getElementById('plant-loc-filter').innerHTML=locs.map(l=>{
     const val=l==='All'?'all':l;
     return`<button class="plant-loc-btn${plantLocFilter===val?' active':''}" onclick="setLocFilter('${val}',this)">${l}</button>`;
   }).join('');
   if(plantViewMode==='bloom'){renderBloomCalendar();return;}
-  const byLoc=p=>plantLocFilter==='all'||(p.location||'').includes(plantLocFilter);
-  const n=db.plants.filter(p=>p.category==='native'&&byLoc(p));
-  const e=db.plants.filter(p=>p.category==='edible'&&byLoc(p));
 
+  // Stats bar
+  const BLOOM_IDX={};BLOOM_ORDER.forEach((m,i)=>BLOOM_IDX[m]=i);
+  const curMon=new Date().toLocaleString('en-US',{month:'long'});
+  const curMonIdx=BLOOM_IDX[curMon]??-1;
+  const estCount=db.plants.filter(p=>!p.status||p.status==='established').length;
+  const planCount=db.plants.filter(p=>p.status==='planned').length;
+  const noteCount=db.plants.filter(p=>p.status==='noted').length;
+  const bloomingNow=db.plants.filter(p=>{
+    if(!p.bloom)return false;
+    const si=BLOOM_IDX[p.bloom]??-1;const ei=p.bloomEnd?(BLOOM_IDX[p.bloomEnd]??si):si;
+    return curMonIdx>=0&&curMonIdx>=si&&curMonIdx<=ei;
+  }).length;
+  const statsEl=document.getElementById('plant-stats-bar');
+  if(statsEl)statsEl.innerHTML=`<span>${estCount} established</span>${planCount?`<span>· ${planCount} planned</span>`:''}${noteCount?`<span>· ${noteCount} noted</span>`:''}${bloomingNow?`<span style="color:var(--moss);font-weight:600;">· 🌸 ${bloomingNow} blooming now</span>`:''}`;
+
+  // Filters & sort
+  const q=plantSearchQuery.toLowerCase();
+  const byLoc=p=>plantLocFilter==='all'||(p.location||'').includes(plantLocFilter);
+  const byQ=p=>!q||(p.common||'').toLowerCase().includes(q)||(p.latin||'').toLowerCase().includes(q)||(p.notes||'').toLowerCase().includes(q);
+  function sortList(list){
+    if(plantSortMode==='alpha')return list.slice().sort((a,b)=>(a.common||'').localeCompare(b.common||''));
+    if(plantSortMode==='bloom')return list.slice().sort((a,b)=>(BLOOM_IDX[a.bloom]??99)-(BLOOM_IDX[b.bloom]??99));
+    return list;
+  }
   function statusGroups(list,emptyMsg){
-    const est=list.filter(p=>!p.status||p.status==='established');
-    const noted=list.filter(p=>p.status==='noted');
-    const planned=list.filter(p=>p.status==='planned');
     if(!list.length)return`<div style="color:var(--muted);font-size:.85rem;padding:10px 0;">${emptyMsg}</div>`;
+    const est=sortList(list.filter(p=>!p.status||p.status==='established'));
+    const noted=sortList(list.filter(p=>p.status==='noted'));
+    const planned=sortList(list.filter(p=>p.status==='planned'));
     let html=est.map(plantCard).join('');
     if(noted.length)html+=`<div class="section-label" style="margin-top:16px;">Observed in yard <span style="font-weight:400;opacity:.6;">(${noted.length})</span></div>`+noted.map(plantCard).join('');
     if(planned.length)html+=`<div class="section-label" style="margin-top:16px;">Planned <span style="font-weight:400;opacity:.6;">(${planned.length})</span></div>`+planned.map(plantCard).join('');
     return html;
   }
-
-  document.getElementById('native-plant-list').innerHTML=statusGroups(n,plantLocFilter==='all'?'No native plants logged yet.':'None in this location.');
-  document.getElementById('edible-plant-list').innerHTML=statusGroups(e,plantLocFilter==='all'?'No perennial edibles logged yet.':'None in this location.');
+  const all=db.plants.filter(p=>byLoc(p)&&byQ(p));
+  const n=all.filter(p=>(p.category||'').includes('native'));
+  const e=all.filter(p=>(p.category||'').includes('edible')&&!(p.category||'').includes('native'));
+  const emptyMsg=q?'No plants match your search.':`None in this location.`;
+  document.getElementById('native-plant-list').innerHTML=statusGroups(n,plantLocFilter==='all'&&!q?'No native plants logged yet.':emptyMsg);
+  document.getElementById('edible-plant-list').innerHTML=statusGroups(e,plantLocFilter==='all'&&!q?'No perennial edibles logged yet.':emptyMsg);
 }
 
 // ════════════════════════════════════════
@@ -5054,22 +5199,30 @@ const BLOOM_ORDER=['March','April','May','June','July','August','September','Oct
 function renderBloomCalendar(){
   const el=document.getElementById('bloom-calendar');
   const curMonth=new Date().toLocaleString('en-US',{month:'long'});
-  const byMonth={};
-  BLOOM_ORDER.forEach(m=>byMonth[m]=[]);
-  db.plants.forEach(p=>{if(p.bloom&&byMonth[p.bloom])byMonth[p.bloom].push(p);});
-  el.innerHTML=BLOOM_ORDER.map(month=>{
-    const ps=byMonth[month],isCur=month===curMonth,isGap=!ps.length;
+  const BLOOM_IDX={};BLOOM_ORDER.forEach((m,i)=>BLOOM_IDX[m]=i);
+  const byMonth={};BLOOM_ORDER.forEach(m=>byMonth[m]=[]);
+  db.plants.forEach(p=>{
+    if(!p.bloom)return;
+    const si=BLOOM_ORDER.indexOf(p.bloom);if(si<0)return;
+    const ei=p.bloomEnd?BLOOM_ORDER.indexOf(p.bloomEnd):-1;
+    const end=ei>=0?ei:si;
+    for(let i=si;i<=end;i++)byMonth[BLOOM_ORDER[i]].push(p);
+  });
+  // Show months that have plants, always include current month
+  const activeMonths=BLOOM_ORDER.filter(m=>byMonth[m].length||m===curMonth);
+  el.innerHTML=activeMonths.map(month=>{
+    const ps=byMonth[month],isCur=month===curMonth;
     const col=BLOOM_C[month]||'#ccc';
-    const hdCls=isCur?' bm-current':isGap?' bm-gap':'';
-    const rows=isGap
-      ?`<div style="font-size:.8rem;color:#ccc;padding:2px 8px;">—</div>`
+    const rows=!ps.length
+      ?`<div style="font-size:.8rem;color:#ccc;padding:2px 8px;">— no blooms recorded —</div>`
       :ps.map(p=>{
           const badge=p.status==='noted'?`<span class="plant-status-noted">noted</span>`:p.status==='planned'?`<span class="plant-status-planned">planned</span>`:'';
           const op=p.status==='noted'?' opacity:.65':'';
-          return`<div class="bloom-plant-row" style="${op}"><span style="font-size:1rem;">${p.emoji||'🌿'}</span><span style="flex:1;">${p.common}${badge}</span><span style="font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);">${p.location||''}</span></div>`;
+          const range=p.bloomEnd&&p.bloomEnd!==p.bloom?` <span style="font-family:'Space Mono',monospace;font-size:6px;color:#aaa;">${p.bloom.slice(0,3)}–${p.bloomEnd.slice(0,3)}</span>`:'';
+          return`<div class="bloom-plant-row" style="${op}"><span style="font-size:1rem;">${p.emoji||'🌿'}</span><span style="flex:1;">${p.common}${range}${badge}</span><span style="font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);">${p.location||''}</span></div>`;
         }).join('');
-    return`<div class="bloom-month"><div class="bloom-month-hd${hdCls}" style="${!isGap?`border-left-color:${col};`:''}">
-${month.toUpperCase()}${isCur?' — NOW':''} <span style="font-weight:400;opacity:.6;">(${ps.length})</span></div>${rows}</div>`;
+    return`<div class="bloom-month"><div class="bloom-month-hd${isCur?' bm-current':''}" style="border-left-color:${ps.length?col:'var(--rule)'};">
+      ${month.toUpperCase()}${isCur?' — NOW':''} <span style="font-weight:400;opacity:.6;">(${ps.length})</span></div>${rows}</div>`;
   }).join('');
 }
 
