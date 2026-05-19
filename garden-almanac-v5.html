@@ -5748,7 +5748,7 @@ function saveHardenAll() {
 function startHardeningFromSeed(seedId) {
   const seed=(db.seeds||[]).find(s=>s.id===seedId); if (!seed) return;
   const existing=(db.hardenLogs||[]).find(e=>!e.done&&e.name.toLowerCase().includes(seed.name.toLowerCase()));
-  if (existing) { switchViewByName('track'); return; }
+  if (existing) return;
   db.hardenLogs=db.hardenLogs||[];
   db.hardenLogs.unshift({id:'hl'+Date.now(),
     name:seed.name+(seed.variety?' ('+seed.variety+')':''),
@@ -5756,7 +5756,6 @@ function startHardeningFromSeed(seedId) {
     completedDays:[],done:false});
   saveDB(db);
   renderReadyToPlant(); renderSeeds(); renderSpring();
-  switchViewByName('track');
 }
 
 function renderWeekSprint() {
