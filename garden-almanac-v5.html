@@ -1594,9 +1594,9 @@ function getPlantingStatus(plant, wxForecast) {
 
   const daysUntilOutside = Math.round((outsideStart - now) / 86400000);
 
-  // Check 10-day forecast for cold snaps
+  // Check 10-day forecast for cold snaps (tender/verytender only)
   let forecastAlert = null;
-  if (wxForecast && plant.frostTol === 'tender' || plant.frostTol === 'verytender') {
+  if (wxForecast && (plant.frostTol === 'tender' || plant.frostTol === 'verytender')) {
     const mins = wxForecast.daily?.temperature_2m_min?.slice(0,10) || [];
     const coldNights = mins.filter(t => t <= 34).length;
     if (coldNights >= 2) forecastAlert = `⚠️ ${coldNights} nights near/below freezing in forecast`;
@@ -1624,9 +1624,16 @@ function getPlantingStatus(plant, wxForecast) {
       sublabel = `Outside after ${fmtDate(outsideStart)}`;
     }
   } else if (now >= outsideStart && canMature) {
-    status = 'now'; cls = 'sp-now'; pwCls = 'pw-now'; pwIcon = '✅';
-    label = forecastAlert ? 'Plant outside — but check forecast' : 'Plant outside NOW';
-    sublabel = forecastAlert || `${plant.daysMin}–${plant.daysMax} days to harvest`;
+    if (forecastAlert) {
+      // Frost in forecast — hold off tender/verytender even though calendar says go
+      status = 'soon'; cls = 'sp-soon'; pwCls = 'pw-soon'; pwIcon = '⚠️';
+      label = 'Hold off — frost in forecast';
+      sublabel = forecastAlert;
+    } else {
+      status = 'now'; cls = 'sp-now'; pwCls = 'pw-now'; pwIcon = '✅';
+      label = 'Plant outside NOW';
+      sublabel = `${plant.daysMin}–${plant.daysMax} days to harvest`;
+    }
   } else {
     status = 'late'; cls = 'sp-done'; pwCls = 'pw-wait'; pwIcon = '⚠️';
     label = 'Too late for full maturity';
@@ -2064,7 +2071,11 @@ function renderCare(d) {
   }
   if(mon===3||mon===4)tasks.push({cls:'normal',icon:'🌱',title:'Seed start window',desc:'Start tomatoes, peppers, brassicas 6–8 weeks before May 15.'});
   if(mon===5&&dy<=14)tasks.push({cls:'normal',icon:'🌿',title:'Harden off transplants',desc:'Move seedlings outside 1–2 hrs/day, increasing daily.'});
-  if(mon===5&&dy>=15&&!tender.length)tasks.push({cls:'normal',icon:'🌿',title:'Safe to transplant',desc:'Past last frost — transplant tomatoes, peppers, squash. Direct sow beans.'});
+  if(mon===5&&dy>=15&&!tender.length){
+    const coldNightsAhead=(d.daily?.temperature_2m_min||[]).slice(0,7).filter(t=>t<=34).length;
+    if(coldNightsAhead>=2)tasks.push({cls:'urgent',icon:'🌡️',title:'Hold off transplanting',desc:`${coldNightsAhead} nights near/below freezing in the next 7 days — wait for a clear window before setting out tomatoes, peppers, and squash.`});
+    else tasks.push({cls:'normal',icon:'🌿',title:'Safe to transplant',desc:'Past last frost and no frost in forecast — transplant tomatoes, peppers, squash. Direct sow beans.'});
+  }
   if(mon>=6&&mon<=8){
     const names=harvestable.length?harvestable.map(p=>`${p.plant.emoji} ${p.plant.name.split(' ')[0]}`).join(', '):'zucchini and beans';
     tasks.push({cls:'normal',icon:'🥬',title:'Daily harvest check',desc:`Check: ${names}.`});
@@ -3624,14 +3635,18 @@ function storageTipForSeed(seed){
   return tips[seed.storage]||'Keep dry and cool in a sealed envelope.';
 }
 function seedTimingBadge(seed){
-  const now=new Date();const libId=seedToLibId(seed);const plant=PLANT_IDX[libId];
-  let winStart;
-  if(plant){if(plant.frostTol==='tender'||plant.frostTol==='verytender')winStart=new Date(now.getFullYear(),4,15);else if(plant.frostTol==='halfhardy')winStart=new Date(now.getFullYear(),3,25);else winStart=new Date(now.getFullYear(),3,1);}
-  else{winStart=new Date(now.getFullYear(),4,15);}
-  const winEnd=new Date(now.getFullYear(),8,1);
-  if(now>=winStart&&now<=winEnd)return'<span class="seed-timing-now">🟢 Plant now</span>';
-  if(now<winStart){const d=Math.round((winStart-now)/86400000);return d<=14?`<span class="seed-timing-soon">🟡 ${d}d to go</span>`:`<span class="seed-timing-wait">⏳ ~${Math.round(d/7)}wk</span>`;}
-  return'<span class="seed-timing-wait">⏳ Past window</span>';
+  const libId=seedToLibId(seed);const plant=PLANT_IDX[libId];
+  if(plant){
+    const ps=getPlantingStatus(plant,wxData); // wxData may be null — getPlantingStatus handles it
+    if(ps.status==='now')return'<span class="seed-timing-now">🟢 Plant now</span>';
+    if(ps.status==='soon')return ps.forecastAlert
+      ?'<span class="seed-timing-soon">⚠️ Frost risk</span>'
+      :`<span class="seed-timing-soon">🟡 ${ps.daysUntilOutside}d to go</span>`;
+    if(ps.status==='indoor')return'<span class="seed-timing-soon">🪴 Start indoors</span>';
+    if(ps.status==='wait'){const d=ps.daysUntilOutside||0;return d<=14?`<span class="seed-timing-soon">🟡 ${d}d to go</span>`:`<span class="seed-timing-wait">⏳ ~${Math.round(d/7)}wk</span>`;}
+    if(ps.status==='late')return'<span class="seed-timing-wait">⏳ Past window</span>';
+  }
+  return'<span class="seed-timing-wait">⏳ —</span>';
 }
 function seedPlantingRec(seed){
   const libId=seedToLibId(seed);const plant=PLANT_IDX[libId];const parts=[];
@@ -3639,6 +3654,15 @@ function seedPlantingRec(seed){
   else if(plant?.bestBeds?.length)parts.push('Best: Bed '+plant.bestBeds.join('/'));
   if(plant){parts.push(plant.sqFt+' sq ft/plant');if(plant.spacing)parts.push(plant.spacing);}
   if(plant?.notes){const s=plant.notes.split('.')[0];if(s?.length>5)parts.push(s);}
+  // Weather caveat: surface frost alerts and wind warnings at point of use
+  if(wxData&&plant){
+    const ps=getPlantingStatus(plant,wxData);
+    if(ps.forecastAlert)parts.push(ps.forecastAlert);
+    else if(ps.status==='now'){
+      const wind=Math.round(wxData.current?.wind_speed_10m||0);
+      if(wind>=20)parts.push(`⚠️ Wind ${wind} mph today — wait for calmer day to transplant`);
+    }
+  }
   return parts.join(' · ');
 }
 // Return bed keys where libId is present in db.bedDesigns
