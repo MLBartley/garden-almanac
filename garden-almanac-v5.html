@@ -2954,6 +2954,18 @@ function runAutoPopulate() {
     return sqNeeded; // leftover not placed
   }
 
+  // Returns true if placing libId into bedKey would create a companion conflict
+  function bedConflicts(bedKey, libId) {
+    const d = designs[bedKey]; if (!d) return false;
+    const plant = PLANT_IDX[libId]; if (!plant) return false;
+    const myBad = new Set(plant.companions?.bad || []);
+    for (const eid of Object.values(d)) {
+      if (myBad.has(eid)) return true;
+      if ((PLANT_IDX[eid]?.companions?.bad || []).includes(libId)) return true;
+    }
+    return false;
+  }
+
   const threeSistersOn = document.getElementById('opt-three-sisters')?.checked;
   const threeSistersIds = new Set(['corn', 'bean-bush', 'squash-winter']);
 
@@ -2983,16 +2995,18 @@ function runAutoPopulate() {
       sqNeeded = fillInto(seed.bed, libId, sqNeeded);
     }
     // Overflow: if live start still has unplaced squares, spill to non-perennial beds
-    // Prefer plant.bestBeds first, then any remaining bed by space
+    // Prefer plant.bestBeds first, then conflict-free beds, then by remaining space
     if (sqNeeded > 0) {
       const nonPerennial = db.beds.filter(b => b.type !== 'perennial').map(b => b.key);
       const candidates = nonPerennial.filter(k => seed.bed === 'any' || k !== seed.bed);
       const bestBedKeys = new Set(plant.bestBeds || []);
-      // Sort: bestBeds first, then by remaining space
       const overflow = candidates.sort((a, b) => {
         const aPref = bestBedKeys.has(a) ? 0 : 1;
         const bPref = bestBedKeys.has(b) ? 0 : 1;
         if (aPref !== bPref) return aPref - bPref;
+        const aConf = bedConflicts(a, libId) ? 1 : 0;
+        const bConf = bedConflicts(b, libId) ? 1 : 0;
+        if (aConf !== bConf) return aConf - bConf;
         return remainingSq(b) - remainingSq(a);
       });
       for (const bk of overflow) {
@@ -3007,8 +3021,11 @@ function runAutoPopulate() {
     placeThreeSisters(designs, statuses, capacities, remainingSq);
   }
 
-  // ── Pass 3: seeds (direct bed, then bed:'any') ───────────────────────
-  const seedItems = (db.seeds || []).filter(s => s.storage !== 'live');
+  // ── Pass 3: seeds (explicit bed first, then bed:'any') ─────────────
+  // Process explicit assignments before 'any' so they claim their beds first,
+  // then 'any' seeds can route around the resulting conflicts.
+  const seedItems = (db.seeds || []).filter(s => s.storage !== 'live')
+    .sort((a, b) => (a.bed !== 'any' ? 0 : 1) - (b.bed !== 'any' ? 0 : 1));
   seedItems.forEach(seed => {
     const libId = seedToLibId(seed);
     if (!libId) return;
@@ -3032,6 +3049,9 @@ function runAutoPopulate() {
             const aPref = bestBedKeys.has(a) ? 0 : 1;
             const bPref = bestBedKeys.has(b) ? 0 : 1;
             if (aPref !== bPref) return aPref - bPref;
+            const aConf = bedConflicts(a, libId) ? 1 : 0;
+            const bConf = bedConflicts(b, libId) ? 1 : 0;
+            if (aConf !== bConf) return aConf - bConf;
             return remainingSq(b) - remainingSq(a);
           });
         for (const bk of overflow) {
@@ -3040,11 +3060,16 @@ function runAutoPopulate() {
         }
       }
     } else {
-      // Route to the best-fit bed (most remaining space among plant's preferred beds)
+      // Route to the best-fit bed: prefer conflict-free, then most remaining space
       const nonPerennial = db.beds.filter(b => b.type !== 'perennial').map(b => b.key);
       const valid = (plant.bestBeds || []).filter(k => nonPerennial.includes(k) && capacities[k] !== undefined);
       if (!valid.length) return;
-      const target = valid.reduce((best, k) => remainingSq(k) > remainingSq(best) ? k : best, valid[0]);
+      const target = valid.slice().sort((a, b) => {
+        const aConf = bedConflicts(a, libId) ? 1 : 0;
+        const bConf = bedConflicts(b, libId) ? 1 : 0;
+        if (aConf !== bConf) return aConf - bConf;
+        return remainingSq(b) - remainingSq(a);
+      })[0];
       fillInto(target, libId, sqNeeded);
     }
   });
