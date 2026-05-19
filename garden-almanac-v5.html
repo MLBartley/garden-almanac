@@ -340,10 +340,11 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 .plan-accept-btn{font-family:'Space Mono',monospace;font-size:7px;padding:3px 8px;border-radius:8px;border:1px solid var(--moss);background:none;color:var(--moss);cursor:pointer;flex-shrink:0;margin-top:1px;}
 .plan-accept-btn.done{background:var(--moss);color:white;}
 .plan-overflow{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);padding:10px 13px;margin-bottom:12px;}
-/* Plant view toggle + location filter */
-.plant-view-toggle{display:flex;border:1px solid var(--rule);border-radius:6px;overflow:hidden;margin-bottom:10px;}
-.pvt-btn{font-family:'Space Mono',monospace;font-size:8px;padding:5px 11px;border:none;background:white;color:var(--muted);cursor:pointer;flex:1;}
-.pvt-btn.active{background:var(--ink);color:white;}
+/* Sub-tab segmented control */
+.plant-view-toggle{display:flex;background:var(--surface);border-radius:20px;padding:3px;margin-bottom:12px;gap:2px;overflow-x:auto;scrollbar-width:none;}
+.plant-view-toggle::-webkit-scrollbar{display:none;}
+.pvt-btn{font-family:'Space Mono',monospace;font-size:8px;padding:5px 12px;border:none;background:transparent;color:var(--muted);cursor:pointer;flex:1;border-radius:17px;white-space:nowrap;}
+.pvt-btn.active{background:white;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12);}
 .plant-loc-filter{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;}
 .plant-loc-btn{font-family:'Space Mono',monospace;font-size:8px;padding:3px 9px;border-radius:10px;border:1px solid var(--rule);background:white;color:var(--muted);cursor:pointer;}
 .plant-loc-btn.active{background:var(--moss);border-color:var(--moss);color:white;}
@@ -671,152 +672,145 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       </div>
     </div>
 
-    <!-- JOURNAL -->
-    <div class="view" id="view-journal">
-      <div class="journal-compose">
-        <div class="journal-compose-header">NEW ENTRY · <span id="compose-date"></span></div>
-        <div class="mood-row">
-          <button class="mood-btn" onclick="selectMood(this,'🌞')">🌞</button>
-          <button class="mood-btn" onclick="selectMood(this,'🌧')">🌧</button>
-          <button class="mood-btn" onclick="selectMood(this,'🌱')">🌱</button>
-          <button class="mood-btn" onclick="selectMood(this,'🥵')">🥵</button>
-          <button class="mood-btn" onclick="selectMood(this,'🥶')">🥶</button>
-          <button class="mood-btn" onclick="selectMood(this,'😤')">😤</button>
-        </div>
-        <textarea class="journal-input" id="journal-text" placeholder="What happened in the garden today?…"></textarea>
-        <div class="tag-row">
-          <button class="tag-chip" onclick="toggleTag(this,'watered')">watered</button>
-          <button class="tag-chip" onclick="toggleTag(this,'planted')">planted</button>
-          <button class="tag-chip" onclick="toggleTag(this,'harvested')">harvested</button>
-          <button class="tag-chip" onclick="toggleTag(this,'pest')">pest</button>
-          <button class="tag-chip" onclick="toggleTag(this,'bloom')">bloom</button>
-          <button class="tag-chip" onclick="toggleTag(this,'mulched')">mulched</button>
-          <button class="tag-chip" onclick="toggleTag(this,'seeded')">seeded</button>
-          <button class="tag-chip" onclick="toggleTag(this,'pruned')">pruned</button>
-        </div>
-        <div class="compose-footer">
-          <button class="btn-primary" onclick="saveJournal()">Save entry →</button>
-        </div>
-      </div>
-      <div class="section-label">Journal history</div>
-      <div id="journal-list"></div>
-    </div>
-
-    <!-- DESIGN (new) -->
-    <div class="view" id="view-design">
-      <!-- Bed selector -->
-      <div class="section-label" style="margin-top:0;">Select bed to design</div>
-      <div class="bed-select-row" id="bed-select-row"></div>
-
-      <!-- Planting window banner -->
-      <div id="pw-banner"></div>
-      <div id="bed-shade-note" style="display:none;"></div>
-
-      <!-- ── Grid-based bed UI (raised beds + bags) ── -->
-      <div id="grid-bed-view">
-        <div class="section-label">Bed layout <span id="grid-sq-count" style="font-weight:400;color:var(--muted);font-family:'Crimson Pro',serif;font-size:.85rem;text-transform:none;letter-spacing:0;margin-left:4px;"></span></div>
-        <div class="grid-wrap"><div class="bed-grid" id="bed-grid"></div></div>
-        <div style="display:flex;gap:10px;font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);margin:5px 0 9px;flex-wrap:wrap;align-items:center;">
-          <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px dashed #7ab07a;background:#f4fff4;border-radius:3px;padding:1px 6px;">?</span> From inventory</span>
-          <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px dashed #c4922a;background:#fffbf0;border-radius:3px;padding:1px 6px;">★</span> Buy/source</span>
-          <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px solid rgba(0,0,0,.12);background:#f0f8f0;border-radius:3px;padding:1px 6px;">□</span> Planned</span>
-          <span style="display:flex;align-items:center;gap:3px;"><span style="border:2px solid #2a6a2a;background:#e2f0e2;border-radius:3px;padding:1px 6px;">✓</span> Planted</span>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">
-          <label style="display:flex;align-items:center;gap:9px;font-size:.83rem;cursor:pointer;padding:7px 10px;background:var(--surface);border:1px solid var(--rule);border-radius:6px;">
-            <input type="checkbox" id="opt-three-sisters" style="width:15px;height:15px;flex-shrink:0;accent-color:var(--moss);">
-            <span>🌽🫘🎃 <strong>Three Sisters</strong> — corn + beans + squash together</span>
-          </label>
-        </div>
-        <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:6px;font-size:.82rem;" onclick="autoPopulateAllBeds()">✨ Auto-suggest all beds from inventory</button>
-        <button class="btn-sm" style="width:100%;padding:6px;margin-bottom:12px;font-size:.78rem;background:none;color:var(--muted);border-color:var(--rule);" onclick="clearAllSuggestions()">✕ Clear all suggestions</button>
-        <div id="companion-panel-wrap"></div>
-        <div class="section-label">Plan summary</div>
-        <div id="plan-summary"></div>
-        <div style="display:flex;gap:8px;margin-bottom:12px;">
-          <button class="btn-sm" style="flex:1;padding:9px;" onclick="clearBedDesign()">Clear bed</button>
-          <button class="btn-primary" style="flex:2;padding:9px;" onclick="saveBedPlan()">Save plan →</button>
-        </div>
-        <div id="bed-lock-toggle" style="margin-bottom:12px;"></div>
-        <div class="section-label">Planting timing — all planned plants</div>
-        <div id="timing-list"></div>
-        <div class="section-label">What can go in the ground?</div>
-        <div id="ground-suggestions"></div>
-        <div id="bed-inventory-panel" style="display:none;background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-top:10px;"></div>
-      </div>
-
-      <!-- ── Freeform bed UI (herb / perennial types) ── -->
-      <div id="freeform-bed-view" style="display:none;">
-        <div id="freeform-bed-note" style="background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-bottom:12px;font-size:.82rem;line-height:1.55;color:var(--muted);"></div>
-        <div class="section-label">Plants in this bed</div>
-        <div id="freeform-plant-list"></div>
-        <div style="background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:12px 13px;margin-top:8px;">
-          <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;">ADD PLANT</div>
-          <div style="position:relative;margin-bottom:7px;">
-            <input id="freeform-plant-input" type="text" placeholder="Start typing a plant name…" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:8px 10px;font-size:.88rem;box-sizing:border-box;outline:none;" oninput="freeformPlantSearch(this.value)" onblur="setTimeout(()=>{const el=document.getElementById('freeform-plant-suggestions');if(el)el.style.display='none';},150)" autocomplete="off">
-            <div id="freeform-plant-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--rule);border-radius:0 0 6px 6px;z-index:10;max-height:160px;overflow-y:auto;"></div>
-          </div>
-          <select id="freeform-plant-status" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:7px 8px;font-size:.85rem;margin-bottom:7px;background:white;">
-            <option value="established">Established — already growing</option>
-            <option value="planted">Planted this season</option>
-            <option value="planned">Planned — not yet planted</option>
-          </select>
-          <input id="freeform-plant-notes" type="text" placeholder="Notes (optional)" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:7px 10px;font-size:.85rem;box-sizing:border-box;margin-bottom:8px;outline:none;">
-          <button class="btn-primary" style="width:100%;padding:9px;" onclick="addFreeformPlant()">+ Add plant</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- SEEDS -->
-    <div class="view" id="view-seeds">
-      <div class="row" style="margin-bottom:12px;">
-        <div>
-          <div style="font-size:1rem;font-weight:600;">Seed Inventory</div>
-          <div style="font-size:.78rem;color:var(--muted);" id="seed-count-label">0 packets</div>
-        </div>
-        <div class="spacer"></div>
-        <button class="btn-sm" onclick="openScanModal()">📷 Scan packet</button>
-      </div>
-      <button class="btn-sm" id="storage-guide-btn" onclick="toggleStorageGuide()" style="width:100%;margin-bottom:8px;text-align:left;padding:7px 11px;">📖 Storage &amp; winter sowing guide ▾</button>
-      <div id="storage-guide" style="display:none;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);padding:13px 14px;margin-bottom:12px;font-size:.82rem;line-height:1.65;color:var(--ink);">
-        <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.12em;margin-bottom:10px;">SEED STORAGE — ZONE 5B GUIDE</div>
-        <div style="display:grid;gap:9px;">
-          <div><strong>🏠 Cool / Dark</strong> &nbsp;<span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">45–65°F</span><br>Pantry, basement, cool garage corner. 2–4 years viability. Garage is fine through the growing season but temperature swings reduce multi-year viability — not ideal for seeds you're keeping past next year.</div>
-          <div><strong>🧊 Fridge</strong> &nbsp;<span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">35–40°F</span><br>4–6 year viability. Seal in an airtight bag with a silica packet. Always let the sealed bag come to room temperature before opening — prevents condensation on the seeds.</div>
-          <div><strong>❄️ Freezer</strong> &nbsp;<span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">&lt; 32°F, 5–10+ years</span><br>Seeds must be completely dry before freezing — moisture forms ice crystals that kill the embryo. Zip-lock + silica packet inside a sealed jar. Same warm-before-opening rule applies.</div>
-          <div style="border-top:1px solid var(--rule);padding-top:9px;"><strong>🌱 Winter Sowing</strong> &nbsp;<span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">OUTDOOR METHOD</span><br>Sow in a covered clear container (milk jug cut and taped back) set outdoors — not a garage. The method requires real outdoor temperature cycling and natural light cues.<br><br>
-          <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">TIMING · </span>Set out when outdoor temps are consistently below 40°F (Bozeman: late Oct–Nov). Seeds cold-stratify over winter and germinate naturally in spring when soil inside the container reaches 35–40°F — typically March–April.<br><br>
-          <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">COLD TOLERANCE · </span>Container handles down to −20°F. Dormant seeds survive hard freezes; it's germinated seedlings in open soil that are vulnerable.<br><br>
-          <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">PLACEMENT · </span>Face north-facing or in shade. South-facing catches too much February sun, warms the container prematurely, and triggers germination before the last frost — seedlings then get hit by a hard freeze with no roots established.</div>
-        </div>
-      </div>
-      <div class="bed-filter-row" id="bed-filter-row">
-        <button class="bed-filter-btn active" onclick="filterSeeds('all',this)">All</button>
-        <button class="bed-filter-btn" onclick="filterSeeds('starts',this)">🌱 Starts</button>
-        <button class="bed-filter-btn" onclick="filterSeeds('A',this)">Bed A</button>
-        <button class="bed-filter-btn" onclick="filterSeeds('B',this)">Bed B</button>
-        <button class="bed-filter-btn" onclick="filterSeeds('C',this)">Bed C</button>
-        <button class="bed-filter-btn" onclick="filterSeeds('D',this)">Bed D</button>
-        <button class="bed-filter-btn" onclick="filterSeeds('any',this)">Unassigned</button>
-        <button class="bed-filter-btn" onclick="filterSeeds('H',this)">Herb Bed</button>
-        <button class="bed-filter-btn" onclick="filterSeeds('P',this)">Perennial</button>
-        <button class="bed-filter-btn" onclick="filterSeeds('A1',this)">Bag A</button>
-        <button class="bed-filter-btn" onclick="filterSeeds('B1',this)">Bag B</button>
-        <button class="bed-filter-btn" onclick="filterSeeds('C1',this)">Bag C</button>
-        <button class="bed-filter-btn" onclick="filterSeeds('skip',this)">💤 Next year</button>
-      </div>
-      <div id="seed-list"></div>
-    </div>
-
-    <!-- SPRING TRACKER (new) -->
-    <div class="view" id="view-spring">
+    <!-- GARDEN (Design + Seeds + Bed History) -->
+    <div class="view" id="view-garden">
       <div class="plant-view-toggle" style="margin-top:4px;">
-        <button class="pvt-btn active" id="spt-season" onclick="setSpringTab('season',this)">Season</button>
-        <button class="pvt-btn" id="spt-plan" onclick="setSpringTab('plan',this)">Planting plan</button>
+        <button class="pvt-btn active" onclick="setGardenTab('design',this)">Design</button>
+        <button class="pvt-btn" onclick="setGardenTab('seeds',this)">Seeds</button>
+        <button class="pvt-btn" onclick="setGardenTab('beds',this)">Bed History</button>
+      </div>
+
+      <!-- ── DESIGN SUB-TAB ── -->
+      <div id="garden-design">
+        <!-- Bed selector -->
+        <div class="section-label" style="margin-top:0;">Select bed to design</div>
+        <div class="bed-select-row" id="bed-select-row"></div>
+
+        <!-- Planting window banner -->
+        <div id="pw-banner"></div>
+        <div id="bed-shade-note" style="display:none;"></div>
+
+        <!-- Grid-based bed UI (raised beds + bags) -->
+        <div id="grid-bed-view">
+          <div class="section-label">Bed layout <span id="grid-sq-count" style="font-weight:400;color:var(--muted);font-family:'Crimson Pro',serif;font-size:.85rem;text-transform:none;letter-spacing:0;margin-left:4px;"></span></div>
+          <div class="grid-wrap"><div class="bed-grid" id="bed-grid"></div></div>
+          <div style="display:flex;gap:10px;font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);margin:5px 0 9px;flex-wrap:wrap;align-items:center;">
+            <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px dashed #7ab07a;background:#f4fff4;border-radius:3px;padding:1px 6px;">?</span> From inventory</span>
+            <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px dashed #c4922a;background:#fffbf0;border-radius:3px;padding:1px 6px;">★</span> Buy/source</span>
+            <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px solid rgba(0,0,0,.12);background:#f0f8f0;border-radius:3px;padding:1px 6px;">□</span> Planned</span>
+            <span style="display:flex;align-items:center;gap:3px;"><span style="border:2px solid #2a6a2a;background:#e2f0e2;border-radius:3px;padding:1px 6px;">✓</span> Planted</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">
+            <label style="display:flex;align-items:center;gap:9px;font-size:.83rem;cursor:pointer;padding:7px 10px;background:var(--surface);border:1px solid var(--rule);border-radius:6px;">
+              <input type="checkbox" id="opt-three-sisters" style="width:15px;height:15px;flex-shrink:0;accent-color:var(--moss);">
+              <span>🌽🫘🎃 <strong>Three Sisters</strong> — corn + beans + squash together</span>
+            </label>
+          </div>
+          <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:6px;font-size:.82rem;" onclick="autoPopulateAllBeds()">✨ Auto-suggest all beds from inventory</button>
+          <button class="btn-sm" style="width:100%;padding:6px;margin-bottom:12px;font-size:.78rem;background:none;color:var(--muted);border-color:var(--rule);" onclick="clearAllSuggestions()">✕ Clear all suggestions</button>
+          <div id="companion-panel-wrap"></div>
+          <div class="section-label">Plan summary</div>
+          <div id="plan-summary"></div>
+          <div style="display:flex;gap:8px;margin-bottom:12px;">
+            <button class="btn-sm" style="flex:1;padding:9px;" onclick="clearBedDesign()">Clear bed</button>
+            <button class="btn-primary" style="flex:2;padding:9px;" onclick="saveBedPlan()">Save plan →</button>
+          </div>
+          <div id="bed-lock-toggle" style="margin-bottom:12px;"></div>
+          <div class="section-label">Planting timing — all planned plants</div>
+          <div id="timing-list"></div>
+          <div class="section-label">What can go in the ground?</div>
+          <div id="ground-suggestions"></div>
+          <div id="bed-inventory-panel" style="display:none;background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-top:10px;"></div>
+        </div>
+
+        <!-- Freeform bed UI (herb / perennial types) -->
+        <div id="freeform-bed-view" style="display:none;">
+          <div id="freeform-bed-note" style="background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-bottom:12px;font-size:.82rem;line-height:1.55;color:var(--muted);"></div>
+          <div class="section-label">Plants in this bed</div>
+          <div id="freeform-plant-list"></div>
+          <div style="background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:12px 13px;margin-top:8px;">
+            <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;">ADD PLANT</div>
+            <div style="position:relative;margin-bottom:7px;">
+              <input id="freeform-plant-input" type="text" placeholder="Start typing a plant name…" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:8px 10px;font-size:.88rem;box-sizing:border-box;outline:none;" oninput="freeformPlantSearch(this.value)" onblur="setTimeout(()=>{const el=document.getElementById('freeform-plant-suggestions');if(el)el.style.display='none';},150)" autocomplete="off">
+              <div id="freeform-plant-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--rule);border-radius:0 0 6px 6px;z-index:10;max-height:160px;overflow-y:auto;"></div>
+            </div>
+            <select id="freeform-plant-status" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:7px 8px;font-size:.85rem;margin-bottom:7px;background:white;">
+              <option value="established">Established — already growing</option>
+              <option value="planted">Planted this season</option>
+              <option value="planned">Planned — not yet planted</option>
+            </select>
+            <input id="freeform-plant-notes" type="text" placeholder="Notes (optional)" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:7px 10px;font-size:.85rem;box-sizing:border-box;margin-bottom:8px;outline:none;">
+            <button class="btn-primary" style="width:100%;padding:9px;" onclick="addFreeformPlant()">+ Add plant</button>
+          </div>
+        </div>
+      </div><!-- end #garden-design -->
+
+      <!-- ── SEEDS SUB-TAB ── -->
+      <div id="garden-seeds" style="display:none;">
+        <div class="row" style="margin-bottom:12px;">
+          <div>
+            <div style="font-size:1rem;font-weight:600;">Seed Inventory</div>
+            <div style="font-size:.78rem;color:var(--muted);" id="seed-count-label">0 packets</div>
+          </div>
+          <div class="spacer"></div>
+          <button class="btn-sm" onclick="openScanModal()">📷 Scan packet</button>
+        </div>
+        <button class="btn-sm" id="storage-guide-btn" onclick="toggleStorageGuide()" style="width:100%;margin-bottom:8px;text-align:left;padding:7px 11px;">📖 Storage &amp; winter sowing guide ▾</button>
+        <div id="storage-guide" style="display:none;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);padding:13px 14px;margin-bottom:12px;font-size:.82rem;line-height:1.65;color:var(--ink);">
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.12em;margin-bottom:10px;">SEED STORAGE — ZONE 5B GUIDE</div>
+          <div style="display:grid;gap:9px;">
+            <div><strong>🏠 Cool / Dark</strong> &nbsp;<span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">45–65°F</span><br>Pantry, basement, cool garage corner. 2–4 years viability. Garage is fine through the growing season but temperature swings reduce multi-year viability — not ideal for seeds you're keeping past next year.</div>
+            <div><strong>🧊 Fridge</strong> &nbsp;<span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">35–40°F</span><br>4–6 year viability. Seal in an airtight bag with a silica packet. Always let the sealed bag come to room temperature before opening — prevents condensation on the seeds.</div>
+            <div><strong>❄️ Freezer</strong> &nbsp;<span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">&lt; 32°F, 5–10+ years</span><br>Seeds must be completely dry before freezing — moisture forms ice crystals that kill the embryo. Zip-lock + silica packet inside a sealed jar. Same warm-before-opening rule applies.</div>
+            <div style="border-top:1px solid var(--rule);padding-top:9px;"><strong>🌱 Winter Sowing</strong> &nbsp;<span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">OUTDOOR METHOD</span><br>Sow in a covered clear container (milk jug cut and taped back) set outdoors — not a garage. The method requires real outdoor temperature cycling and natural light cues.<br><br>
+            <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">TIMING · </span>Set out when outdoor temps are consistently below 40°F (Bozeman: late Oct–Nov). Seeds cold-stratify over winter and germinate naturally in spring when soil inside the container reaches 35–40°F — typically March–April.<br><br>
+            <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">COLD TOLERANCE · </span>Container handles down to −20°F. Dormant seeds survive hard freezes; it's germinated seedlings in open soil that are vulnerable.<br><br>
+            <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">PLACEMENT · </span>Face north-facing or in shade. South-facing catches too much February sun, warms the container prematurely, and triggers germination before the last frost — seedlings then get hit by a hard freeze with no roots established.</div>
+          </div>
+        </div>
+        <div class="bed-filter-row" id="bed-filter-row">
+          <button class="bed-filter-btn active" onclick="filterSeeds('all',this)">All</button>
+          <button class="bed-filter-btn" onclick="filterSeeds('starts',this)">🌱 Starts</button>
+          <button class="bed-filter-btn" onclick="filterSeeds('A',this)">Bed A</button>
+          <button class="bed-filter-btn" onclick="filterSeeds('B',this)">Bed B</button>
+          <button class="bed-filter-btn" onclick="filterSeeds('C',this)">Bed C</button>
+          <button class="bed-filter-btn" onclick="filterSeeds('D',this)">Bed D</button>
+          <button class="bed-filter-btn" onclick="filterSeeds('any',this)">Unassigned</button>
+          <button class="bed-filter-btn" onclick="filterSeeds('H',this)">Herb Bed</button>
+          <button class="bed-filter-btn" onclick="filterSeeds('P',this)">Perennial</button>
+          <button class="bed-filter-btn" onclick="filterSeeds('A1',this)">Bag A</button>
+          <button class="bed-filter-btn" onclick="filterSeeds('B1',this)">Bag B</button>
+          <button class="bed-filter-btn" onclick="filterSeeds('C1',this)">Bag C</button>
+          <button class="bed-filter-btn" onclick="filterSeeds('skip',this)">💤 Next year</button>
+        </div>
+        <div id="seed-list"></div>
+      </div><!-- end #garden-seeds -->
+
+      <!-- ── BED HISTORY SUB-TAB ── -->
+      <div id="garden-beds" style="display:none;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-top:4px;">
+          <button class="btn-sm" onclick="stepHistYear(-1)">‹</button>
+          <span id="hist-year-label" style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;flex:1;text-align:center;"></span>
+          <button class="btn-sm" onclick="stepHistYear(1)">›</button>
+        </div>
+        <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:14px;" onclick="snapshotBedHistory()">📸 Snapshot this season's beds</button>
+        <div id="hist-content"></div>
+        <div class="section-label">Crop rotation guide</div>
+        <div id="rotation-guide"></div>
+      </div><!-- end #garden-beds -->
+
+    </div><!-- end #view-garden -->
+
+    <!-- TRACK -->
+    <div class="view" id="view-track">
+      <div class="plant-view-toggle" style="margin-top:4px;">
+        <button class="pvt-btn active" id="spt-season" onclick="setTrackTab('season',this)">Season</button>
+        <button class="pvt-btn" id="spt-plan" onclick="setTrackTab('plan',this)">Planting plan</button>
+        <button class="pvt-btn" id="spt-compost" onclick="setTrackTab('compost',this)">Compost</button>
       </div>
 
       <!-- ── SEASON TAB ── -->
-      <div id="spring-season">
+      <div id="track-season">
 
       <!-- Germination tracker -->
       <div class="section-label" style="margin-top:0;">Germination tracker</div>
@@ -847,10 +841,10 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:10px;" onclick="openModal('log-harvest-modal')">+ Log harvest</button>
       <div id="harvest-list"></div>
 
-      </div><!-- end #spring-season -->
+      </div><!-- end #track-season -->
 
       <!-- ── PLAN TAB ── -->
-      <div id="spring-plan" style="display:none;">
+      <div id="track-plan" style="display:none;">
         <div class="section-label" style="margin-top:0;">What I have this season</div>
         <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;flex-wrap:wrap;">
           <input list="veg-datalist" id="plan-crop-input" class="form-input" placeholder="Crop name…" style="flex:1;min-width:120px;padding:7px 11px;" autocomplete="off">
@@ -866,7 +860,24 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <div id="plan-list"></div>
         <button class="btn-sm" style="width:100%;padding:9px;margin:4px 0 16px;" onclick="planPlacements()">Get planting recommendations →</button>
         <div id="plan-recs"></div>
-      </div><!-- end #spring-plan -->
+      </div><!-- end #track-plan -->
+
+      <!-- ── COMPOST TAB ── -->
+      <div id="track-compost" style="display:none;">
+        <div class="section-label" style="margin-top:0;">🌀 Compost tumbler</div>
+        <div id="tumbler-status"></div>
+        <div style="display:flex;gap:8px;margin-bottom:14px;">
+          <button class="btn-sm" style="flex:1;padding:9px;" onclick="logTumblerTurn()">↺ Log turn</button>
+          <button class="btn-sm" style="flex:1;padding:9px;" onclick="openModal('compost-add-modal')">+ Add material</button>
+          <button class="btn-sm" style="flex:1;padding:9px;" onclick="logTumblerHarvest()">🌱 Harvested</button>
+        </div>
+        <div id="tumbler-log"></div>
+        <div class="section-label">🌱 Bed amendments</div>
+        <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:12px;" onclick="openModal('amendment-modal')">+ Log amendment</button>
+        <div id="amendment-list"></div>
+        <div class="section-label">💡 Recommendations</div>
+        <div id="amend-recs"></div>
+      </div><!-- end #track-compost -->
 
     </div>
 
@@ -900,8 +911,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       <div class="plant-view-toggle" style="overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
         <button class="pvt-btn active" onclick="setYearTab('almanac',this)">Almanac</button>
         <button class="pvt-btn" onclick="setYearTab('checklist',this)">Checklists</button>
-        <button class="pvt-btn" onclick="setYearTab('beds',this)">Bed History</button>
-        <button class="pvt-btn" onclick="setYearTab('compost',this)">Compost</button>
+        <button class="pvt-btn" onclick="setYearTab('journal',this)">Journal</button>
         <button class="pvt-btn" onclick="setYearTab('plan',this)">Next Season</button>
         <button class="pvt-btn" onclick="setYearTab('climate',this)">Climate</button>
       </div>
@@ -939,34 +949,35 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <div id="cl-content"></div>
       </div>
 
-      <!-- ── BED HISTORY ── -->
-      <div id="yr-beds" style="display:none;">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-top:4px;">
-          <button class="btn-sm" onclick="stepHistYear(-1)">‹</button>
-          <span id="hist-year-label" style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;flex:1;text-align:center;"></span>
-          <button class="btn-sm" onclick="stepHistYear(1)">›</button>
+      <!-- ── JOURNAL ── -->
+      <div id="yr-journal" style="display:none;">
+        <div class="journal-compose">
+          <div class="journal-compose-header">NEW ENTRY · <span id="compose-date"></span></div>
+          <div class="mood-row">
+            <button class="mood-btn" onclick="selectMood(this,'🌞')">🌞</button>
+            <button class="mood-btn" onclick="selectMood(this,'🌧')">🌧</button>
+            <button class="mood-btn" onclick="selectMood(this,'🌱')">🌱</button>
+            <button class="mood-btn" onclick="selectMood(this,'🥵')">🥵</button>
+            <button class="mood-btn" onclick="selectMood(this,'🥶')">🥶</button>
+            <button class="mood-btn" onclick="selectMood(this,'😤')">😤</button>
+          </div>
+          <textarea class="journal-input" id="journal-text" placeholder="What happened in the garden today?…"></textarea>
+          <div class="tag-row">
+            <button class="tag-chip" onclick="toggleTag(this,'watered')">watered</button>
+            <button class="tag-chip" onclick="toggleTag(this,'planted')">planted</button>
+            <button class="tag-chip" onclick="toggleTag(this,'harvested')">harvested</button>
+            <button class="tag-chip" onclick="toggleTag(this,'pest')">pest</button>
+            <button class="tag-chip" onclick="toggleTag(this,'bloom')">bloom</button>
+            <button class="tag-chip" onclick="toggleTag(this,'mulched')">mulched</button>
+            <button class="tag-chip" onclick="toggleTag(this,'seeded')">seeded</button>
+            <button class="tag-chip" onclick="toggleTag(this,'pruned')">pruned</button>
+          </div>
+          <div class="compose-footer">
+            <button class="btn-primary" onclick="saveJournal()">Save entry →</button>
+          </div>
         </div>
-        <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:14px;" onclick="snapshotBedHistory()">📸 Snapshot this season's beds</button>
-        <div id="hist-content"></div>
-        <div class="section-label">Crop rotation guide</div>
-        <div id="rotation-guide"></div>
-      </div>
-
-      <!-- ── COMPOST ── -->
-      <div id="yr-compost" style="display:none;">
-        <div class="section-label" style="margin-top:0;">🌀 Compost tumbler</div>
-        <div id="tumbler-status"></div>
-        <div style="display:flex;gap:8px;margin-bottom:14px;">
-          <button class="btn-sm" style="flex:1;padding:9px;" onclick="logTumblerTurn()">↺ Log turn</button>
-          <button class="btn-sm" style="flex:1;padding:9px;" onclick="openModal('compost-add-modal')">+ Add material</button>
-          <button class="btn-sm" style="flex:1;padding:9px;" onclick="logTumblerHarvest()">🌱 Harvested</button>
-        </div>
-        <div id="tumbler-log"></div>
-        <div class="section-label">🌱 Bed amendments</div>
-        <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:12px;" onclick="openModal('amendment-modal')">+ Log amendment</button>
-        <div id="amendment-list"></div>
-        <div class="section-label">💡 Recommendations</div>
-        <div id="amend-recs"></div>
+        <div class="section-label">Journal history</div>
+        <div id="journal-list"></div>
       </div>
 
       <!-- ── CLIMATE ── -->
@@ -1024,11 +1035,9 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 
   <div id="bottom-nav">
     <button class="nav-btn active" onclick="switchView('today',this)"><span class="nav-icon">☀️</span>TODAY</button>
-    <button class="nav-btn" onclick="switchView('journal',this)"><span class="nav-icon">📓</span>JOURNAL</button>
+    <button class="nav-btn" onclick="switchView('track',this)"><span class="nav-icon">🌱</span>TRACK</button>
+    <button class="nav-btn" onclick="switchView('garden',this)"><span class="nav-icon">🗺</span>GARDEN</button>
     <button class="nav-btn" onclick="switchView('plants',this)"><span class="nav-icon">🌿</span>PLANTS</button>
-    <button class="nav-btn" onclick="switchView('spring',this)"><span class="nav-icon">🌱</span>SPRING</button>
-    <button class="nav-btn" onclick="switchView('design',this)"><span class="nav-icon">🗺</span>DESIGN</button>
-    <button class="nav-btn" onclick="switchView('seeds',this)"><span class="nav-icon">🌾</span>SEEDS</button>
     <button class="nav-btn" onclick="switchView('year',this)"><span class="nav-icon">📅</span>YEAR</button>
   </div>
 
@@ -3663,7 +3672,7 @@ function plantCard(p){
 let plantViewMode='list', plantLocFilter='all';
 function setPlantView(mode,btn){
   plantViewMode=mode;
-  document.querySelectorAll('.pvt-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('#view-plants .pvt-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('plant-list-mode').style.display=mode==='list'?'':'none';
   document.getElementById('plant-bloom-mode').style.display=mode==='bloom'?'':'none';
@@ -4309,7 +4318,7 @@ function renderSpringWidget() {
     el.innerHTML='';return;
   }
   el.innerHTML=`<div class="spring-widget">
-    <div class="sw-header"><span>🌱 SPRING TRACKER</span><span style="cursor:pointer;color:var(--accent);" onclick="switchViewByName('spring')">View all →</span></div>
+    <div class="sw-header"><span>🌱 SEASON TRACKER</span><span style="cursor:pointer;color:var(--accent);" onclick="switchViewByName('track')">View all →</span></div>
     ${items.map(i=>`<div class="sw-row"><div class="sw-icon">${i.icon}</div><div class="sw-text">${i.text}</div><div class="sw-badge ${i.badgeCls}">${i.badge}</div></div>`).join('')}
   </div>`;
 }
@@ -4406,14 +4415,39 @@ const VEG_TO_LIB={
   parsley:'parsley',mint:null,
 };
 
-let springTab='season';
-function setSpringTab(tab,btn){
-  springTab=tab;
-  document.querySelectorAll('#view-spring .pvt-btn').forEach(b=>b.classList.remove('active'));
+let trackTab='season';
+function setTrackTab(tab,btn){
+  trackTab=tab;
+  document.querySelectorAll('#view-track .pvt-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  document.getElementById('spring-season').style.display=tab==='season'?'':'none';
-  document.getElementById('spring-plan').style.display=tab==='plan'?'':'none';
+  document.getElementById('track-season').style.display=tab==='season'?'':'none';
+  document.getElementById('track-plan').style.display=tab==='plan'?'':'none';
+  document.getElementById('track-compost').style.display=tab==='compost'?'':'none';
   if(tab==='plan'){populateVegDatalist();renderPlanList();renderRecommendations();}
+  if(tab==='compost') renderCompost();
+}
+let gardenTab='design';
+function setGardenTab(tab,btn){
+  gardenTab=tab;
+  document.querySelectorAll('#view-garden .pvt-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('garden-design').style.display=tab==='design'?'':'none';
+  document.getElementById('garden-seeds').style.display=tab==='seeds'?'':'none';
+  document.getElementById('garden-beds').style.display=tab==='beds'?'':'none';
+  if(tab==='seeds') renderSeeds();
+  if(tab==='beds') renderBedHistory();
+}
+function renderCurrentGardenTab(){
+  ['design','seeds','beds'].forEach(t=>{
+    const el=document.getElementById('garden-'+t);
+    if(el)el.style.display=t===gardenTab?'':'none';
+  });
+  document.querySelectorAll('#view-garden .pvt-btn').forEach((b,i)=>{
+    const tabs=['design','seeds','beds'];
+    b.classList.toggle('active',tabs[i]===gardenTab);
+  });
+  if(gardenTab==='seeds') renderSeeds();
+  if(gardenTab==='beds') renderBedHistory();
 }
 function populateVegDatalist(){
   const dl=document.getElementById('veg-datalist');
@@ -4563,8 +4597,9 @@ function pushToDesign(bedKey){
   });
   db.bedDesigns[bedKey]=design;
   saveDB(db);
-  const navBtn=document.querySelector('[onclick*="\'design\'"]');
-  if(navBtn)switchView('design',navBtn);
+  const navBtn=document.querySelector('[onclick*="\'garden\'"]');
+  gardenTab='design';
+  if(navBtn)switchView('garden',navBtn);
   setTimeout(()=>{
     const bedBtns=document.querySelectorAll('.bed-sel-btn');
     const idx=['A','B','C','D'].indexOf(bedKey);
@@ -4708,7 +4743,12 @@ async function syncData(){
   }catch{status.textContent='ERR';status.className='sync-status sync-off';}
   btn.classList.remove('syncing');
 }
-function checkSyncStatus(){if(getSheetsUrl()){const s=document.getElementById('sync-status');s.textContent='SHEETS';s.className='sync-status sync-ok';}}
+function checkSyncStatus(){
+  const hasSheets=!!getSheetsUrl();
+  document.getElementById('sync-btn').style.display=hasSheets?'':'none';
+  document.getElementById('sync-status').style.display=hasSheets?'':'none';
+  if(hasSheets){const s=document.getElementById('sync-status');s.textContent='SHEETS';s.className='sync-status sync-ok';}
+}
 
 // ════════════════════════════════════════
 //  UI HELPERS
@@ -4719,8 +4759,10 @@ function switchView(id,btn){
   document.getElementById('view-'+id).classList.add('active');
   btn.classList.add('active');
   document.getElementById('scroll-area').scrollTop=0;
-  if(id==='design') initDesignTab();
-  if(id==='spring'){renderSpring();populateVegDatalist();}
+  const tbar=document.getElementById('today-bar');
+  if(tbar){tbar.style.opacity=id==='today'?'0':'';tbar.style.pointerEvents=id==='today'?'none':'';}
+  if(id==='garden'){initDesignTab();renderCurrentGardenTab();}
+  if(id==='track'){renderSpring();populateVegDatalist();if(trackTab==='compost')renderCompost();}
   if(id==='plants') renderPlants();
   if(id==='year') renderYear();
 }
@@ -4818,7 +4860,7 @@ function logStartAsTransplanted(seedId) {
 function startHardeningFromSeed(seedId) {
   const seed=(db.seeds||[]).find(s=>s.id===seedId); if (!seed) return;
   const existing=(db.hardenLogs||[]).find(e=>!e.done&&e.name.toLowerCase().includes(seed.name.toLowerCase()));
-  if (existing) { switchViewByName('spring'); return; }
+  if (existing) { switchViewByName('track'); return; }
   db.hardenLogs=db.hardenLogs||[];
   db.hardenLogs.unshift({id:'hl'+Date.now(),
     name:seed.name+(seed.variety?' ('+seed.variety+')':''),
@@ -4826,7 +4868,7 @@ function startHardeningFromSeed(seedId) {
     completedDays:[],done:false});
   saveDB(db);
   renderReadyToPlant(); renderSeeds(); renderSpring();
-  switchViewByName('spring');
+  switchViewByName('track');
 }
 
 function renderWeekSprint() {
@@ -5172,7 +5214,7 @@ function setYearTab(tab,btn){
   activeYearTab=tab;
   document.querySelectorAll('#view-year .pvt-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  ['almanac','checklist','beds','compost','climate','plan'].forEach(t=>{
+  ['almanac','checklist','journal','climate','plan'].forEach(t=>{
     const el=document.getElementById('yr-'+t);
     if(el)el.style.display=t===tab?'':'none';
   });
@@ -5181,8 +5223,7 @@ function setYearTab(tab,btn){
 function renderYearTabContent(tab){
   if(tab==='almanac'){renderTimeline();renderAlmanacExtras();}
   else if(tab==='checklist')renderChecklists();
-  else if(tab==='beds')renderBedHistory();
-  else if(tab==='compost')renderCompost();
+  else if(tab==='journal')renderJournal();
   else if(tab==='climate')renderClimateTab();
   else if(tab==='plan')renderNextSeason();
 }
@@ -5615,6 +5656,7 @@ function renderAll(){renderJournal();renderPlants();renderTimeline();renderSeeds
 
 // ── INIT ──
 updateHeaderDate();loadWeather();renderAll();checkSyncStatus();
+{const tbar=document.getElementById('today-bar');if(tbar){tbar.style.opacity='0';tbar.style.pointerEvents='none';}}
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>
