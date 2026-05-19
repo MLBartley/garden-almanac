@@ -3475,7 +3475,21 @@ function autoPopulateAllBeds() {
     const plant = PLANT_IDX[libId]; if (!plant) return;
     const sq = Math.max(1, Math.round(plant.sqFt * (seed.qty || 1)));
     const targetBed = seed.bed !== 'any' ? seed.bed : (plant.bestBeds || [])[0] || 'A';
-    tally(targetBed, `${seed.name}${seed.variety ? ' ('+seed.variety+')' : ''} ×${seed.qty||1}`, sq);
+    tally(targetBed, `${seed.name}${seed.variety ? ' ('+seed.variety+')' : ''} ×${seed.qty||1} (start)`, sq);
+  });
+  // Also count explicitly-assigned seed packets (same dedup as Pass 3: one per libId+bed).
+  // Without this, live starts can silently fill a bed and seed packets assigned to the
+  // same bed overflow to another bed with no warning shown to the user.
+  const seenCapKey = new Set();
+  (db.seeds || []).filter(s => s.storage !== 'live' && !s.skipYear && s.bed && s.bed !== 'any').forEach(seed => {
+    const libId = seedToLibId(seed); if (!libId) return;
+    const plant = PLANT_IDX[libId]; if (!plant) return;
+    const key = libId + '|' + seed.bed;
+    if (seenCapKey.has(key)) return;
+    seenCapKey.add(key);
+    const sq = plant.sqFt >= 4 ? Math.ceil(plant.sqFt)
+             : plant.sqFt >= 1 ? Math.max(4, Math.ceil(plant.sqFt * 4)) : 8;
+    tally(seed.bed, `${seed.name}${seed.variety ? ' ('+seed.variety+')' : ''} (packet)`, sq);
   });
 
   const hasWarning = Object.keys(bedSqNeeded).some(k => {
@@ -3644,6 +3658,7 @@ function runAutoPopulate() {
     seenBedPlant.add(key);
     return true;
   });
+  const reroutedSeeds = []; // {name, libId, fromBed, toBed} — seeds that couldn't fit their assigned bed
   seedItems.forEach(seed => {
     const libId = seedToLibId(seed);
     if (!libId) return;
@@ -3674,7 +3689,11 @@ function runAutoPopulate() {
           });
         for (const bk of overflow) {
           if (leftover <= 0) break;
+          const before = leftover;
           leftover = fillInto(bk, libId, leftover);
+          if (leftover < before && !reroutedSeeds.some(r => r.libId === libId && r.fromBed === seed.bed)) {
+            reroutedSeeds.push({name: seed.name, libId, fromBed: seed.bed, toBed: bk});
+          }
         }
       }
     } else {
@@ -3803,13 +3822,31 @@ function runAutoPopulate() {
       }).join('')}
     </div>` : '';
 
-  document.getElementById('suggest-summary-body').innerHTML = (summaryRows || '<p>No beds updated.</p>') + conflictHtml;
+  const reroutedHtml = reroutedSeeds.length ? `
+    <div style="margin-top:12px;padding-top:10px;border-top:2px solid #e8d080;">
+      <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:#8a6010;margin-bottom:8px;">⚠️ SEEDS REROUTED — assigned bed was full</div>
+      ${reroutedSeeds.map(r=>`
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--rule);gap:8px;">
+          <div style="font-size:.82rem;">${PLANT_IDX[r.libId]?.emoji||'🌱'} <strong>${r.name}</strong> — ${BED_INFO[r.fromBed]?.label||r.fromBed} full → placed in ${BED_INFO[r.toBed]?.label||r.toBed}</div>
+          <button onclick="reassignSeedBed('${r.libId}','${r.fromBed}','${r.toBed}')" style="font-size:.72rem;padding:3px 9px;border:1px solid #c4922a;border-radius:4px;background:white;color:#8a6010;cursor:pointer;flex-shrink:0;">Update assignment →</button>
+        </div>`).join('')}
+      <div style="font-size:.75rem;color:var(--muted);margin-top:7px;">To fix: reassign the seed packet to the new bed, or move some live starts to free up space.</div>
+    </div>` : '';
+
+  document.getElementById('suggest-summary-body').innerHTML = (summaryRows || '<p>No beds updated.</p>') + reroutedHtml + conflictHtml;
   openModal('suggest-summary-modal');
 }
 
 function acceptConflictMove(seedId, newBed, warnElemId) {
   const seed = db.seeds.find(s=>s.id===seedId);
   if (seed) { seed.bed = newBed; seed._userModified = true; saveDB(db); }
+  closeModal('suggest-summary-modal');
+  autoPopulateAllBeds();
+}
+function reassignSeedBed(libId, fromBed, toBed) {
+  // Update bed assignment for the first seed that maps to libId and is assigned to fromBed
+  const seed = (db.seeds||[]).find(s => seedToLibId(s) === libId && s.bed === fromBed);
+  if (seed) { seed.bed = toBed; seed._userModified = true; saveDB(db); }
   closeModal('suggest-summary-modal');
   autoPopulateAllBeds();
 }
