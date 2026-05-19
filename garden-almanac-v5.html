@@ -1798,6 +1798,31 @@ function loadDB() {
         d.sowLogs=d.sowLogs||[];
         d.sowLogs.unshift({id:'sl-corn-live-2026',name:'Corn',variety:'Ashworth Sweet',method:'indoor',bed:'A',qty:24,date:'2026-05-18',status:'started',notes:'24 plants started from seed indoors. Transplant after last frost; plant in 3×3+ block in Bed A for wind pollination.'});
       }
+      // Migrate zone plants from inline objects to {plantId, status, notes} references
+      if(!d._zonesMigrated){
+        const byName={};
+        (d.plants||[]).forEach(p=>{byName[(p.common||'').toLowerCase()]=p;});
+        Object.values(d.bedZones||{}).forEach(zones=>{
+          (zones||[]).forEach(z=>{
+            if(z.type==='landmark'||!z.plants)return;
+            z.plants=z.plants.map(e=>{
+              if(!e.name)return e; // already migrated
+              let plant=(e.plantId&&(d.plants||[]).find(p=>p.id===e.plantId))
+                       ||byName[(e.name||'').toLowerCase()];
+              if(!plant){
+                plant={id:'p-z-'+(e.id||(''+Date.now())),common:e.name,emoji:e.emoji||'🌿',
+                       category:'native',location:'',status:e.status||'established',
+                       added:e.added||'2026-05',notes:'',bloom:'',bloomEnd:'',latin:''};
+                d.plants=d.plants||[];
+                d.plants.push(plant);
+                byName[(e.name||'').toLowerCase()]=plant;
+              }
+              return{plantId:plant.id,status:e.status||'established',notes:e.notes||''};
+            });
+          });
+        });
+        d._zonesMigrated=true;
+      }
       saveDB(d);
       return d;
     }
@@ -2610,12 +2635,13 @@ function renderFreeformBed(bed) {
     const zoneOpts = zones.map(z=>`<option value="${z.id}"${z.id===zone.id?' selected':''}>${z.name}</option>`).join('');
     const plantsHtml = (zone.plants||[]).length
       ? (zone.plants||[]).map((entry, i) => {
+          const pl = db.plants.find(p=>p.id===entry.plantId)||{common:entry.name||'?',emoji:entry.emoji||'🌿'};
           const sc = STATUS_C[entry.status]||'var(--muted)';
           const safeNotes = (entry.notes||'').replace(/"/g,'&quot;');
           return `<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-top:1px solid var(--rule);">
-            <div style="font-size:1.25rem;flex-shrink:0;line-height:1;">${entry.emoji}</div>
+            <div style="font-size:1.25rem;flex-shrink:0;line-height:1;">${pl.emoji}</div>
             <div style="flex:1;min-width:0;">
-              <div style="font-size:.88rem;font-weight:600;">${entry.name}</div>
+              <div style="font-size:.88rem;font-weight:600;">${pl.common}</div>
               <input value="${safeNotes}" placeholder="Add notes…"
                 style="width:100%;font-size:.75rem;color:var(--muted);border:none;border-bottom:1px dashed transparent;background:transparent;outline:none;padding:1px 0;box-sizing:border-box;margin-top:2px;cursor:text;"
                 onfocus="this.style.borderBottomColor='var(--rule)'"
@@ -2864,7 +2890,16 @@ function addZonePlant(bedKey, zoneId) {
   db.bedZones[bedKey]=db.bedZones[bedKey]||[];
   const zone=(db.bedZones[bedKey]||[]).find(z=>z.id===zoneId); if(!zone)return;
   zone.plants=zone.plants||[];
-  zone.plants.push({id:'zp'+Date.now(),plantId:p?.id||null,name:p?.name||name,emoji:p?.emoji||'🌿',status,notes,added:new Date().toISOString().slice(0,7)});
+  // Find or create a db.plants record so zone entries are reference-only
+  let dbPlant=(p&&db.plants.find(pl=>pl.id===p.id))
+             ||db.plants.find(pl=>(pl.common||'').toLowerCase()===name.toLowerCase());
+  if(!dbPlant){
+    dbPlant={id:'p-z-'+Date.now(),common:p?.name||name,emoji:p?.emoji||'🌿',
+             category:'native',location:'',status:'established',
+             added:new Date().toISOString().slice(0,7),notes:'',bloom:'',bloomEnd:'',latin:''};
+    db.plants.push(dbPlant);
+  }
+  zone.plants.push({plantId:dbPlant.id,status,notes});
   delete _zoneSelected[zoneId];
   saveDB(db);
   renderFreeformBed(db.beds.find(b=>b.key===bedKey));
@@ -4193,7 +4228,7 @@ function plantCard(p){
   const bloomRange=p.bloomEnd&&p.bloomEnd!==p.bloom
     ?`🌸 ${p.bloom}–${p.bloomEnd.slice(0,3)}`
     :p.bloom&&p.bloom!=='—'?`🌸 ${p.bloom}`:'';
-  const zones=findPlantZones(p.common);
+  const zones=findPlantZones(p.id);
   const locationLine=zones.length
     ?`<div style="font-size:.72rem;color:var(--muted);margin-top:2px;">📍 ${zones.join(', ')}</div>`
     :p.location?`<div style="font-size:.72rem;color:var(--muted);margin-top:1px;">📍 ${p.location}</div>`:'';
@@ -4248,12 +4283,12 @@ function expandPlantNotes(id){
   el.textContent=exp?full.slice(0,60)+(full.length>60?'…':''):full;
   el.dataset.expanded=exp?'0':'1';
 }
-function findPlantZones(name){
+function findPlantZones(plantId){
   const res=[];
   Object.values(db.bedZones||{}).forEach(zones=>{
     (zones||[]).forEach(z=>{
       if(z.type==='landmark')return;
-      (z.plants||[]).forEach(e=>{if((e.name||'').toLowerCase()===name.toLowerCase())res.push(z.name);});
+      (z.plants||[]).forEach(e=>{if(e.plantId===plantId)res.push(z.name);});
     });
   });
   return res;
@@ -4286,7 +4321,11 @@ function deletePlant(id){
   saveDB(db);renderPlants();
 }
 function renderPlants(){
-  const locs=['All',...new Set(db.plants.flatMap(p=>(p.location||'').split('+').map(s=>s.trim())).filter(Boolean))];
+  const zoneNames=new Set(Object.values(db.bedZones||{}).flatMap(zones=>(zones||[]).filter(z=>z.type!=='landmark').map(z=>z.name)));
+  const locs=['All',...new Set([
+    ...db.plants.flatMap(p=>(p.location||'').split('+').map(s=>s.trim())).filter(Boolean),
+    ...zoneNames
+  ])];
   document.getElementById('plant-loc-filter').innerHTML=locs.map(l=>{
     const val=l==='All'?'all':l;
     return`<button class="plant-loc-btn${plantLocFilter===val?' active':''}" onclick="setLocFilter('${val}',this)">${l}</button>`;
@@ -4310,7 +4349,7 @@ function renderPlants(){
 
   // Filters & sort
   const q=plantSearchQuery.toLowerCase();
-  const byLoc=p=>plantLocFilter==='all'||(p.location||'').includes(plantLocFilter);
+  const byLoc=p=>plantLocFilter==='all'||(p.location||'').includes(plantLocFilter)||findPlantZones(p.id).includes(plantLocFilter);
   const byQ=p=>!q||(p.common||'').toLowerCase().includes(q)||(p.latin||'').toLowerCase().includes(q)||(p.notes||'').toLowerCase().includes(q);
   function sortList(list){
     if(plantSortMode==='alpha')return list.slice().sort((a,b)=>(a.common||'').localeCompare(b.common||''));
