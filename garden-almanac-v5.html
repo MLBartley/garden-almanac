@@ -167,6 +167,8 @@ html,body{height:100%;overflow:hidden;font-family:'Crimson Pro',Georgia,serif;ba
 .yoy-text{font-size:.83rem;line-height:1.5;}
 .bag-badge{font-family:'Space Mono',monospace;font-size:7px;padding:1px 6px;border-radius:6px;background:#f5edd8;color:#8a6010;margin-left:4px;}
 /* ── MOON & SUN WIDGET ── */
+.moon-toggle-btn{width:100%;text-align:left;padding:8px 0 6px;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.08em;color:var(--muted);background:none;border:none;border-top:1px solid var(--rule);cursor:pointer;margin-top:4px;margin-bottom:4px;}
+.moon-toggle-btn:hover{color:var(--ink);}
 .moon-widget{background:var(--ink);color:var(--paper);border-radius:var(--radius);padding:11px 14px;margin-bottom:10px;display:flex;align-items:flex-start;gap:12px;}
 .moon-phase-emoji{font-size:2rem;flex-shrink:0;line-height:1.1;}
 .moon-info{flex:1;}
@@ -657,12 +659,15 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         </div>
       </div>
       <div class="forecast-scroll" id="forecast-row"></div>
-      <div id="moon-sun-widget"></div>
-      <div id="spring-widget-wrap"></div>
-      <div id="week-sprint-wrap"></div>
+      <div id="care-wrap" style="display:none;">
+        <div class="section-label" style="margin-top:0;">Today's care</div>
+        <div id="care-list"></div>
+      </div>
       <div id="ready-to-plant-wrap"></div>
-      <div class="section-label">Today's care</div>
-      <div id="care-list"></div>
+      <div id="week-sprint-wrap"></div>
+      <div id="spring-widget-wrap"></div>
+      <button class="moon-toggle-btn" id="moon-toggle-btn" onclick="toggleMoonWidget()">🌙 Moon &amp; Sun ▾</button>
+      <div id="moon-sun-widget" style="display:none;"></div>
       <div class="section-label">Quick note</div>
       <div class="card" style="padding:0;overflow:hidden;">
         <textarea class="journal-input" id="quick-note" placeholder="What did you notice today…" style="min-height:66px;border-bottom:1px solid var(--rule);"></textarea>
@@ -2077,6 +2082,8 @@ function renderCare(d) {
       tasks.push({cls:'info',icon:'🔔',title:`Time to pull out ${s.name}`,desc:`${action} ${s.name}${s.variety?' ('+s.variety+')':''} — ${when} (${s.nextReminder}).`});
     }
   });
+  const careWrap = document.getElementById('care-wrap');
+  if (careWrap) careWrap.style.display = tasks.length ? '' : 'none';
   document.getElementById('care-list').innerHTML = tasks.map(t=>
     `<div class="care-task ${t.cls}"><div class="care-icon">${t.icon}</div><div class="care-body"><div class="care-title">${t.title}</div><div class="care-desc">${t.desc}</div></div></div>`
   ).join('');
@@ -4983,11 +4990,18 @@ function getSunTimes(date){
   const dl=((sH-rH+24)%24);
   return{rise:fmt(rH),set:fmt(sH),daylight:`${Math.floor(dl)}h ${Math.round((dl%1)*60)}m`};
 }
+let moonExpanded=false;
+function toggleMoonWidget(){moonExpanded=!moonExpanded;renderMoonWidget();}
 function renderMoonWidget(){
   const el=document.getElementById('moon-sun-widget');if(!el)return;
   const now=new Date();
   const moon=getMoonInfo(now);
   const sun=getSunTimes(now);
+  const bioShort=moon.bioDesc.split('—')[0].trim().replace(/ day$/,'');
+  const btn=document.getElementById('moon-toggle-btn');
+  if(btn)btn.innerHTML=`${moon.emoji} ${moon.name} · ${bioShort} day ${moonExpanded?'▴':'▾'}`;
+  if(!moonExpanded){el.innerHTML='';el.style.display='none';return;}
+  el.style.display='';
   const sunHtml=sun?`<div class="sun-row"><div class="sun-item">🌅 RISE <strong>${sun.rise}</strong></div><div class="sun-item">🌇 SET <strong>${sun.set}</strong></div><div class="sun-item">☀️ <strong>${sun.daylight}</strong> daylight</div></div>`:'';
   el.innerHTML=`<div class="moon-widget"><div class="moon-phase-emoji">${moon.emoji}</div><div class="moon-info"><div class="moon-name">${moon.name}</div><div class="moon-bio">${moon.bioDesc}</div><div class="moon-next">Full in ${moon.daysToFull}d · New in ${moon.daysToNew}d</div>${sunHtml}</div></div>`;
 }
