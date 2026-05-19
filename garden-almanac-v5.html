@@ -531,6 +531,8 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 .bed-b-tag{background:#e8f0e8;color:var(--moss);}
 .bed-c-tag{background:#e8eef8;color:#205090;}
 .bed-d-tag{background:#f5edd8;color:#8a6010;}
+.bed-h-tag{background:#e8f5e0;color:#2d6e1a;}
+.bed-p-tag{background:#f0e8f8;color:#5a1a8a;}
 .bed-any-tag{background:var(--surface);color:var(--muted);}
 .storage-badge{display:inline-flex;align-items:center;gap:3px;font-family:'Space Mono',monospace;font-size:8px;padding:2px 7px;border-radius:10px;}
 .store-fridge{background:#e0edf4;color:#2e6080;}
@@ -739,6 +741,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <button class="btn-sm" style="flex:1;padding:9px;" onclick="clearBedDesign()">Clear bed</button>
         <button class="btn-primary" style="flex:2;padding:9px;" onclick="saveBedPlan()">Save plan →</button>
       </div>
+      <div id="bed-lock-toggle" style="margin-bottom:12px;"></div>
 
       <!-- Timing recommendations -->
       <div class="section-label">Planting timing — all planned plants</div>
@@ -783,6 +786,8 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <button class="bed-filter-btn" onclick="filterSeeds('C',this)">Bed C</button>
         <button class="bed-filter-btn" onclick="filterSeeds('D',this)">Bed D</button>
         <button class="bed-filter-btn" onclick="filterSeeds('any',this)">Unassigned</button>
+        <button class="bed-filter-btn" onclick="filterSeeds('H',this)">Herb Bed</button>
+        <button class="bed-filter-btn" onclick="filterSeeds('P',this)">Perennial</button>
         <button class="bed-filter-btn" onclick="filterSeeds('A1',this)">Bag A</button>
         <button class="bed-filter-btn" onclick="filterSeeds('B1',this)">Bag B</button>
         <button class="bed-filter-btn" onclick="filterSeeds('C1',this)">Bag C</button>
@@ -1125,6 +1130,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       <div class="modal-handle"></div>
       <div class="modal-title" id="sqm-title">Plant options</div>
       <div class="modal-subtitle" id="sqm-sub"></div>
+      <div id="sqm-seed-link" style="display:none;"></div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px;">
         <button class="btn-primary" onclick="confirmSq('planned')" style="padding:10px;">✓ Confirm as planned</button>
         <button class="btn-primary" onclick="confirmSq('planted')" style="padding:10px;background:var(--moss);">🌱 Mark as planted</button>
@@ -1132,6 +1138,30 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <button class="btn-sm" style="width:100%;padding:10px;" onclick="removeSq()">Remove from bed</button>
       </div>
       <button class="btn-sm" style="width:100%;padding:10px;margin-top:6px;" onclick="closeModal('sq-status-modal')">Cancel</button>
+    </div>
+  </div>
+
+  <!-- CAPACITY CHECK MODAL -->
+  <div class="modal-overlay" id="capacity-check-modal">
+    <div class="modal-sheet" style="max-height:80vh;overflow-y:auto;">
+      <div class="modal-handle"></div>
+      <div class="modal-title">Capacity Check</div>
+      <div class="modal-subtitle">Review before auto-suggest runs</div>
+      <div id="capacity-check-body" style="margin-top:12px;font-size:.83rem;line-height:1.6;"></div>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button class="btn-sm" style="flex:1;padding:10px;" onclick="closeModal('capacity-check-modal')">Go back &amp; adjust</button>
+        <button class="btn-primary" style="flex:2;padding:10px;" onclick="closeModal('capacity-check-modal');runAutoPopulate()">Run anyway →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AUTO-SUGGEST SUMMARY MODAL -->
+  <div class="modal-overlay" id="suggest-summary-modal">
+    <div class="modal-sheet" style="max-height:80vh;overflow-y:auto;">
+      <div class="modal-handle"></div>
+      <div class="modal-title">Auto-suggest Complete</div>
+      <div id="suggest-summary-body" style="margin-top:12px;font-size:.83rem;line-height:1.6;"></div>
+      <button class="btn-primary" style="width:100%;padding:10px;margin-top:16px;" onclick="closeModal('suggest-summary-modal')">Done</button>
     </div>
   </div>
 
@@ -1184,7 +1214,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
           <div class="ai-field"><div class="ai-field-label">VARIETY</div><input type="text" id="sr-variety"></div>
           <div class="ai-field"><div class="ai-field-label">DAYS TO MATURITY</div><input type="text" id="sr-days"></div>
           <div class="ai-field"><div class="ai-field-label">ASSIGN TO BED</div>
-            <select id="sr-bed"><option value="A">Bed A — Tomatoes</option><option value="B">Bed B — Brassicas</option><option value="C">Bed C — Cucurbits</option><option value="D">Bed D — Herb Strip</option><option value="any">Unassigned</option></select></div>
+            <select id="sr-bed"><option value="A">Bed A — Tomatoes</option><option value="B">Bed B — Brassicas</option><option value="C">Bed C — Cucurbits</option><option value="D">Bed D — Herb Strip</option><option value="H">Herb Bed</option><option value="P">Perennial Beds</option><option value="any">Unassigned</option></select></div>
           <div class="ai-field"><div class="ai-field-label">QUANTITY</div>
             <div class="qty-row"><button class="qty-btn" onclick="adjustQty(-1)">−</button><div class="qty-display" id="sr-qty-display">1</div><button class="qty-btn" onclick="adjustQty(1)">+</button><span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-left:4px;">packets</span></div></div>
           <div class="ai-field"><div class="ai-field-label">STORAGE</div>
@@ -1414,15 +1444,15 @@ const PLANT_LIB = [
   {id:'lettuce',emoji:'🥗',name:'Lettuce (loose-leaf)',cat:'veg',sqFt:0.25,
    frostTol:'halfhardy',sowMethod:'direct',daysMin:40,daysMax:55,
    companions:{good:['carrot','radish','chives','strawberry'],bad:['celery']},
-   bestBeds:['B','D'],spacing:'6"',notes:'Cut-and-come-again. Bolts in heat — spring and fall crop only. Shade from taller plants extends season.'},
+   bestBeds:['B','D','H'],spacing:'6"',notes:'Cut-and-come-again. Bolts in heat — spring and fall crop only. Shade from taller plants extends season.'},
   {id:'spinach',emoji:'🌿',name:'Spinach (Bloomsdale)',cat:'veg',sqFt:0.25,
    frostTol:'hardy',sowMethod:'direct',daysMin:40,daysMax:50,
    companions:{good:['strawberry','brassica-kale','pea'],bad:[]},
-   bestBeds:['D'],spacing:'4"',notes:'Very cold hardy. Sow as soon as soil is workable. Bolts in heat — spring and late Aug sow for fall.'},
+   bestBeds:['D','H'],spacing:'4"',notes:'Very cold hardy. Sow as soon as soil is workable. Bolts in heat — spring and late Aug sow for fall.'},
   {id:'arugula',emoji:'🥬',name:'Arugula',cat:'veg',sqFt:0.25,
    frostTol:'hardy',sowMethod:'direct',daysMin:35,daysMax:45,
    companions:{good:['dill','nasturtium'],bad:[]},
-   bestBeds:['D'],spacing:'4"',notes:'Fastest crop in the garden. Cut-and-come-again. Succession sow every 3 weeks. Spicy in heat.'},
+   bestBeds:['D','H'],spacing:'4"',notes:'Fastest crop in the garden. Cut-and-come-again. Succession sow every 3 weeks. Spicy in heat.'},
   // ── ROOTS/BULBS
   {id:'radish',emoji:'🌸',name:'Radish',cat:'veg',sqFt:0.1,
    frostTol:'hardy',sowMethod:'direct',daysMin:25,daysMax:35,
@@ -1440,49 +1470,49 @@ const PLANT_LIB = [
   {id:'basil',emoji:'🌿',name:'Basil',cat:'herb',sqFt:0.5,
    frostTol:'verytender',sowMethod:'transplant',daysMin:60,daysMax:75,
    companions:{good:['tomato-ind','tomato-det','pepper'],bad:['sage','thyme']},
-   bestBeds:['A','D'],spacing:'8–10"',notes:'Pinch flowers to extend harvest. Very frost sensitive. Start indoors. Genovese is classic; Thai basil is faster.'},
+   bestBeds:['A','D','H'],spacing:'8–10"',notes:'Pinch flowers to extend harvest. Very frost sensitive. Start indoors. Genovese is classic; Thai basil is faster.'},
   {id:'cilantro',emoji:'🌱',name:'Cilantro',cat:'herb',sqFt:0.25,
    frostTol:'halfhardy',sowMethod:'direct',daysMin:45,daysMax:60,
    companions:{good:['tomato-ind','spinach','dill'],bad:['fennel']},
-   bestBeds:['D'],spacing:'6"',notes:'Bolt-resistant varieties (Calypso, Jantar). Succession sow monthly. Let some bolt for coriander seed.'},
+   bestBeds:['D','H'],spacing:'6"',notes:'Bolt-resistant varieties (Calypso, Jantar). Succession sow monthly. Let some bolt for coriander seed.'},
   {id:'dill',emoji:'🌿',name:'Dill',cat:'herb',sqFt:0.5,
    frostTol:'halfhardy',sowMethod:'direct',daysMin:40,daysMax:55,
    companions:{good:['cucumber','brassica-broc','lettuce'],bad:['carrot','tomato-ind']},
-   bestBeds:['B','C'],spacing:'10"',notes:'Attracts swallowtail caterpillars and beneficial wasps. Let some go to seed for next year.'},
+   bestBeds:['B','C','H'],spacing:'10"',notes:'Attracts swallowtail caterpillars and beneficial wasps. Let some go to seed for next year.'},
   {id:'parsley',emoji:'🌱',name:'Parsley',cat:'herb',sqFt:0.5,
    frostTol:'halfhardy',sowMethod:'transplant',daysMin:70,daysMax:90,
    companions:{good:['tomato-ind','carrot','asparagus'],bad:[]},
-   bestBeds:['D'],spacing:'8"',notes:'Slow to germinate from seed. Start indoors. Biennial — self-seeds in mild years.'},
-  // ── HERBS (perennial — Bed D)
+   bestBeds:['D','H'],spacing:'8"',notes:'Slow to germinate from seed. Start indoors. Biennial — self-seeds in mild years.'},
+  // ── HERBS (perennial — Bed D / Herb Bed)
   {id:'chives',emoji:'💜',name:'Chives',cat:'herb',sqFt:0.5,
    frostTol:'hardy',sowMethod:'transplant',daysMin:0,daysMax:0,
    companions:{good:['carrot','tomato-ind','lettuce'],bad:['bean-bush']},
-   bestBeds:['D'],spacing:'8"',notes:'Perennial. Divide every 2–3 years in spring. Edible flowers deter aphids.'},
+   bestBeds:['D','H','P'],spacing:'8"',notes:'Perennial. Divide every 2–3 years in spring. Edible flowers deter aphids.'},
   {id:'thyme',emoji:'🍃',name:'Thyme',cat:'herb',sqFt:0.5,
    frostTol:'hardy',sowMethod:'transplant',daysMin:0,daysMax:0,
    companions:{good:['brassica-broc','brassica-kale','tomato-ind'],bad:[]},
-   bestBeds:['D'],spacing:'10–12"',notes:'Perennial. Very drought tolerant once established. Harvest before flowering.'},
+   bestBeds:['D','H','P'],spacing:'10–12"',notes:'Perennial. Very drought tolerant once established. Harvest before flowering.'},
   {id:'oregano',emoji:'🌱',name:'Oregano',cat:'herb',sqFt:1,
    frostTol:'hardy',sowMethod:'transplant',daysMin:0,daysMax:0,
    companions:{good:['tomato-ind','pepper','brassica-broc'],bad:[]},
-   bestBeds:['D'],spacing:'10"',notes:'Perennial. Spreads — good within bed containment. Harvest before flowers open for best flavor.'},
+   bestBeds:['D','H','P'],spacing:'10"',notes:'Perennial. Spreads — good within bed containment. Harvest before flowers open for best flavor.'},
   // ── FLOWERS / COMPANIONS
   {id:'marigold',emoji:'🌼',name:'Marigold (French)',cat:'flower',sqFt:0.5,
    frostTol:'tender',sowMethod:'transplant',daysMin:45,daysMax:55,
    companions:{good:['tomato-ind','tomato-det','pepper','zucchini','bean-bush'],bad:[]},
-   bestBeds:['A','B','C'],spacing:'8–10"',notes:'Plant as border. Deters nematodes, aphids, whiteflies. Tagetes patula is best companion species.'},
+   bestBeds:['A','B','C','H'],spacing:'8–10"',notes:'Plant as border. Deters nematodes, aphids, whiteflies. Tagetes patula is best companion species.'},
   {id:'nasturtium',emoji:'🌺',name:'Nasturtium',cat:'flower',sqFt:1,
    frostTol:'tender',sowMethod:'direct',daysMin:50,daysMax:60,
    companions:{good:['tomato-ind','cucumber','zucchini','brassica-broc'],bad:[]},
-   bestBeds:['A','B','C'],spacing:'10–12"',notes:'Edible flowers and leaves. Aphid trap crop — plant at edges. Trailing types spill nicely.'},
+   bestBeds:['A','B','C','H'],spacing:'10–12"',notes:'Edible flowers and leaves. Aphid trap crop — plant at edges. Trailing types spill nicely.'},
   {id:'borage',emoji:'⭐',name:'Borage',cat:'flower',sqFt:1,
    frostTol:'halfhardy',sowMethod:'direct',daysMin:50,daysMax:60,
    companions:{good:['tomato-ind','zucchini','bean-bush'],bad:[]},
-   bestBeds:['A','C'],spacing:'12"',notes:'Deters tomato hornworm. Edible star-shaped flowers. Self-seeds aggressively.'},
+   bestBeds:['A','C','H'],spacing:'12"',notes:'Deters tomato hornworm. Edible star-shaped flowers. Self-seeds aggressively.'},
   {id:'calendula',emoji:'🟠',name:'Calendula',cat:'flower',sqFt:0.5,
    frostTol:'halfhardy',sowMethod:'direct',daysMin:45,daysMax:60,
    companions:{good:['tomato-ind','carrot','brassica-broc','bean-bush'],bad:[]},
-   bestBeds:['A','B'],spacing:'8"',notes:'Hardy companion — can handle light frost. Repels aphids and whiteflies. Medicinal petals.'},
+   bestBeds:['A','B','H'],spacing:'8"',notes:'Hardy companion — can handle light frost. Repels aphids and whiteflies. Medicinal petals.'},
 ];
 
 // Index by id
@@ -1637,6 +1667,17 @@ function loadDB() {
             history:[],current:[]});
         }
       });
+      // Additive migration: add Herb Bed (H) and Perennial Beds (P) if not present
+      if(!d.beds.find(b=>b.key==='H'))
+        d.beds.push({id:'bedH',key:'H',name:'Herb Bed',dims:'6×4 ft',cols:6,rows:4,type:'herb',
+          theme:'Annual Herb Bed',oya:0,shade:'full',
+          notes:'Dedicated annual herb bed — placeholder dimensions (6×4 ft / 24 sq ft). Confirm location and size.',
+          history:[],current:[]});
+      if(!d.beds.find(b=>b.key==='P'))
+        d.beds.push({id:'bedP',key:'P',name:'Perennial Beds',dims:'10×3 ft',cols:10,rows:3,type:'perennial',
+          theme:'Perennial Herb & Flower Beds',oya:0,shade:'full',
+          notes:'Grouped placeholder for all perennial areas — locations and exact dimensions to be clarified.',
+          history:[],current:[]});
       if(!d.bedHistory)d.bedHistory={};
       if(!d.amendments)d.amendments=[];
       if(!d.compostLog)d.compostLog=[];
@@ -1647,6 +1688,7 @@ function loadDB() {
       if(!d.soilTempLog)d.soilTempLog=[];
       if(!d.gddLog)d.gddLog=[];
       if(!d.seasonReview)d.seasonReview={};
+      if(!d.lockedBeds)d.lockedBeds=[];
       if(!(d.sowLogs||[]).some(e=>e.id==='sl-corn-live-2026')){
         d.sowLogs=d.sowLogs||[];
         d.sowLogs.unshift({id:'sl-corn-live-2026',name:'Corn',variety:'Ashworth Sweet',method:'indoor',bed:'A',qty:24,date:'2026-05-18',status:'started',notes:'24 plants started from seed indoors. Transplant after last frost; plant in 3×3+ block in Bed A for wind pollination.'});
@@ -1664,7 +1706,7 @@ function defaultDB() {
   return { journal:[], plants:defaultPlants(), beds:defaultBeds(), seeds:defaultSeeds(), bedDesigns:{}, bedStatuses:{},
     sowLogs:[], hardenLogs:[], oyaLogs:{}, harvestLog:[], plantingList:[], settings:{},
     bedHistory:{}, amendments:[], compostLog:[], wishlist:[], seedSaving:[], checklists:{},
-    rainfallLog:[], soilTempLog:[], gddLog:[], seasonReview:{} };
+    rainfallLog:[], soilTempLog:[], gddLog:[], seasonReview:{}, lockedBeds:[] };
 }
 function defaultSeeds() {
   const td='Triple Divide Organic Seeds 2026', bc='Baker Creek Heirloom Seeds 2026',
@@ -1893,6 +1935,14 @@ function defaultBeds() {
     {id:'bedC1',key:'C1',name:'Bag C',dims:'25-gal bag',cols:2,rows:2,type:'bag',
      theme:'Overwinter container',oya:0,shade:'full',
      notes:'25-gallon cloth grow bag, south end of Bed C. Full sun. For tender perennials needing overwintering indoors. Move inside before Oct 1.',
+     history:[],current:[]},
+    {id:'bedH',key:'H',name:'Herb Bed',dims:'6×4 ft',cols:6,rows:4,type:'herb',
+     theme:'Annual Herb Bed',oya:0,shade:'full',
+     notes:'Dedicated annual herb bed — placeholder dimensions (6×4 ft / 24 sq ft). Confirm location and size. Full sun preferred. Basil, cilantro, dill, parsley, chives, thyme, oregano.',
+     history:[],current:[]},
+    {id:'bedP',key:'P',name:'Perennial Beds',dims:'10×3 ft',cols:10,rows:3,type:'perennial',
+     theme:'Perennial Herb & Flower Beds',oya:0,shade:'full',
+     notes:'Grouped placeholder for all perennial areas — locations and exact dimensions to be clarified. Includes herb section, native yard beds, and edible perennial spots.',
      history:[],current:[]},
   ];
 }
@@ -2202,8 +2252,10 @@ function buildBedSelector() {
     else if (uniqueIds.length > 0) sub = `${preview} ${uniqueIds.length} suggested`;
     else if (invCount > 0) sub = `${invCount} item${invCount>1?'s':''} in inventory`;
     else sub = 'No plan yet';
+    const isLocked = (db.lockedBeds||[]).includes(b.key);
+    const lockIcon = isLocked ? ' 🔒' : '';
     return `<button class="bed-sel-btn ${b.key===activeBedKey?'active':''}" onclick="selectBed('${b.key}',this)">
-      <span class="bsb-name">${b.name}</span>${b.dims}<br><span style="font-size:8px;opacity:.7;">${sub}</span>
+      <span class="bsb-name">${b.name}${lockIcon}</span>${b.dims}<br><span style="font-size:8px;opacity:.7;">${sub}</span>
     </button>`;
   }).join('');
 }
@@ -2322,7 +2374,31 @@ function renderDesign() {
   // Seeds inventory assigned to this bed
   renderBedInventoryPanel();
 
+  // Lock toggle
+  renderBedLockToggle();
+
   // Refresh bed selector labels to reflect current design state
+  buildBedSelector();
+}
+
+function renderBedLockToggle() {
+  const el = document.getElementById('bed-lock-toggle');
+  if (!el) return;
+  const bed = db.beds.find(b => b.key === activeBedKey);
+  if (!bed) return;
+  if (bed.type === 'perennial') { el.innerHTML = ''; return; }
+  const locked = (db.lockedBeds || []).includes(activeBedKey);
+  el.innerHTML = `<button onclick="toggleBedLock('${activeBedKey}')" style="width:100%;padding:7px;border:1px solid ${locked?'var(--moss)':'var(--rule)'};border-radius:6px;background:${locked?'#e8f5e8':'none'};color:${locked?'var(--moss)':'var(--muted)'};font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.07em;cursor:pointer;">
+    ${locked ? '🔒 LOCKED — auto-suggest won\'t touch this bed' : '🔓 UNLOCKED — lock to protect from auto-suggest'}
+  </button>`;
+}
+function toggleBedLock(key) {
+  db.lockedBeds = db.lockedBeds || [];
+  const idx = db.lockedBeds.indexOf(key);
+  if (idx >= 0) db.lockedBeds.splice(idx, 1);
+  else db.lockedBeds.push(key);
+  saveDB(db);
+  renderBedLockToggle();
   buildBedSelector();
 }
 
@@ -2529,28 +2605,55 @@ function renderGroundSuggestions() {
 function renderBedInventoryPanel(){
   const el=document.getElementById('bed-inventory-panel');
   if(!el)return;
+  const bed=db.beds.find(b=>b.key===activeBedKey);
   const seeds=db.seeds||[];
-  // Seeds assigned to this bed
   const assigned=seeds.filter(s=>s.bed===activeBedKey);
   if(!assigned.length){el.innerHTML='';el.style.display='none';return;}
   el.style.display='block';
   const design=db.bedDesigns[activeBedKey]||{};
+  const cap=bed?bed.cols*bed.rows:null;
+
+  // Capacity bar: total sqFt claimed by assigned seeds vs bed size
+  let totalClaimed=0;
+  assigned.forEach(s=>{
+    const libId=seedToLibId(s);
+    const plant=PLANT_IDX[libId];
+    if(!plant)return;
+    const isStart=s.storage==='live';
+    totalClaimed+=isStart?Math.max(1,Math.round(plant.sqFt*(s.qty||1))):
+      (plant.sqFt>=4?Math.ceil(plant.sqFt):plant.sqFt>=1?Math.max(4,Math.ceil(plant.sqFt*4)):8);
+  });
+  let capBarHtml='';
+  if(cap){
+    const pct=Math.min(100,Math.round(totalClaimed/cap*100));
+    const over=totalClaimed>cap;
+    const barColor=over?'#c0392b':'var(--moss)';
+    capBarHtml=`<div style="margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted);margin-bottom:3px;">
+        <span>Claimed: ${totalClaimed} sq ft</span><span>Bed: ${cap} sq ft${over?' <strong style="color:#c0392b;">(+'+(totalClaimed-cap)+' over)</strong>':''}</span>
+      </div>
+      <div class="cl-progress-bar"><div class="cl-progress-fill" style="width:${pct}%;background:${barColor};"></div></div>
+    </div>`;
+  }
+
   const rows=assigned.map(s=>{
     const libId=seedToLibId(s);
     const inDesign=libId&&Object.values(design).includes(libId);
     const isStart=s.storage==='live';
+    const plant=PLANT_IDX[libId];
+    const sqEst=plant?(isStart?Math.max(1,Math.round(plant.sqFt*(s.qty||1))):(plant.sqFt>=4?Math.ceil(plant.sqFt):plant.sqFt>=1?Math.max(4,Math.ceil(plant.sqFt*4)):8)):null;
     const statusDot=inDesign
       ?`<span style="color:var(--moss);font-size:.75rem;">✓ In design</span>`
       :`<span style="color:var(--muted);font-size:.75rem;">Not placed</span>`;
     const mismatch=seedBedMismatch(s);
-    const plant=PLANT_IDX[libId];
     const mismatchNote=mismatch?`<span style="color:#7a1a1a;font-size:.72rem;"> · Best: Bed ${(plant?.bestBeds||[]).join('/')}</span>`:'';
+    const sqNote=sqEst?`<span style="color:var(--muted);font-size:.72rem;"> ${sqEst} sq</span>`:'';
     return`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-top:1px solid var(--rule);gap:6px;">
-      <div style="font-size:.82rem;flex:1;min-width:0;"><strong>${s.name}</strong>${s.variety&&!s.variety.startsWith('(')?` <span style="opacity:.6;">${s.variety}</span>`:''} ${isStart?'<span style="font-family:\'Space Mono\',monospace;font-size:7px;background:#e2f0e4;color:#2a6a2a;padding:1px 5px;border-radius:3px;">START</span>':''}<span class="plant-pill pill-gold" style="font-size:.7rem;">×${s.qty||1}</span>${mismatchNote}</div>
+      <div style="font-size:.82rem;flex:1;min-width:0;"><strong>${s.name}</strong>${s.variety&&!s.variety.startsWith('(')?` <span style="opacity:.6;">${s.variety}</span>`:''} ${isStart?'<span style="font-family:\'Space Mono\',monospace;font-size:7px;background:#e2f0e4;color:#2a6a2a;padding:1px 5px;border-radius:3px;">START</span>':''}<span class="plant-pill pill-gold" style="font-size:.7rem;">×${s.qty||1}</span>${sqNote}${mismatchNote}</div>
       <div>${statusDot}</div>
     </div>`;
   }).join('');
-  el.innerHTML=`<div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:var(--muted);margin-bottom:2px;">ASSIGNED TO THIS BED</div>${rows}`;
+  el.innerHTML=`<div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:var(--muted);margin-bottom:6px;">ASSIGNED TO THIS BED</div>${capBarHtml}${rows}`;
 }
 
 // ── Auto-populate from inventory ──
@@ -2594,6 +2697,55 @@ function seedToLibId(seed) {
 }
 
 function autoPopulateAllBeds() {
+  // Pre-run capacity check
+  const bedCaps = {};
+  db.beds.forEach(b => { bedCaps[b.key] = {cap: b.cols * b.rows, name: b.name, type: b.type}; });
+  const bedSqNeeded = {};
+  const bedSources = {}; // bedKey → [{name, sqNeeded}]
+
+  function tally(bedKey, label, sq) {
+    bedSqNeeded[bedKey] = (bedSqNeeded[bedKey] || 0) + sq;
+    bedSources[bedKey] = bedSources[bedKey] || [];
+    bedSources[bedKey].push({label, sq});
+  }
+
+  const liveStartsCheck = (db.seeds || []).filter(s => s.storage === 'live');
+  liveStartsCheck.forEach(seed => {
+    const libId = seedToLibId(seed);
+    const plant = PLANT_IDX[libId]; if (!plant) return;
+    const sq = Math.max(1, Math.round(plant.sqFt * (seed.qty || 1)));
+    const targetBed = seed.bed !== 'any' ? seed.bed : (plant.bestBeds || [])[0] || 'A';
+    tally(targetBed, `${seed.name}${seed.variety ? ' ('+seed.variety+')' : ''} ×${seed.qty||1}`, sq);
+  });
+
+  const hasWarning = Object.keys(bedSqNeeded).some(k => {
+    const info = bedCaps[k];
+    if (!info || info.type === 'perennial') return false;
+    return bedSqNeeded[k] > info.cap;
+  });
+
+  if (hasWarning) {
+    const rows = Object.keys(bedSqNeeded).map(k => {
+      const info = bedCaps[k] || {};
+      const cap = info.cap || '?';
+      const needed = bedSqNeeded[k];
+      const over = needed - cap;
+      const color = over > 0 ? '#7a1a1a' : 'var(--moss)';
+      const icon = over > 0 ? '⚠️' : '✓';
+      const sources = (bedSources[k] || []).map(s => `<span style="color:var(--muted)">${s.label} (${s.sq} sq)</span>`).join('<br>');
+      return `<div style="margin-bottom:10px;padding:9px 11px;border:1px solid var(--rule);border-radius:6px;${over>0?'border-color:#e8b0b0;background:#fde8e8;':''}">
+        <div style="font-weight:600;color:${color};">${icon} ${info.name||k} — ${needed} sq needed / ${cap} sq available${over>0?' <strong>(+'+over+' over)</strong>':''}</div>
+        <div style="font-size:.75rem;margin-top:4px;line-height:1.7;">${sources}</div>
+      </div>`;
+    }).join('');
+    document.getElementById('capacity-check-body').innerHTML = `<p style="margin-bottom:10px;color:var(--muted);">Live starts claim more sq ft than some beds have. Extras will overflow to other beds automatically.</p>${rows}`;
+    openModal('capacity-check-modal');
+    return;
+  }
+  runAutoPopulate();
+}
+
+function runAutoPopulate() {
   db.bedDesigns = db.bedDesigns || {};
   db.bedStatuses = db.bedStatuses || {};
 
@@ -2605,8 +2757,11 @@ function autoPopulateAllBeds() {
   });
 
   // ── Step 0: clear previously auto-suggested/recommended squares ──────
-  // Preserves 'planted' and 'planned' squares set by the user.
+  // Preserves 'planted' and 'planned' squares, locked beds, and perennial beds.
+  const lockedBeds = new Set(db.lockedBeds || []);
   db.beds.forEach(b => {
+    if (lockedBeds.has(b.key)) return; // locked — leave entirely alone
+    if (b.type === 'perennial') return; // perennial beds are user-managed
     const d = designs[b.key], s = statuses[b.key], cap = capacities[b.key];
     if (!d || cap === undefined) return;
     for (let i = 0; i < cap; i++) {
@@ -2663,11 +2818,19 @@ function autoPopulateAllBeds() {
     if (seed.bed !== 'any') {
       sqNeeded = fillInto(seed.bed, libId, sqNeeded);
     }
-    // Overflow: if live start still has unplaced squares, spill to any bed with space
+    // Overflow: if live start still has unplaced squares, spill to non-perennial beds
+    // Prefer plant.bestBeds first, then any remaining bed by space
     if (sqNeeded > 0) {
-      const overflow = Object.keys(capacities)
-        .filter(k => seed.bed === 'any' || k !== seed.bed)
-        .sort((a, b) => remainingSq(b) - remainingSq(a));
+      const nonPerennial = db.beds.filter(b => b.type !== 'perennial').map(b => b.key);
+      const candidates = nonPerennial.filter(k => seed.bed === 'any' || k !== seed.bed);
+      const bestBedKeys = new Set(plant.bestBeds || []);
+      // Sort: bestBeds first, then by remaining space
+      const overflow = candidates.sort((a, b) => {
+        const aPref = bestBedKeys.has(a) ? 0 : 1;
+        const bPref = bestBedKeys.has(b) ? 0 : 1;
+        if (aPref !== bPref) return aPref - bPref;
+        return remainingSq(b) - remainingSq(a);
+      });
       for (const bk of overflow) {
         if (sqNeeded <= 0) break;
         sqNeeded = fillInto(bk, libId, sqNeeded);
@@ -2694,10 +2857,28 @@ function autoPopulateAllBeds() {
     else sqNeeded = 8;
 
     if (seed.bed !== 'any') {
-      fillInto(seed.bed, libId, sqNeeded);
+      let leftover = fillInto(seed.bed, libId, sqNeeded);
+      // Overflow: if assigned bed is full, spill into bestBeds then any non-perennial bed
+      if (leftover > 0) {
+        const nonPerennial = db.beds.filter(b => b.type !== 'perennial').map(b => b.key);
+        const bestBedKeys = new Set(plant.bestBeds || []);
+        const overflow = nonPerennial
+          .filter(k => k !== seed.bed)
+          .sort((a, b) => {
+            const aPref = bestBedKeys.has(a) ? 0 : 1;
+            const bPref = bestBedKeys.has(b) ? 0 : 1;
+            if (aPref !== bPref) return aPref - bPref;
+            return remainingSq(b) - remainingSq(a);
+          });
+        for (const bk of overflow) {
+          if (leftover <= 0) break;
+          leftover = fillInto(bk, libId, leftover);
+        }
+      }
     } else {
       // Route to the best-fit bed (most remaining space among plant's preferred beds)
-      const valid = (plant.bestBeds || []).filter(k => capacities[k] !== undefined);
+      const nonPerennial = db.beds.filter(b => b.type !== 'perennial').map(b => b.key);
+      const valid = (plant.bestBeds || []).filter(k => nonPerennial.includes(k) && capacities[k] !== undefined);
       if (!valid.length) return;
       const target = valid.reduce((best, k) => remainingSq(k) > remainingSq(best) ? k : best, valid[0]);
       fillInto(target, libId, sqNeeded);
@@ -2717,6 +2898,27 @@ function autoPopulateAllBeds() {
   activeBedStatuses = {...statuses[activeBedKey]};
   buildBedSelector();
   renderDesign();
+
+  // ── Post-suggest summary ──────────────────────────────────────────────
+  const summaryRows = db.beds.filter(b => b.type !== 'perennial').map(b => {
+    const d = designs[b.key] || {};
+    const s = statuses[b.key] || {};
+    const cap = b.cols * b.rows;
+    const suggested = Object.keys(d).filter(i => s[i] === 'suggested').length;
+    const recommended = Object.keys(d).filter(i => s[i] === 'recommended').length;
+    const confirmed = Object.keys(d).filter(i => s[i] === 'planned' || s[i] === 'planted').length;
+    const empty = cap - Object.keys(d).length;
+    const locked = (db.lockedBeds||[]).includes(b.key);
+    if (locked) return `<div style="padding:5px 0;border-top:1px solid var(--rule);opacity:.5;">🔒 ${b.name} — locked, not modified</div>`;
+    const parts = [];
+    if (suggested) parts.push(`<span style="color:var(--ink);">${suggested} from inventory</span>`);
+    if (recommended) parts.push(`<span style="color:#c4922a;">${recommended} recommendations</span>`);
+    if (confirmed) parts.push(`<span style="color:var(--moss);">${confirmed} confirmed</span>`);
+    if (empty) parts.push(`<span style="color:var(--muted);">${empty} empty</span>`);
+    return `<div style="padding:5px 0;border-top:1px solid var(--rule);"><strong>${b.name}</strong> <span style="opacity:.5;">${b.dims}</span><br><span style="font-size:.75rem;">${parts.join(' · ')}</span></div>`;
+  }).join('');
+  document.getElementById('suggest-summary-body').innerHTML = summaryRows || '<p>No beds updated.</p>';
+  openModal('suggest-summary-modal');
 }
 
 function clearAllSuggestions() {
@@ -2782,6 +2984,8 @@ function placeThreeSisters(designs, statuses, capacities, remainingSqFn) {
 function fillRecommendedPass(designs, statuses, capacities) {
   db.beds.forEach(bed => {
     const key = bed.key;
+    // Perennial beds are user-managed — never auto-fill with recommendations
+    if (bed.type === 'perennial') return;
     const d = designs[key], s = statuses[key], cap = capacities[key];
     if (!d || cap === undefined) return;
 
@@ -2983,11 +3187,29 @@ function clearBedDesign() {
 
 function openSqModal(sqIdx) {
   selectedSqIdx = sqIdx;
-  const plant = PLANT_IDX[activeBedDesign[sqIdx]];
+  const libId = activeBedDesign[sqIdx];
+  const plant = PLANT_IDX[libId];
   const status = activeBedStatuses[sqIdx] || 'planned';
   const statusLabel = {suggested:'Suggested from inventory', recommended:'Recommended — not in inventory', planned:'Planned', planted:'Planted'}[status] || status;
   document.getElementById('sqm-title').textContent = `${plant?.emoji || ''} ${plant?.name || 'Plant'}`;
   document.getElementById('sqm-sub').textContent = `Status: ${statusLabel} — tap an action below`;
+
+  // Find seed record(s) that drove this suggestion
+  const seedLink = document.getElementById('sqm-seed-link');
+  if (seedLink) {
+    const matchingSeeds = (db.seeds || []).filter(s => seedToLibId(s) === libId && s.bed === activeBedKey);
+    if (matchingSeeds.length && (status === 'suggested' || status === 'planned' || status === 'planted')) {
+      const s = matchingSeeds[0];
+      seedLink.innerHTML = `<div style="margin-top:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--rule);border-radius:6px;font-size:.78rem;color:var(--muted);">
+        From inventory: <strong>${s.name}${s.variety?' — '+s.variety:''}</strong> ×${s.qty||1}
+        ${s.storage==='live'?'<span style="font-family:\'Space Mono\',monospace;font-size:7px;background:#e2f0e4;color:#2a6a2a;padding:1px 5px;border-radius:3px;margin-left:4px;">START</span>':''}
+      </div>`;
+      seedLink.style.display = 'block';
+    } else {
+      seedLink.innerHTML = '';
+      seedLink.style.display = 'none';
+    }
+  }
   openModal('sq-status-modal');
 }
 
@@ -3116,7 +3338,7 @@ function seedViabilityWarn(seed) {
   if (age >= max - 1) return 'watch';
   return null;
 }
-const BED_INFO={A:{label:'Bed A',cls:'bed-a-tag',emoji:'🍅'},B:{label:'Bed B',cls:'bed-b-tag',emoji:'🥦'},C:{label:'Bed C',cls:'bed-c-tag',emoji:'🥒'},D:{label:'Bed D',cls:'bed-d-tag',emoji:'🌿'},A1:{label:'Bag A',cls:'bed-a-tag',emoji:'🫙'},B1:{label:'Bag B',cls:'bed-b-tag',emoji:'🫙'},C1:{label:'Bag C',cls:'bed-c-tag',emoji:'🫙'},any:{label:'Unassigned',cls:'bed-any-tag',emoji:'📦'}};
+const BED_INFO={A:{label:'Bed A',cls:'bed-a-tag',emoji:'🍅'},B:{label:'Bed B',cls:'bed-b-tag',emoji:'🥦'},C:{label:'Bed C',cls:'bed-c-tag',emoji:'🥒'},D:{label:'Bed D',cls:'bed-d-tag',emoji:'🌿'},A1:{label:'Bag A',cls:'bed-a-tag',emoji:'🫙'},B1:{label:'Bag B',cls:'bed-b-tag',emoji:'🫙'},C1:{label:'Bag C',cls:'bed-c-tag',emoji:'🫙'},H:{label:'Herb Bed',cls:'bed-h-tag',emoji:'🌿'},P:{label:'Perennial Beds',cls:'bed-p-tag',emoji:'🌸'},any:{label:'Unassigned',cls:'bed-any-tag',emoji:'📦'}};
 const STORAGE_INFO={fridge:{label:'Fridge',cls:'store-fridge',icon:'🧊'},freezer:{label:'Freezer',cls:'store-freezer',icon:'❄️'},cool:{label:'Cool dark',cls:'store-cool',icon:'🏠'},ambient:{label:'Shelf',cls:'store-ambient',icon:'📦'},live:{label:'Plant soon',cls:'store-live',icon:'🌱'}};
 function toggleStorageGuide(){
   const g=document.getElementById('storage-guide');
@@ -3250,7 +3472,7 @@ function renderSeeds(){
       const mismatch=seedBedMismatch(s);
       const bestBeds=plant?.bestBeds||[];
       const mismatchHtml=mismatch?`<div style="font-size:.78rem;margin-top:4px;color:#7a1a1a;background:#fde8e8;border-radius:4px;padding:3px 8px;">⚠️ ${BED_INFO[assignedBed]?.label||assignedBed} not recommended — best in Bed ${bestBeds.join('/')}</div>`:'';
-      const bedOpts=['A','B','C','D','any'].map(k=>`<option value="${k}"${s.bed===k?' selected':''}>${BED_INFO[k]?.label||k}</option>`).join('');
+      const bedOpts=['A','B','C','D','H','P','any'].map(k=>`<option value="${k}"${s.bed===k?' selected':''}>${BED_INFO[k]?.label||k}</option>`).join('');
       const bedChangeHtml=`<div style="margin-top:6px;display:flex;align-items:center;gap:6px;"><span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">ASSIGN TO</span><select style="font-size:.78rem;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;background:white;" onchange="changeSeedBed('${s.id}',this.value)">${bedOpts}</select></div>`;
       bodyContent=`<div class="seed-meta-row"><span class="storage-badge store-live">🌱 Live start</span>${s.source?`<span class="plant-pill pill-sage">${s.source}</span>`:''}</div>${rec?`<div class="seed-detail seed-planting-rec">📍 ${rec}</div>`:''} ${s.notes?`<div class="seed-detail" style="margin-top:4px;">${s.notes}</div>`:''} ${placementHtml}${mismatchHtml}${bedChangeHtml}<div style="margin-top:8px;">${hardenHtml}</div>`;
     }else if(isSkipped){
