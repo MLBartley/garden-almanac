@@ -167,7 +167,7 @@ html,body{height:100%;overflow:hidden;font-family:'Crimson Pro',Georgia,serif;ba
 .yoy-text{font-size:.83rem;line-height:1.5;}
 .bag-badge{font-family:'Space Mono',monospace;font-size:7px;padding:1px 6px;border-radius:6px;background:#f5edd8;color:#8a6010;margin-left:4px;}
 /* ── MOON & SUN WIDGET ── */
-.moon-toggle-btn{width:100%;text-align:left;padding:8px 0 6px;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.08em;color:var(--muted);background:none;border:none;border-top:1px solid var(--rule);cursor:pointer;margin-top:4px;margin-bottom:4px;}
+.moon-toggle-btn{width:100%;text-align:left;padding:8px 0 6px;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.08em;color:var(--muted);background:none;border:none;cursor:pointer;}
 .moon-toggle-btn:hover{color:var(--ink);}
 .moon-widget{background:var(--ink);color:var(--paper);border-radius:var(--radius);padding:11px 14px;margin-bottom:10px;display:flex;align-items:flex-start;gap:12px;}
 .moon-phase-emoji{font-size:2rem;flex-shrink:0;line-height:1.1;}
@@ -299,7 +299,7 @@ html,body{height:100%;overflow:hidden;font-family:'Crimson Pro',Georgia,serif;ba
 /* journal */
 .journal-compose{background:white;border:1px solid var(--rule);border-radius:var(--radius);overflow:hidden;margin-bottom:12px;}
 .journal-compose-header{background:var(--surface);padding:9px 13px;font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.1em;}
-.mood-row{display:flex;gap:6px;padding:9px 13px 0;}
+.mood-row{display:flex;gap:6px;align-items:center;}
 .mood-btn{border:1px solid var(--rule);border-radius:20px;background:none;font-size:.78rem;padding:3px 9px;cursor:pointer;color:var(--muted);}
 .mood-btn.selected{background:var(--ink);color:var(--paper);border-color:var(--ink);}
 textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson Pro',serif;font-size:1rem;line-height:1.6;color:var(--ink);padding:11px 13px;resize:none;min-height:90px;background:white;}
@@ -311,6 +311,8 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 .btn-primary:active{background:var(--deep);}
 .btn-sm{background:none;border:1px solid var(--rule);border-radius:5px;font-family:'Space Mono',monospace;font-size:10px;padding:5px 11px;cursor:pointer;color:var(--muted);}
 .btn-sm:active{background:var(--surface);}
+.clim-input{flex:1;border:1px solid var(--rule);border-radius:4px;padding:7px 10px;font-family:'Crimson Pro',serif;font-size:.93rem;background:white;outline:none;min-width:0;}
+.clim-date{font-family:'Space Mono',monospace;font-size:9px;}
 .journal-entry{background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:13px;margin-bottom:8px;}
 .entry-meta{display:flex;align-items:center;gap:7px;margin-bottom:7px;}
 .entry-date{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);}
@@ -666,12 +668,14 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       <div id="ready-to-plant-wrap"></div>
       <div id="week-sprint-wrap"></div>
       <div id="spring-widget-wrap"></div>
-      <button class="moon-toggle-btn" id="moon-toggle-btn" onclick="toggleMoonWidget()">🌙 Moon &amp; Sun ▾</button>
-      <div id="moon-sun-widget" style="display:none;"></div>
-      <div class="section-label">Quick note</div>
-      <div class="card" style="padding:0;overflow:hidden;">
-        <textarea class="journal-input" id="quick-note" placeholder="What did you notice today…" style="min-height:66px;border-bottom:1px solid var(--rule);"></textarea>
-        <div style="padding:7px 13px;display:flex;justify-content:flex-end;">
+      <div style="border-top:1px solid var(--rule);margin-top:4px;">
+        <button class="moon-toggle-btn" id="moon-toggle-btn" onclick="toggleMoonWidget()" style="display:flex;align-items:center;gap:6px;width:100%;border:none;"><span>🌙</span><span>Moon &amp; Sun</span><span style="margin-left:auto;" id="moon-toggle-arrow">▾</span></button>
+        <div id="moon-sun-widget" style="display:none;"></div>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden;margin-top:8px;">
+        <div style="padding:7px 13px 0;font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:.1em;">QUICK NOTE</div>
+        <textarea class="journal-input" id="quick-note" placeholder="What did you notice today…" style="min-height:60px;border-bottom:1px solid var(--rule);"></textarea>
+        <div style="padding:6px 13px;display:flex;justify-content:flex-end;">
           <button class="btn-primary" onclick="quickLog()">Log →</button>
         </div>
       </div>
@@ -688,7 +692,6 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       <!-- ── DESIGN SUB-TAB ── -->
       <div id="garden-design">
         <!-- Bed selector -->
-        <div class="section-label" style="margin-top:0;">Select bed to design</div>
         <div class="bed-select-row" id="bed-select-row"></div>
 
         <!-- Planting window banner -->
@@ -698,21 +701,23 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <!-- Grid-based bed UI (raised beds + bags) -->
         <div id="grid-bed-view">
           <div class="section-label">Bed layout <span id="grid-sq-count" style="font-weight:400;color:var(--muted);font-family:'Crimson Pro',serif;font-size:.85rem;text-transform:none;letter-spacing:0;margin-left:4px;"></span></div>
-          <div class="grid-wrap"><div class="bed-grid" id="bed-grid"></div></div>
-          <div style="display:flex;gap:10px;font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);margin:5px 0 9px;flex-wrap:wrap;align-items:center;">
-            <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px dashed #7ab07a;background:#f4fff4;border-radius:3px;padding:1px 6px;">?</span> From inventory</span>
-            <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px dashed #c4922a;background:#fffbf0;border-radius:3px;padding:1px 6px;">★</span> Buy/source</span>
+          <!-- Legend above grid -->
+          <div style="display:flex;gap:10px;font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);margin-bottom:7px;flex-wrap:wrap;align-items:center;">
+            <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px dashed #7ab07a;background:#f4fff4;border-radius:3px;padding:1px 6px;">?</span> Inventory</span>
+            <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px dashed #c4922a;background:#fffbf0;border-radius:3px;padding:1px 6px;">★</span> Buy</span>
             <span style="display:flex;align-items:center;gap:3px;"><span style="border:1.5px solid rgba(0,0,0,.12);background:#f0f8f0;border-radius:3px;padding:1px 6px;">□</span> Planned</span>
             <span style="display:flex;align-items:center;gap:3px;"><span style="border:2px solid #2a6a2a;background:#e2f0e2;border-radius:3px;padding:1px 6px;">✓</span> Planted</span>
           </div>
-          <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">
-            <label style="display:flex;align-items:center;gap:9px;font-size:.83rem;cursor:pointer;padding:7px 10px;background:var(--surface);border:1px solid var(--rule);border-radius:6px;">
+          <div class="grid-wrap"><div class="bed-grid" id="bed-grid"></div></div>
+          <!-- Auto-suggest controls grouped below grid -->
+          <div style="background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:10px;margin:10px 0;">
+            <label style="display:flex;align-items:center;gap:9px;font-size:.83rem;cursor:pointer;margin-bottom:8px;">
               <input type="checkbox" id="opt-three-sisters" style="width:15px;height:15px;flex-shrink:0;accent-color:var(--moss);">
               <span>🌽🫘🎃 <strong>Three Sisters</strong> — corn + beans + squash together</span>
             </label>
+            <button class="btn-primary" style="width:100%;padding:9px;font-size:.82rem;margin-bottom:6px;" onclick="autoPopulateAllBeds()">✨ Auto-suggest all beds from inventory</button>
+            <button class="btn-sm" style="width:100%;padding:6px;font-size:.78rem;color:var(--muted);border-color:var(--rule);" onclick="clearAllSuggestions()">✕ Clear suggestions</button>
           </div>
-          <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:6px;font-size:.82rem;" onclick="autoPopulateAllBeds()">✨ Auto-suggest all beds from inventory</button>
-          <button class="btn-sm" style="width:100%;padding:6px;margin-bottom:12px;font-size:.78rem;background:none;color:var(--muted);border-color:var(--rule);" onclick="clearAllSuggestions()">✕ Clear all suggestions</button>
           <div id="companion-panel-wrap"></div>
           <div class="section-label">Plan summary</div>
           <div id="plan-summary"></div>
@@ -734,13 +739,12 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 
       <!-- ── SEEDS SUB-TAB ── -->
       <div id="garden-seeds" style="display:none;">
-        <div class="row" style="margin-bottom:12px;">
-          <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <div style="flex:1;">
             <div style="font-size:1rem;font-weight:600;">Seed Inventory</div>
             <div style="font-size:.78rem;color:var(--muted);" id="seed-count-label">0 packets</div>
           </div>
-          <div class="spacer"></div>
-          <button class="btn-sm" onclick="openScanModal()">📷 Scan packet</button>
+          <button class="btn-primary" style="padding:8px 14px;font-size:.78rem;" onclick="openScanModal()">📷 Scan packet</button>
         </div>
         <button class="btn-sm" id="storage-guide-btn" onclick="toggleStorageGuide()" style="width:100%;margin-bottom:8px;text-align:left;padding:7px 11px;">📖 Storage &amp; winter sowing guide ▾</button>
         <div id="storage-guide" style="display:none;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);padding:13px 14px;margin-bottom:12px;font-size:.82rem;line-height:1.65;color:var(--ink);">
@@ -762,12 +766,10 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
           <button class="bed-filter-btn" onclick="filterSeeds('B',this)">Bed B</button>
           <button class="bed-filter-btn" onclick="filterSeeds('C',this)">Bed C</button>
           <button class="bed-filter-btn" onclick="filterSeeds('D',this)">Bed D</button>
-          <button class="bed-filter-btn" onclick="filterSeeds('any',this)">Unassigned</button>
-          <button class="bed-filter-btn" onclick="filterSeeds('H',this)">Herb Bed</button>
+          <button class="bed-filter-btn" onclick="filterSeeds('H',this)">Herb</button>
           <button class="bed-filter-btn" onclick="filterSeeds('P',this)">Perennial</button>
-          <button class="bed-filter-btn" onclick="filterSeeds('A1',this)">Bag A</button>
-          <button class="bed-filter-btn" onclick="filterSeeds('B1',this)">Bag B</button>
-          <button class="bed-filter-btn" onclick="filterSeeds('C1',this)">Bag C</button>
+          <button class="bed-filter-btn" onclick="filterSeeds('bags',this)">Bags</button>
+          <button class="bed-filter-btn" onclick="filterSeeds('any',this)">Unassigned</button>
           <button class="bed-filter-btn" onclick="filterSeeds('skip',this)">💤 Next year</button>
         </div>
         <div id="seed-list"></div>
@@ -782,8 +784,8 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         </div>
         <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:14px;" onclick="snapshotBedHistory()">📸 Snapshot this season's beds</button>
         <div id="hist-content"></div>
-        <div class="section-label">Crop rotation guide</div>
-        <div id="rotation-guide"></div>
+        <div class="section-label" style="cursor:pointer;" onclick="toggleRotationGuide(this)">Crop rotation guide <span id="rot-guide-arrow" style="font-size:.7rem;opacity:.6;">▾</span></div>
+        <div id="rotation-guide" style="display:none;"></div>
       </div><!-- end #garden-beds -->
 
     </div><!-- end #view-garden -->
@@ -801,40 +803,45 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 
       <!-- Germination tracker -->
       <div class="section-label" style="margin-top:0;">Germination tracker</div>
+      <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:8px;" onclick="openModal('log-sow-modal')">+ Log sow / transplant</button>
       <div id="germ-list"></div>
-      <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:4px;" onclick="openModal('log-sow-modal')">+ Log sow / transplant</button>
 
       <!-- Hardening off -->
       <div class="section-label">Hardening off</div>
+      <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:8px;" onclick="openModal('log-harden-modal')">+ Start hardening schedule</button>
       <div id="harden-list"></div>
-      <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:4px;" onclick="openModal('log-harden-modal')">+ Start hardening schedule</button>
 
-      <!-- Oya refill -->
-      <div class="section-label">Oya pots — refill log</div>
-      <div style="font-size:.8rem;color:var(--muted);margin-bottom:10px;">Tap a pot to log it filled today</div>
-      <div class="oya-grid" id="oya-grid"></div>
-
-      <!-- Succession sow -->
-      <div class="section-label">Succession sowing</div>
-      <div style="font-size:.8rem;color:var(--muted);margin-bottom:10px;">Crops that need re-sowing every 2–3 weeks</div>
-      <div id="succ-list"></div>
+      <!-- Harvest log -->
+      <div class="section-label">Harvest log</div>
+      <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:8px;" onclick="openModal('log-harvest-modal')">+ Log harvest</button>
+      <div id="harvest-list"></div>
 
       <!-- Transplant log -->
       <div class="section-label">Transplant &amp; sow log</div>
       <div id="tlog-list"></div>
 
-      <!-- Harvest log -->
-      <div class="section-label">Harvest log</div>
-      <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:10px;" onclick="openModal('log-harvest-modal')">+ Log harvest</button>
-      <div id="harvest-list"></div>
+      <!-- Oya refill — shown only in growing season (May–Sep) -->
+      <div id="oya-section">
+        <div class="section-label">Oya pots — refill log</div>
+        <div style="font-size:.8rem;color:var(--muted);margin-bottom:10px;">Tap a pot to log it filled today</div>
+        <div class="oya-grid" id="oya-grid"></div>
+      </div>
+
+      <!-- Succession sow — shown only in growing season (May–Aug) -->
+      <div id="succ-section">
+        <div class="section-label">Succession sowing</div>
+        <div style="font-size:.8rem;color:var(--muted);margin-bottom:10px;">Crops that need re-sowing every 2–3 weeks</div>
+        <div id="succ-list"></div>
+      </div>
 
       </div><!-- end #track-season -->
 
       <!-- ── PLAN TAB ── -->
       <div id="track-plan" style="display:none;">
         <div class="section-label" style="margin-top:0;">What I have this season</div>
-        <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;flex-wrap:wrap;">
-          <input list="veg-datalist" id="plan-crop-input" class="form-input" placeholder="Crop name…" style="flex:1;min-width:120px;padding:7px 11px;" autocomplete="off">
+        <button class="btn-sm" style="width:100%;padding:7px;margin-bottom:8px;" onclick="importFromSeeds()">↓ Import from seed inventory</button>
+        <div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
+          <input list="veg-datalist" id="plan-crop-input" class="form-input" placeholder="Or add crop manually…" style="flex:1;min-width:120px;padding:7px 11px;" autocomplete="off">
           <datalist id="veg-datalist"></datalist>
           <select id="plan-type-sel" class="form-input" style="padding:7px 10px;width:auto;">
             <option value="start">Start</option>
@@ -843,7 +850,6 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
           <input id="plan-qty-input" type="number" min="1" value="1" class="form-input" style="width:52px;padding:7px 10px;">
           <button class="btn-primary" style="padding:7px 14px;" onclick="addToPlan()">+ Add</button>
         </div>
-        <button class="btn-sm" style="width:100%;padding:7px;margin-bottom:12px;" onclick="importFromSeeds()">↓ Import names from seed inventory</button>
         <div id="plan-list"></div>
         <button class="btn-sm" style="width:100%;padding:9px;margin:4px 0 16px;" onclick="planPlacements()">Get planting recommendations →</button>
         <div id="plan-recs"></div>
@@ -870,10 +876,9 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 
     <!-- PLANTS -->
     <div class="view" id="view-plants">
-      <div class="row" style="margin-bottom:8px;margin-top:4px;">
-        <div id="plant-stats-bar" style="font-size:.74rem;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap;align-items:center;"></div>
-        <div class="spacer"></div>
-        <button class="btn-sm" onclick="openModal('add-plant-modal')">+ Add</button>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;margin-top:4px;">
+        <div id="plant-stats-bar" style="font-size:.74rem;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex:1;min-width:0;"></div>
+        <button class="btn-primary" style="flex-shrink:0;padding:7px 14px;font-size:.78rem;" onclick="openModal('add-plant-modal')">+ Add plant</button>
       </div>
       <div id="plant-search-sort" style="display:flex;gap:6px;margin-bottom:8px;align-items:center;">
         <input id="plant-search" type="text" placeholder="Search plants…"
@@ -925,14 +930,14 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
           <div class="tys harvest-s">SEP</div><div class="tys wind-s">OCT</div>
           <div class="tys dormant-s">NOV</div><div class="tys dormant-s">DEC</div>
         </div>
-        <div style="font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);display:flex;gap:9px;margin-bottom:13px;flex-wrap:wrap;">
+        <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);display:flex;gap:12px;margin-bottom:13px;flex-wrap:wrap;">
           <span style="color:#8a6010">● peak</span><span style="color:#8a3010">● harvest</span>
           <span style="color:var(--moss)">● growth</span><span style="color:#6a5840">● wind-down</span>
         </div>
         <div class="section-label">Upcoming</div>
         <div id="timeline-list"></div>
-        <div class="section-label">Full almanac</div>
-        <div id="full-calendar"></div>
+        <div class="section-label" style="cursor:pointer;" onclick="toggleFullCalendar(this)">Full almanac <span id="full-cal-arrow" style="font-size:.7rem;opacity:.6;">▾</span></div>
+        <div id="full-calendar" style="display:none;"></div>
         <div id="almanac-extras"></div>
       </div>
 
@@ -949,29 +954,35 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 
       <!-- ── JOURNAL ── -->
       <div id="yr-journal" style="display:none;">
-        <div class="journal-compose">
-          <div class="journal-compose-header">NEW ENTRY · <span id="compose-date"></span></div>
-          <div class="mood-row">
-            <button class="mood-btn" onclick="selectMood(this,'🌞')">🌞</button>
-            <button class="mood-btn" onclick="selectMood(this,'🌧')">🌧</button>
-            <button class="mood-btn" onclick="selectMood(this,'🌱')">🌱</button>
-            <button class="mood-btn" onclick="selectMood(this,'🥵')">🥵</button>
-            <button class="mood-btn" onclick="selectMood(this,'🥶')">🥶</button>
-            <button class="mood-btn" onclick="selectMood(this,'😤')">😤</button>
+        <div class="journal-compose" id="journal-compose-wrap">
+          <div class="journal-compose-header" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleJournalCompose()">
+            <span>NEW ENTRY · <span id="compose-date"></span></span>
+            <span id="journal-compose-arrow" style="font-size:.7rem;opacity:.6;">▴</span>
           </div>
-          <textarea class="journal-input" id="journal-text" placeholder="What happened in the garden today?…"></textarea>
-          <div class="tag-row">
-            <button class="tag-chip" onclick="toggleTag(this,'watered')">watered</button>
-            <button class="tag-chip" onclick="toggleTag(this,'planted')">planted</button>
-            <button class="tag-chip" onclick="toggleTag(this,'harvested')">harvested</button>
-            <button class="tag-chip" onclick="toggleTag(this,'pest')">pest</button>
-            <button class="tag-chip" onclick="toggleTag(this,'bloom')">bloom</button>
-            <button class="tag-chip" onclick="toggleTag(this,'mulched')">mulched</button>
-            <button class="tag-chip" onclick="toggleTag(this,'seeded')">seeded</button>
-            <button class="tag-chip" onclick="toggleTag(this,'pruned')">pruned</button>
-          </div>
-          <div class="compose-footer">
-            <button class="btn-primary" onclick="saveJournal()">Save entry →</button>
+          <div id="journal-compose-body">
+            <div class="mood-row" style="padding:8px 13px 4px;">
+              <span style="font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);letter-spacing:.1em;align-self:center;margin-right:4px;">MOOD</span>
+              <button class="mood-btn" onclick="selectMood(this,'🌞')" title="Sunny / great day">🌞</button>
+              <button class="mood-btn" onclick="selectMood(this,'🌧')" title="Rainy / wet">🌧</button>
+              <button class="mood-btn" onclick="selectMood(this,'🌱')" title="Good growth">🌱</button>
+              <button class="mood-btn" onclick="selectMood(this,'🥵')" title="Hot / dry">🥵</button>
+              <button class="mood-btn" onclick="selectMood(this,'🥶')" title="Cold / frost risk">🥶</button>
+              <button class="mood-btn" onclick="selectMood(this,'😤')" title="Frustrating / problems">😤</button>
+            </div>
+            <textarea class="journal-input" id="journal-text" placeholder="What happened in the garden today?…"></textarea>
+            <div class="tag-row">
+              <button class="tag-chip" onclick="toggleTag(this,'watered')">watered</button>
+              <button class="tag-chip" onclick="toggleTag(this,'planted')">planted</button>
+              <button class="tag-chip" onclick="toggleTag(this,'harvested')">harvested</button>
+              <button class="tag-chip" onclick="toggleTag(this,'pest')">pest</button>
+              <button class="tag-chip" onclick="toggleTag(this,'bloom')">bloom</button>
+              <button class="tag-chip" onclick="toggleTag(this,'mulched')">mulched</button>
+              <button class="tag-chip" onclick="toggleTag(this,'seeded')">seeded</button>
+              <button class="tag-chip" onclick="toggleTag(this,'pruned')">pruned</button>
+            </div>
+            <div class="compose-footer">
+              <button class="btn-primary" onclick="saveJournal()">Save entry →</button>
+            </div>
           </div>
         </div>
         <div class="section-label">Journal history</div>
@@ -983,25 +994,25 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <div class="section-label" style="margin-top:0;">📈 Growing degree days (base 50°F)</div>
         <div id="gdd-display"></div>
         <div style="display:flex;gap:6px;align-items:center;margin-bottom:12px;">
-          <input type="number" id="gdd-hi" placeholder="Today hi °F" style="flex:1;border:1px solid var(--rule);border-radius:4px;padding:7px 10px;font-family:'Crimson Pro',serif;font-size:.93rem;background:white;outline:none;">
-          <input type="number" id="gdd-lo" placeholder="Lo °F" style="flex:1;border:1px solid var(--rule);border-radius:4px;padding:7px 10px;font-family:'Crimson Pro',serif;font-size:.93rem;background:white;outline:none;">
+          <input type="number" id="gdd-hi" placeholder="Hi °F" class="clim-input">
+          <input type="number" id="gdd-lo" placeholder="Lo °F" class="clim-input">
           <button class="btn-primary" style="padding:7px 11px;flex-shrink:0;" onclick="logGDDEntry()">+ GDD</button>
         </div>
         <div id="gdd-log"></div>
         <div class="section-label">🌧 Rain gauge</div>
         <div style="display:flex;gap:6px;align-items:center;margin-bottom:12px;">
-          <input type="number" id="rain-amount" placeholder="Inches (e.g. 0.25)" step="0.01" style="flex:1;border:1px solid var(--rule);border-radius:4px;padding:7px 10px;font-family:'Crimson Pro',serif;font-size:.93rem;background:white;outline:none;">
-          <input type="date" id="rain-date" style="flex:1;border:1px solid var(--rule);border-radius:4px;padding:7px 10px;font-family:'Space Mono',monospace;font-size:9px;background:white;outline:none;">
+          <input type="number" id="rain-amount" placeholder="Inches" step="0.01" class="clim-input">
+          <input type="date" id="rain-date" class="clim-input clim-date">
           <button class="btn-primary" style="padding:7px 11px;flex-shrink:0;" onclick="logRainfall()">+ Log</button>
         </div>
         <div id="rain-log"></div>
         <div class="section-label">🌡 Soil temperature</div>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
-          <input type="number" id="soil-temp" placeholder="Temp °F" style="flex:1;min-width:80px;border:1px solid var(--rule);border-radius:4px;padding:7px 10px;font-family:'Crimson Pro',serif;font-size:.93rem;background:white;outline:none;">
-          <select id="soil-depth" style="border:1px solid var(--rule);border-radius:4px;padding:7px 9px;font-family:'Space Mono',monospace;font-size:10px;background:white;outline:none;appearance:none;-webkit-appearance:none;">
+          <input type="number" id="soil-temp" placeholder="Temp °F" class="clim-input">
+          <select id="soil-depth" class="clim-input" style="width:auto;appearance:none;-webkit-appearance:none;">
             <option value="2">2 in</option><option value="4" selected>4 in</option><option value="6">6 in</option>
           </select>
-          <input type="date" id="soil-date" style="flex:1;min-width:100px;border:1px solid var(--rule);border-radius:4px;padding:7px 10px;font-family:'Space Mono',monospace;font-size:9px;background:white;outline:none;">
+          <input type="date" id="soil-date" class="clim-input clim-date">
           <button class="btn-primary" style="padding:7px 11px;flex-shrink:0;" onclick="logSoilTemp()">+ Log</button>
         </div>
         <div id="soil-log"></div>
@@ -1033,8 +1044,8 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 
   <div id="bottom-nav">
     <button class="nav-btn active" onclick="switchView('today',this)"><span class="nav-icon">☀️</span>TODAY</button>
-    <button class="nav-btn" onclick="switchView('track',this)"><span class="nav-icon">🌱</span>TRACK</button>
     <button class="nav-btn" onclick="switchView('garden',this)"><span class="nav-icon">🗺</span>GARDEN</button>
+    <button class="nav-btn" onclick="switchView('track',this)"><span class="nav-icon">🌱</span>TRACK</button>
     <button class="nav-btn" onclick="switchView('plants',this)"><span class="nav-icon">🌿</span>PLANTS</button>
     <button class="nav-btn" onclick="switchView('year',this)"><span class="nav-icon">📅</span>YEAR</button>
   </div>
@@ -4109,6 +4120,12 @@ function renderSeeds(){
     if(!skipped.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">💤</div><div class="empty-text">No seeds saved for next year yet.\nTap "Not this year" on any seed packet.</div></div>`;return;}
     el.innerHTML=skipped.map(s=>buildCard(s,false,true)).join('');return;
   }
+  if(activeSeedFilter==='bags'){
+    const BAG_KEYS=['A1','B1','C1'];
+    const filtered=seeds.filter(s=>BAG_KEYS.includes(s.bed)&&!s.skipYear&&s.storage!=='live');
+    if(!filtered.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">No seeds assigned to the grow bags.</div></div>`;return;}
+    el.innerHTML=filtered.map(s=>buildCard(s,false,false)).join('');return;
+  }
   if(activeSeedFilter!=='all'){
     const filtered=seeds.filter(s=>s.bed===activeSeedFilter&&!s.skipYear&&s.storage!=='live');
     if(!filtered.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">No seeds assigned to this bed.</div></div>`;return;}
@@ -4307,6 +4324,12 @@ function renderPlants(){
   const n=all.filter(p=>(p.category||'').includes('native'));
   const e=all.filter(p=>(p.category||'').includes('edible')&&!(p.category||'').includes('native'));
   const emptyMsg=q?'No plants match your search.':`None in this location.`;
+  // Show/hide section headers based on content and active filters
+  const nativeHeader=document.querySelector('#plant-list-mode .section-label:first-of-type');
+  const edibleHeader=document.querySelector('#plant-list-mode .section-label:last-of-type');
+  const isFiltered=plantLocFilter!=='all'||q;
+  if(nativeHeader)nativeHeader.style.display=(isFiltered&&!n.length)?'none':'';
+  if(edibleHeader)edibleHeader.style.display=(isFiltered&&!e.length)?'none':'';
   document.getElementById('native-plant-list').innerHTML=statusGroups(n,plantLocFilter==='all'&&!q?'No native plants logged yet.':emptyMsg);
   document.getElementById('edible-plant-list').innerHTML=statusGroups(e,plantLocFilter==='all'&&!q?'No perennial edibles logged yet.':emptyMsg);
 }
@@ -4504,14 +4527,17 @@ function renderTimeline(){
   document.getElementById('timeline-list').innerHTML=upcoming.length
     ?upcoming.map(e=>`<div class="timeline-event"><div class="te-month"><strong>${e.d}</strong>${MO[e.m]}</div><div class="te-body"><div class="te-title">${e.icon} ${e.title} <span class="te-badge">${e.badge}</span></div><div class="te-detail">${e.detail}</div></div></div>`).join('')
     :`<div style="color:var(--muted);font-size:.83rem">No upcoming events in next 60 days.</div>`;
-  const MONTHS=['','January','February','March','April','May','June','July','August','September','October','November','December'];
-  const grouped={};CAL.forEach(e=>{if(!grouped[e.m])grouped[e.m]=[];grouped[e.m].push(e);});
-  let html='';
-  for(let m=1;m<=12;m++){
-    if(!grouped[m])continue;const isCur=m===cm;
-    html+=`<div style="margin-bottom:15px;"><div class="section-label" style="${isCur?'color:var(--moss);':''}">${MONTHS[m]}${isCur?' ← now':''}</div>${grouped[m].map(e=>`<div class="care-task info" style="margin-bottom:5px;"><div class="care-icon">${e.icon}</div><div class="care-body"><div class="care-title" style="color:var(--ink);">${e.title}</div><div class="care-desc">${e.detail}</div></div></div>`).join('')}</div>`;
+  const calEl=document.getElementById('full-calendar');
+  if(calEl&&calEl.style.display!=='none'){
+    const MONTHS=['','January','February','March','April','May','June','July','August','September','October','November','December'];
+    const grouped={};CAL.forEach(e=>{if(!grouped[e.m])grouped[e.m]=[];grouped[e.m].push(e);});
+    let html='';
+    for(let m=1;m<=12;m++){
+      if(!grouped[m])continue;const isCur=m===cm;
+      html+=`<div style="margin-bottom:15px;"><div class="section-label" style="${isCur?'color:var(--moss);':''}">${MONTHS[m]}${isCur?' ← now':''}</div>${grouped[m].map(e=>`<div class="care-task info" style="margin-bottom:5px;"><div class="care-icon">${e.icon}</div><div class="care-body"><div class="care-title" style="color:var(--ink);">${e.title}</div><div class="care-desc">${e.detail}</div></div></div>`).join('')}</div>`;
+    }
+    calEl.innerHTML=html;
   }
-  document.getElementById('full-calendar').innerHTML=html;
 }
 
 // ════════════════════════════════════════
@@ -4718,7 +4744,7 @@ function renderHardening() {
   const logs = (db.hardenLogs||[]).filter(e=>!e.done||((Date.now()-new Date(e.startDate))/86400000)<14);
   const el = document.getElementById('harden-list');
   if (!logs.length) {
-    el.innerHTML=`<div style="color:var(--muted);font-size:.83rem;padding:8px 0;">No hardening schedules active.</div>`;
+    el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌿</div><div class="empty-text">No hardening schedules active.<br>Tap "+ Start hardening schedule" when starts are ready to go outside.</div></div>`;
     return;
   }
   el.innerHTML = logs.map(e => {
@@ -4938,6 +4964,12 @@ function renderSpring(){
   renderTransplantLog();
   renderHarvestLog();
   renderSpringWidget();
+  // Show Oya and Succession sections only during growing season (May–Sep)
+  const mo = new Date().getMonth() + 1; // 1-based
+  const oyaSec = document.getElementById('oya-section');
+  const succSec = document.getElementById('succ-section');
+  if (oyaSec) oyaSec.style.display = (mo >= 5 && mo <= 9) ? '' : 'none';
+  if (succSec) succSec.style.display = (mo >= 5 && mo <= 8) ? '' : 'none';
 }
 
 // ════════════════════════════════════════
@@ -5226,7 +5258,8 @@ function renderBloomCalendar(){
   });
   // Show months that have plants, always include current month
   const activeMonths=BLOOM_ORDER.filter(m=>byMonth[m].length||m===curMonth);
-  el.innerHTML=activeMonths.map(month=>{
+  const filterNote=plantLocFilter!=='all'?`<div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:10px;letter-spacing:.06em;">📍 Showing: ${plantLocFilter} — use location filter above to change</div>`:'';
+  el.innerHTML=filterNote+activeMonths.map(month=>{
     const ps=byMonth[month],isCur=month===curMonth;
     const col=BLOOM_C[month]||'#ccc';
     const rows=!ps.length
@@ -5270,7 +5303,7 @@ function deleteHarvest(id){
 function renderHarvestLog(){
   const el=document.getElementById('harvest-list');if(!el)return;
   const logs=db.harvestLog||[];
-  if(!logs.length){el.innerHTML=`<div style="color:var(--muted);font-size:.85rem;padding:4px 0;">No harvests logged yet.</div>`;return;}
+  if(!logs.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🧺</div><div class="empty-text">No harvests logged yet.</div></div>`;return;}
   el.innerHTML=logs.slice(0,50).map(h=>{
     const d=new Date(h.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
     const qty=h.qty?` · ${h.qty} ${h.unit}`:'';
@@ -5590,7 +5623,9 @@ function renderMoonWidget(){
   const sun=getSunTimes(now);
   const bioShort=moon.bioDesc.split('—')[0].trim().replace(/ day$/,'');
   const btn=document.getElementById('moon-toggle-btn');
-  if(btn)btn.innerHTML=`${moon.emoji} ${moon.name} · ${bioShort} day ${moonExpanded?'▴':'▾'}`;
+  const arr=document.getElementById('moon-toggle-arrow');
+  if(btn){const inner=btn.querySelector('span:nth-child(2)');if(inner)inner.textContent=`${moon.emoji} ${moon.name} · ${bioShort}`;}
+  if(arr)arr.textContent=moonExpanded?'▴':'▾';
   if(!moonExpanded){el.innerHTML='';el.style.display='none';return;}
   el.style.display='';
   const sunHtml=sun?`<div class="sun-row"><div class="sun-item">🌅 RISE <strong>${sun.rise}</strong></div><div class="sun-item">🌇 SET <strong>${sun.set}</strong></div><div class="sun-item">☀️ <strong>${sun.daylight}</strong> daylight</div></div>`:'';
@@ -5753,7 +5788,8 @@ function logRainfall(){
   if(isNaN(amount)||amount<=0)return;
   if(!db.rainfallLog)db.rainfallLog=[];
   db.rainfallLog.unshift({id:'rain-'+Date.now(),date,amount:Math.round(amount*100)/100});
-  saveDB(db);document.getElementById('rain-amount').value='';renderRainLog();
+  const today=new Date().toISOString().slice(0,10);
+  saveDB(db);document.getElementById('rain-amount').value='';document.getElementById('rain-date').value=today;renderRainLog();
 }
 function deleteRainEntry(id){db.rainfallLog=(db.rainfallLog||[]).filter(e=>e.id!==id);saveDB(db);renderRainLog();}
 function logSoilTemp(){
@@ -5763,7 +5799,8 @@ function logSoilTemp(){
   if(isNaN(temp))return;
   if(!db.soilTempLog)db.soilTempLog=[];
   db.soilTempLog.unshift({id:'soil-'+Date.now(),date,temp,depth});
-  saveDB(db);document.getElementById('soil-temp').value='';renderSoilLog();
+  const todaySoil=new Date().toISOString().slice(0,10);
+  saveDB(db);document.getElementById('soil-temp').value='';document.getElementById('soil-date').value=todaySoil;renderSoilLog();
 }
 function deleteSoilEntry(id){db.soilTempLog=(db.soilTempLog||[]).filter(e=>e.id!==id);saveDB(db);renderSoilLog();}
 function renderGDD(){
@@ -6030,6 +6067,29 @@ function renderBedHistory(){
     rotHtml+=`<div class="rotation-card"><div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.1em;color:var(--muted);">${(BED_INFO[b.key]||{}).label||b.key}</div><div style="font-size:.8rem;margin-top:4px;"><strong>${families.join(', ')}</strong> in ${histYear-1}</div><div style="font-size:.78rem;color:var(--muted);margin-top:3px;">${hint}</div></div>`;
   });
   rotEl.innerHTML=rotHtml||'<div class="rotation-card" style="color:var(--muted);font-size:.82rem;">No rotation conflicts detected.</div>';
+}
+function toggleRotationGuide(label){
+  const el=document.getElementById('rotation-guide');
+  const arr=document.getElementById('rot-guide-arrow');
+  const open=el.style.display!=='none';
+  el.style.display=open?'none':'';
+  if(arr)arr.textContent=open?'▾':'▴';
+}
+function toggleFullCalendar(label){
+  const el=document.getElementById('full-calendar');
+  const arr=document.getElementById('full-cal-arrow');
+  const open=el.style.display!=='none';
+  el.style.display=open?'none':'';
+  if(arr)arr.textContent=open?'▾':'▴';
+  if(!open&&!el.innerHTML.trim())renderTimeline();
+}
+function toggleJournalCompose(){
+  const body=document.getElementById('journal-compose-body');
+  const arr=document.getElementById('journal-compose-arrow');
+  if(!body)return;
+  const open=body.style.display!=='none';
+  body.style.display=open?'none':'';
+  if(arr)arr.textContent=open?'▾':'▴';
 }
 
 // ── COMPOST ──
