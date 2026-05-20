@@ -1962,10 +1962,18 @@ function loadDB() {
       });
       // Additive migration: add Herb Bed (H) and Perennial Beds (P) if not present
       if(!d.beds.find(b=>b.key==='H'))
-        d.beds.push({id:'bedH',key:'H',name:'Herb Bed',dims:'6×4 ft',cols:6,rows:4,type:'herb',
+        d.beds.push({id:'bedH',key:'H',name:'Herb Bed',dims:'10×4 ft',cols:10,rows:4,type:'herb',
           theme:'Perennial Herb Bed',oya:0,shade:'full',
           notes:'Dedicated perennial herb bed — placeholder dimensions. Chives, thyme, oregano, and other perennial herbs.',
           history:[],current:[]});
+      // Resize migration: bump the herb bed from the old 6×4 default to 10×4
+      // (only if untouched — leaves customized sizes alone). Idempotent.
+      {
+        const herb = d.beds.find(b => b.key === 'H');
+        if (herb && herb.cols === 6 && herb.rows === 4) {
+          herb.cols = 10; herb.dims = '10×4 ft';
+        }
+      }
       if(!d.beds.find(b=>b.key==='P'))
         d.beds.push({id:'bedP',key:'P',name:'Perennial Beds',dims:'10×3 ft',cols:10,rows:3,type:'perennial',
           theme:'Perennial Herb & Flower Beds',oya:0,shade:'full',
@@ -2335,9 +2343,9 @@ function defaultBeds() {
      theme:'Overwinter container',oya:0,shade:'full',
      notes:'25-gallon cloth grow bag, south end of Bed C. Full sun. For tender perennials needing overwintering indoors. Move inside before Oct 1.',
      history:[],current:[]},
-    {id:'bedH',key:'H',name:'Herb Bed',dims:'6×4 ft',cols:6,rows:4,type:'herb',
+    {id:'bedH',key:'H',name:'Herb Bed',dims:'10×4 ft',cols:10,rows:4,type:'herb',
      theme:'Perennial Herb Bed',oya:0,shade:'full',
-     notes:'Dedicated perennial herb bed — placeholder dimensions (6×4 ft / 24 sq ft). Confirm location and size. Full sun preferred. Chives, thyme, oregano, and other perennial herbs. Annual herbs (basil, cilantro, dill, parsley) go in main beds as companions.',
+     notes:'Dedicated perennial herb bed — placeholder dimensions (10×4 ft / 40 sq ft). Confirm location and size. Full sun preferred. Chives, thyme, oregano, and other perennial herbs. Annual herbs (basil, cilantro, dill, parsley) go in main beds as companions.',
      history:[],current:[]},
     {id:'bedP',key:'P',name:'Perennial Beds',dims:'10×3 ft',cols:10,rows:3,type:'perennial',
      theme:'Perennial Herb & Flower Beds',oya:0,shade:'full',
