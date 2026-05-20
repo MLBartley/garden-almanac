@@ -763,7 +763,8 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
               <span>🌽🫘🎃 <strong>Three Sisters</strong> — corn + beans + squash together</span>
             </label>
             <button class="btn-primary" style="width:100%;padding:9px;font-size:.82rem;margin-bottom:6px;" onclick="autoPopulateAllBeds()">✨ Run auto-suggest</button>
-            <button class="btn-sm" style="width:100%;padding:6px;font-size:.78rem;color:var(--muted);border-color:var(--rule);" onclick="clearAllSuggestions()">✕ Clear suggestions</button>
+            <button class="btn-sm" style="width:100%;padding:6px;font-size:.78rem;color:var(--muted);border-color:var(--rule);margin-bottom:4px;" onclick="clearAllSuggestions()">✕ Clear suggestions only</button>
+            <button class="btn-sm" style="width:100%;padding:6px;font-size:.78rem;color:#7a1a1a;border-color:#e8b0b0;" onclick="clearAllPlacements()">⚠ Clear ALL plants (incl. planned)</button>
           </div>
           <div id="companion-panel-wrap"></div>
           <div class="section-label">Plan summary</div>
@@ -3996,32 +3997,38 @@ function computeAutoPopulate(db, opts = {}) {
   // Try to place `blocksNeeded` contiguous w×h rectangles of libId in bedKey.
   // Returns the number of blocks that did NOT fit. Each block is one plant unit
   // (e.g., one tomatillo → one 2×2 block of 4 cells).
+  // Slot selection uses blockSlotScore so tall plants gravitate to the bed
+  // center, short/ground to the edges, and any plant gets pulled toward good
+  // companions already in the bed.
   function fillBlocksInto(bedKey, libId, blocksNeeded, w, h) {
     const bed = db.beds.find(bb => bb.key === bedKey);
     if (!bed) return blocksNeeded;
     const d = designs[bedKey]; if (!d) return blocksNeeded;
     const s = statuses[bedKey];
     const cols = bed.cols, rows = bed.rows;
+    const plant = PLANT_IDX[libId];
     const tryDims = (w === h) ? [[w, h]] : [[w, h], [h, w]];
     let placed = 0;
     while (placed < blocksNeeded) {
-      let slot = null;
+      // Collect every valid slot, score each, pick the best
+      const candidates = [];
       for (const [bw, bh] of tryDims) {
         if (bw > cols || bh > rows) continue;
-        for (let r = 0; r <= rows - bh && !slot; r++) {
-          for (let c = 0; c <= cols - bw && !slot; c++) {
+        for (let r = 0; r <= rows - bh; r++) {
+          for (let c = 0; c <= cols - bw; c++) {
             let ok = true;
             for (let dr = 0; dr < bh && ok; dr++) {
               for (let dc = 0; dc < bw && ok; dc++) {
                 if (d[(r + dr) * cols + (c + dc)]) ok = false;
               }
             }
-            if (ok) slot = { r, c, bw, bh };
+            if (ok) candidates.push({ r, c, bw, bh, score: blockSlotScore(r, c, bw, bh, bed, plant, d) });
           }
         }
-        if (slot) break;
       }
-      if (!slot) break;
+      if (!candidates.length) break;
+      candidates.sort((a, b) => a.score - b.score);
+      const slot = candidates[0];
       for (let dr = 0; dr < slot.bh; dr++) {
         for (let dc = 0; dc < slot.bw; dc++) {
           const idx = (slot.r + dr) * cols + (slot.c + dc);
@@ -4454,6 +4461,45 @@ function clearAllSuggestions() {
   renderDesign();
 }
 
+// Clear EVERY cell across EVERY bed — suggested, recommended, planned, and
+// planted alike. Requires confirmation since 'planted' cells reflect real
+// transplants; offers undo via toast.
+function clearAllPlacements() {
+  const plannedCount = db.beds.reduce((a, b) => {
+    const s = (db.bedStatuses || {})[b.key] || {};
+    return a + Object.values(s).filter(v => v === 'planned' || v === 'planted').length;
+  }, 0);
+  const totalCells = db.beds.reduce((a, b) => a + Object.keys((db.bedDesigns||{})[b.key]||{}).length, 0);
+  if (!totalCells) { showToast({msg:'Beds are already empty.'}); return; }
+  const msg = plannedCount > 0
+    ? `Clear ALL ${totalCells} placed cells across every bed?\n\nThis includes ${plannedCount} square${plannedCount===1?'':'s'} marked as planned or planted.`
+    : `Clear ALL ${totalCells} placed cells across every bed?`;
+  if (!confirm(msg)) return;
+  const prevDesigns = JSON.parse(JSON.stringify(db.bedDesigns || {}));
+  const prevStatuses = JSON.parse(JSON.stringify(db.bedStatuses || {}));
+  db.beds.forEach(b => {
+    db.bedDesigns[b.key] = {};
+    db.bedStatuses[b.key] = {};
+  });
+  saveDB(db);
+  activeBedDesign = {};
+  activeBedStatuses = {};
+  buildBedSelector();
+  renderDesign();
+  showToast({
+    msg: `Cleared ${totalCells} cells across all beds`,
+    action: () => {
+      db.bedDesigns = prevDesigns;
+      db.bedStatuses = prevStatuses;
+      activeBedDesign = {...(db.bedDesigns[activeBedKey] || {})};
+      activeBedStatuses = {...(db.bedStatuses[activeBedKey] || {})};
+      saveDB(db); buildBedSelector(); renderDesign();
+    },
+    actionLabel: 'Undo',
+    duration: 15000,
+  });
+}
+
 function placeThreeSisters(designs, statuses, capacities, remainingSqFn) {
   // Find corn/beans/squash seeds in inventory
   const cornSeed = (db.seeds||[]).find(s => s.name.toLowerCase()==='corn' && !(s.notes||'').includes('DENT'));
@@ -4497,6 +4543,48 @@ function placeThreeSisters(designs, statuses, capacities, remainingSqFn) {
 function distToEdge(idx, bed) {
   const r = Math.floor(idx / bed.cols), c = idx % bed.cols;
   return Math.min(r, c, bed.rows - 1 - r, bed.cols - 1 - c);
+}
+
+// Block placement scoring (Tier B+C). Lower score = preferred slot.
+// Combines a height bias (tall→center, short/ground→edge, med→0) with an
+// adjacency bonus: each good-companion neighbor outside the block reduces
+// the score by 1, pulling friendly plants together.
+function blockSlotScore(r, c, w, h, bed, plant, designs) {
+  const rows = bed.rows, cols = bed.cols;
+  // Height bias — Manhattan distance from block center to bed center
+  let bias = 0;
+  const height = plant?.height || 'med';
+  if (height !== 'med') {
+    const blockCR = r + (h - 1) / 2;
+    const blockCC = c + (w - 1) / 2;
+    const bedCR = (rows - 1) / 2;
+    const bedCC = (cols - 1) / 2;
+    const dCenter = Math.abs(blockCR - bedCR) + Math.abs(blockCC - bedCC);
+    if (height === 'tall') bias = dCenter;                 // closer to center → lower score
+    else if (height === 'short' || height === 'ground') bias = -dCenter; // farther from center → lower
+  }
+  // Adjacency bonus: count good-companion plants in adjacent (non-block) cells
+  const goods = new Set(plant?.companions?.good || []);
+  let adjBonus = 0;
+  if (goods.size && designs) {
+    const seen = new Set();
+    for (let dr = 0; dr < h; dr++) {
+      for (let dc = 0; dc < w; dc++) {
+        const r0 = r + dr, c0 = c + dc;
+        for (const [nr, nc] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+          const ar = r0 + nr, ac = c0 + nc;
+          if (ar < 0 || ar >= rows || ac < 0 || ac >= cols) continue;
+          if (ar >= r && ar < r + h && ac >= c && ac < c + w) continue; // inside block
+          const idx = ar * cols + ac;
+          if (seen.has(idx)) continue;
+          seen.add(idx);
+          const id = designs[idx];
+          if (id && goods.has(id)) adjBonus -= 1;
+        }
+      }
+    }
+  }
+  return bias + adjBonus;
 }
 
 function fillRecommendedPass(designs, statuses, capacities, inventorySq={}, allocatedSq={}, opts={}) {
@@ -4631,30 +4719,32 @@ function fillRecommendedPass(designs, statuses, capacities, inventorySq={}, allo
         const tryDims = bw === bh ? [[bw, bh]] : [[bw, bh], [bh, bw]];
 
         for (let b = 0; b < blocks; b++) {
-          let placed = false;
+          // Collect every valid slot across both orientations, then pick the
+          // lowest-scoring one (center for tall, edge for short/ground,
+          // adjacency bonus for good companions).
+          const candidates = [];
           for (const [w, h] of tryDims) {
             if (w > bed.cols || h > bed.rows) continue;
-            for (let r = 0; r <= bed.rows - h && !placed; r++) {
-              for (let c = 0; c <= bed.cols - w && !placed; c++) {
+            for (let r = 0; r <= bed.rows - h; r++) {
+              for (let c = 0; c <= bed.cols - w; c++) {
                 let ok = true;
                 for (let dr = 0; dr < h && ok; dr++)
                   for (let dc = 0; dc < w && ok; dc++)
                     if (d[(r+dr)*bed.cols + (c+dc)]) ok = false;
-                if (ok) {
-                  for (let dr = 0; dr < h; dr++)
-                    for (let dc = 0; dc < w; dc++) {
-                      const idx = (r+dr)*bed.cols + (c+dc);
-                      d[idx] = chunk.id;
-                      s[idx] = 'recommended';
-                    }
-                  remaining -= blockArea;
-                  placed = true;
-                }
+                if (ok) candidates.push({ r, c, w, h, score: blockSlotScore(r, c, w, h, bed, p, d) });
               }
             }
-            if (placed) break;
           }
-          if (!placed) break;
+          if (!candidates.length) break;
+          candidates.sort((a, b) => a.score - b.score);
+          const slot = candidates[0];
+          for (let dr = 0; dr < slot.h; dr++)
+            for (let dc = 0; dc < slot.w; dc++) {
+              const idx = (slot.r + dr) * bed.cols + (slot.c + dc);
+              d[idx] = chunk.id;
+              s[idx] = 'recommended';
+            }
+          remaining -= blockArea;
         }
       }
 
@@ -4860,9 +4950,18 @@ function showSqTooltip(plantId, status, anchorEl) {
   const goodIds = (plant.companions?.good || []).slice(0, 4).map(id => PLANT_IDX[id]?.name || id);
   const badIds  = (plant.companions?.bad  || []).slice(0, 4).map(id => PLANT_IDX[id]?.name || id);
   const sun = plant.sun ? plant.sun : null;
+  const HEIGHT_LABEL = {
+    tall:'Tall (≥3 ft) · prefers bed center',
+    med:'Medium (1–3 ft)',
+    short:'Short (≤1 ft) · prefers bed edge',
+    ground:'Ground / trailing · prefers corners',
+  };
   const lines = [];
   if (days)            lines.push(`<div class="sq-tt-line"><span class="ttk">⏱</span><span>${esc(days)} days to harvest</span></div>`);
   if (plant.sqFt)      lines.push(`<div class="sq-tt-line"><span class="ttk">📐</span><span>${esc(plant.sqFt)} sq ft / plant${plant.spacing ? ' · ' + esc(plant.spacing) : ''}</span></div>`);
+  if (plant.height && plant.height !== 'med')
+                       lines.push(`<div class="sq-tt-line"><span class="ttk">📏</span><span>${esc(HEIGHT_LABEL[plant.height] || plant.height)}</span></div>`);
+  if (plant.filler)    lines.push(`<div class="sq-tt-line"><span class="ttk">🪡</span><span>Filler — good for packing dense gaps</span></div>`);
   if (plant.frostTol)  lines.push(`<div class="sq-tt-line"><span class="ttk">🌡</span><span>${esc(FROST_TOL_LABEL[plant.frostTol] || plant.frostTol)}</span></div>`);
   if (sun)             lines.push(`<div class="sq-tt-line"><span class="ttk">☀️</span><span>${esc(sun)}</span></div>`);
   if (plant.bestBeds && plant.bestBeds.length)

@@ -437,6 +437,24 @@ function runTests(win) {
   assert('Scenario 20: arugula is a filler', PLANT_IDX['arugula']?.filler === true);
   assert('Scenario 20: tomato-ind is NOT a filler', !PLANT_IDX['tomato-ind']?.filler);
 
+  // ── Scenario 23: tall plants gravitate toward bed center ───────────
+  // One tomatillo start (sqFt=4 → 2×2 block) in an empty 4×4 bed should
+  // land at (1,1)–(2,2) — the center — not at a corner like (0,0).
+  {
+    const beds = [makeBed('A', 4, 4)];
+    const db = emptyDB({beds, seeds:[makeSeed('Tomatillo', {storage:'live', bed:'A', qty:1})]});
+    const r = computeAutoPopulate(db, {noRecommendations: true});
+    const d = r.designs.A || {};
+    // The block should fully cover cells {5, 6, 9, 10} for a 4-col centered placement
+    const expectedCenter = new Set([5, 6, 9, 10]);
+    const actualCells = new Set(Object.keys(d).filter(k => d[k] === 'tomatillo').map(Number));
+    let allCentered = true;
+    expectedCenter.forEach(c => { if (!actualCells.has(c)) allCentered = false; });
+    assert('Scenario 23: tomatillo block placed at center of 4×4 bed',
+      allCentered && actualCells.size === 4,
+      `cells: ${[...actualCells].sort((a,b)=>a-b).join(',')}`);
+  }
+
   // ── Scenario 21: dense mode fills every empty cell ──────────────────
   {
     // Empty 4×4 bed, dense mode on, no seeds — every cell should end up

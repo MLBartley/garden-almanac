@@ -1,5 +1,5 @@
 // Bump CACHE_VERSION whenever you ship a release — old caches are purged on activate.
-const CACHE_VERSION = 'v24-2026-05-20';
+const CACHE_VERSION = 'v25-2026-05-20';
 const CACHE = 'garden-almanac-' + CACHE_VERSION;
 const SHELL = 'garden-almanac-v5.html';
 const MANIFEST = 'manifest.json';
