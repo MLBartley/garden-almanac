@@ -324,6 +324,14 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 .entry-text{font-size:.93rem;line-height:1.55;}
 /* plants */
 .plant-card{background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:13px;margin-bottom:8px;}
+.plant-card-blooming{border-color:#7ec87e;box-shadow:0 0 0 1px rgba(126,200,126,.25);}
+/* Compact list view — one row per plant */
+.plant-list-compact .plant-card{padding:8px 12px;display:flex;align-items:center;gap:10px;}
+.plant-list-compact .plant-header{flex:1;min-width:0;}
+.plant-list-compact .plant-meta{flex:0 0 auto;margin-top:0;flex-wrap:wrap;justify-content:flex-end;max-width:60%;}
+.plant-list-compact .plant-icon-circle{width:32px;height:32px;font-size:1rem;}
+.plant-list-compact .plant-common{font-size:.92rem;}
+.plant-list-compact .plant-latin{display:none;}
 .plant-header{display:flex;align-items:flex-start;gap:10px;margin-bottom:7px;}
 .plant-icon-circle{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;}
 .plant-common{font-size:.97rem;font-weight:600;line-height:1.2;}
@@ -958,6 +966,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       </div>
       <div class="plant-view-toggle">
         <button class="pvt-btn active" id="pvt-list" onclick="setPlantView('list',this)">List</button>
+        <button class="pvt-btn" id="pvt-compact" onclick="setPlantView('compact',this)">Compact</button>
         <button class="pvt-btn" id="pvt-bloom" onclick="setPlantView('bloom',this)">Bloom calendar</button>
       </div>
       <div class="plant-loc-filter" id="plant-loc-filter"></div>
@@ -1288,6 +1297,12 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <div class="form-field"><div class="form-label">Location</div><input class="form-input" id="ap-location" placeholder="e.g. NW bed, front border" type="text"></div>
         <div class="form-field"><div class="form-label">Bloom from</div><select class="form-select" id="ap-bloom"><option value="">— unknown —</option><option>March</option><option>April</option><option>May</option><option>June</option><option>July</option><option>August</option><option>September</option><option>October</option></select></div>
         <div class="form-field"><div class="form-label">Bloom through</div><select class="form-select" id="ap-bloom-end"><option value="">— same month —</option><option>March</option><option>April</option><option>May</option><option>June</option><option>July</option><option>August</option><option>September</option><option>October</option></select></div>
+        <div class="form-field"><div class="form-label">Sun</div><select class="form-select" id="ap-sun"><option value="">— unknown —</option><option value="full">Full sun</option><option value="partial">Partial shade</option><option value="shade">Full shade</option></select></div>
+        <div class="form-field"><div class="form-label">Water</div><select class="form-select" id="ap-water"><option value="">— unknown —</option><option value="dry">Dry / xeric</option><option value="medium">Medium</option><option value="moist">Moist</option></select></div>
+        <div class="form-field"><div class="form-label">Pollinator</div><select class="form-select" id="ap-pollinator"><option value="">— none —</option><option value="bees">Bees</option><option value="butterflies">Butterflies</option><option value="hummingbirds">Hummingbirds</option><option value="all">Bees + butterflies + hummingbirds</option></select></div>
+        <div class="form-field"><div class="form-label">Wildlife value</div><input class="form-input" id="ap-wildlife" placeholder="e.g. monarch host plant, songbird seed" type="text"></div>
+        <div class="form-field"><div class="form-label">Prune month</div><select class="form-select" id="ap-prune-month"><option value="">— none —</option><option value="1">January</option><option value="2">February</option><option value="3">March</option><option value="4">April</option><option value="5">May</option><option value="6">June</option><option value="7">July</option><option value="8">August</option><option value="9">September</option><option value="10">October</option><option value="11">November</option><option value="12">December</option></select></div>
+        <div class="form-field"><div class="form-label">Divide every (years)</div><input class="form-input" id="ap-divide-yrs" placeholder="e.g. 3 (leave blank if not needed)" type="number" min="1" max="20"></div>
         <div class="form-field"><div class="form-label">Notes</div><input class="form-input" id="ap-notes" placeholder="optional" type="text"></div>
         <div class="form-field" style="border-bottom:none;"><div class="form-label">Emoji</div><input class="form-input" id="ap-emoji" placeholder="🌸" maxlength="4" style="font-size:1.4rem;width:50px;"></div>
       </div>
@@ -5222,20 +5237,68 @@ function placePlant(plantId) {
     }
   }
 
-  // Apply to the clicked square (replacing the connected block if any).
-  // Block placement happens here — for an empty cell, getConnectedBlockCells
-  // returns just [selectedSqIdx]; for an existing block, all its cells get
-  // overwritten with the new plant.
+  // Apply to the clicked square. For a multi-sqft plant (sqFt ≥ 1) we expand
+  // into the plant's canonical block size, sliding the block so the clicked
+  // cell is inside it. If the full footprint doesn't fit at the click, fall
+  // back to a single cell with a warning toast.
   const sourceCells = getConnectedBlockCells(selectedSqIdx);
-  sourceCells.forEach(i => {
-    activeBedDesign[i] = plantId;
-    activeBedStatuses[i] = 'planned';
-  });
+  const sourceCellSet = new Set(sourceCells);
+  const bed = db.beds.find(b => b.key === activeBedKey);
+  let firstBlockPlaced = false;
+  if (bed && plant.sqFt >= 1) {
+    const [bw, bh] = plantBlockDims(plant);
+    const clickR = Math.floor(selectedSqIdx / bed.cols);
+    const clickC = selectedSqIdx % bed.cols;
+    // Build candidate positions where the clicked cell is inside the block,
+    // trying both orientations. Existing source cells count as empty.
+    const candidates = [];
+    const tryDims = bw === bh ? [[bw, bh]] : [[bw, bh], [bh, bw]];
+    for (const [w, h] of tryDims) {
+      if (w > bed.cols || h > bed.rows) continue;
+      for (let dr = 0; dr < h; dr++) {
+        for (let dc = 0; dc < w; dc++) {
+          const r = clickR - dr, c = clickC - dc;
+          if (r < 0 || c < 0 || r + h > bed.rows || c + w > bed.cols) continue;
+          let ok = true;
+          for (let drr = 0; drr < h && ok; drr++) {
+            for (let dcc = 0; dcc < w && ok; dcc++) {
+              const idx = (r + drr) * bed.cols + (c + dcc);
+              if (activeBedDesign[idx] && !sourceCellSet.has(idx)) ok = false;
+            }
+          }
+          if (ok) candidates.push({ r, c, w, h, score: blockSlotScore(r, c, w, h, bed, plant, activeBedDesign) });
+        }
+      }
+    }
+    if (candidates.length) {
+      candidates.sort((a, b) => a.score - b.score);
+      const slot = candidates[0];
+      // Clear all source cells first (so a block-replacement doesn't leave
+      // orphan cells from the previous larger footprint).
+      sourceCells.forEach(i => { delete activeBedDesign[i]; delete activeBedStatuses[i]; });
+      for (let drr = 0; drr < slot.h; drr++) {
+        for (let dcc = 0; dcc < slot.w; dcc++) {
+          const idx = (slot.r + drr) * bed.cols + (slot.c + dcc);
+          activeBedDesign[idx] = plantId;
+          activeBedStatuses[idx] = 'planned';
+        }
+      }
+      firstBlockPlaced = true;
+    } else if (plant.sqFt >= 1) {
+      // Block doesn't fit at this click position — fall back to single cell
+      showToast({msg:`${plant.name} normally takes ${plantBlockDims(plant)[0]}×${plantBlockDims(plant)[1]} but there's no room here — placed as a single cell`, variant:'warn'});
+    }
+  }
+  if (!firstBlockPlaced) {
+    sourceCells.forEach(i => {
+      activeBedDesign[i] = plantId;
+      activeBedStatuses[i] = 'planned';
+    });
+  }
   let remaining = count - 1; // we already placed the first instance
 
   // For sqFt ≥ 1, each remaining instance gets its own w×h block via
   // scored slot picking. For sqFt < 1, scatter into empty cells row-major.
-  const bed = db.beds.find(b => b.key === activeBedKey);
   if (bed && remaining > 0) {
     if (plant.sqFt >= 1) {
       const [bw, bh] = plantBlockDims(plant);
@@ -5938,6 +6001,7 @@ const BLOOM_C={March:'#e0d4f0',April:'#f9a8d4',May:'#86efac',June:'#60a5fa',July
 function savePlant(){
   const common=document.getElementById('ap-common').value.trim();if(!common){alert('Enter a name.');return;}
   const editId=document.getElementById('ap-edit-id').value;
+  const divideYrs=parseInt(document.getElementById('ap-divide-yrs').value,10);
   const data={
     category:document.getElementById('ap-category').value,
     common,
@@ -5948,6 +6012,12 @@ function savePlant(){
     bloomEnd:document.getElementById('ap-bloom-end').value,
     status:document.getElementById('ap-status').value||'established',
     notes:document.getElementById('ap-notes').value.trim(),
+    sun:document.getElementById('ap-sun').value,
+    water:document.getElementById('ap-water').value,
+    pollinator:document.getElementById('ap-pollinator').value,
+    wildlife:document.getElementById('ap-wildlife').value.trim(),
+    pruneMonth:parseInt(document.getElementById('ap-prune-month').value,10)||null,
+    divideYears:Number.isFinite(divideYrs)&&divideYrs>0?divideYrs:null,
   };
   if(editId){
     const idx=db.plants.findIndex(p=>p.id===editId);
@@ -5960,9 +6030,8 @@ function savePlant(){
   document.getElementById('ap-edit-id').value='';
   document.getElementById('ap-modal-title').textContent='Add to plant inventory';
   document.getElementById('ap-save-btn').textContent='Add to inventory →';
-  ['ap-common','ap-latin','ap-location','ap-notes','ap-emoji'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('ap-bloom').value='';
-  document.getElementById('ap-bloom-end').value='';
+  ['ap-common','ap-latin','ap-location','ap-notes','ap-emoji','ap-wildlife','ap-divide-yrs'].forEach(id=>document.getElementById(id).value='');
+  ['ap-bloom','ap-bloom-end','ap-sun','ap-water','ap-pollinator','ap-prune-month'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('ap-status').value='established';
   renderPlants();
 }
@@ -5973,7 +6042,16 @@ function plantCard(p){
   const curStatus=p.status||'established';
   const statusColors={established:'#2a6a2a',noted:'#777',planned:'#2a6fa8'};
   const statusBg={established:'#e2f0e4',noted:'#e8e8e8',planned:'#d4eaf7'};
-  const statusLabel={established:'established',noted:'noted',planned:'planned'};
+  const statusLabel={established:'established',noted:'noted in yard',planned:'planned'};
+
+  // "Blooming now": current month falls between bloom and bloomEnd
+  const BLOOM_IDX_LOCAL = {March:0,April:1,May:2,June:3,July:4,August:5,September:6,October:7};
+  const curMonName = new Date().toLocaleString('en-US',{month:'long'});
+  const curMonIdx = BLOOM_IDX_LOCAL[curMonName] ?? -1;
+  const bloomStart = BLOOM_IDX_LOCAL[p.bloom] ?? -1;
+  const bloomEndIdx = p.bloomEnd ? (BLOOM_IDX_LOCAL[p.bloomEnd] ?? bloomStart) : bloomStart;
+  const isBloomingNow = bloomStart >= 0 && curMonIdx >= 0 && curMonIdx >= bloomStart && curMonIdx <= bloomEndIdx;
+
   const bloomRange=p.bloomEnd&&p.bloomEnd!==p.bloom
     ?`🌸 ${p.bloom}–${p.bloomEnd.slice(0,3)}`
     :p.bloom&&p.bloom!=='—'?`🌸 ${p.bloom}`:'';
@@ -5987,11 +6065,38 @@ function plantCard(p){
       ?`<span id="pn-${escAttr(p.id)}" class="plant-pill pill-sage" style="cursor:pointer;" data-expanded="0" onclick="expandPlantNotes('${escAttr(p.id)}')" title="Tap to expand">${esc(p.notes.slice(0,60))}…</span>`
       :`<span class="plant-pill pill-sage">${esc(p.notes)}</span>`
     :'';
-  return`<div class="plant-card${dimmed}">
+
+  // Metadata pills (only render when set)
+  const SUN_LABEL={full:'☀️ Full sun',partial:'⛅ Part shade',shade:'🌑 Shade'};
+  const WATER_LABEL={dry:'💧 Dry',medium:'💧💧 Medium',moist:'💧💧💧 Moist'};
+  const POLL_LABEL={bees:'🐝 Bees',butterflies:'🦋 Butterflies',hummingbirds:'🐦 Hummingbirds',all:'🐝🦋🐦 All'};
+  const sunPill=p.sun&&SUN_LABEL[p.sun]?`<span class="plant-pill pill-sage">${SUN_LABEL[p.sun]}</span>`:'';
+  const waterPill=p.water&&WATER_LABEL[p.water]?`<span class="plant-pill pill-sage">${WATER_LABEL[p.water]}</span>`:'';
+  const pollPill=p.pollinator&&POLL_LABEL[p.pollinator]?`<span class="plant-pill pill-gold">${POLL_LABEL[p.pollinator]}</span>`:'';
+  const wildlifePill=p.wildlife?`<span class="plant-pill pill-sage" title="Wildlife value">🦌 ${esc(p.wildlife.slice(0,30))}${p.wildlife.length>30?'…':''}</span>`:'';
+  const bloomingNowPill=isBloomingNow?`<span class="plant-pill" style="background:#dfead7;color:var(--moss);font-weight:700;">🌸 Blooming now</span>`:'';
+
+  // Linked seeds: find seed-inventory items that map to this plant by name
+  const linkedSeeds=(db.seeds||[]).filter(s=>!s.skipYear && s.name && p.common && (
+    s.name.toLowerCase()===p.common.toLowerCase() ||
+    p.common.toLowerCase().includes(s.name.toLowerCase()) ||
+    s.name.toLowerCase().includes(p.common.toLowerCase())
+  ));
+  const seedPill = linkedSeeds.length
+    ? `<span class="plant-pill" style="background:#e2f0e4;color:#2a6a2a;cursor:pointer;" onclick="setGardenTab('seeds');setTimeout(()=>document.getElementById('seed-search').value=${JSON.stringify(p.common)},50);searchSeeds(${JSON.stringify(p.common)});" title="View linked seed inventory">🌾 ${linkedSeeds.length} in seeds</span>`
+    : '';
+
+  // Status dropdown (replaces cycling pill)
+  const statusOptions=['established','planned','noted'].map(s=>
+    `<option value="${s}"${s===curStatus?' selected':''}>${s}</option>`).join('');
+  const statusSelect=`<select onchange="setPlantStatus('${escAttr(p.id)}',this.value)" style="font-family:'Space Mono',monospace;font-size:7px;padding:2px 6px;border-radius:10px;background:${statusBg[curStatus]};color:${statusColors[curStatus]};border:none;cursor:pointer;-webkit-appearance:none;appearance:none;">${statusOptions}</select>`;
+
+  const cardCls = `plant-card${dimmed}${isBloomingNow?' plant-card-blooming':''}`;
+  return`<div class="${cardCls}">
     <div class="plant-header">
       <div class="plant-icon-circle" style="background:${bg}20;border:2px solid ${bg}60;">${p.emoji||'🌿'}</div>
       <div style="flex:1;min-width:0;">
-        <div class="plant-common">${esc(p.common)}</div>
+        <div class="plant-common">${esc(p.common)}${isBloomingNow?' <span title="Blooming now" style="font-size:.85rem;">🌸</span>':''}</div>
         ${p.latin?`<div class="plant-latin">${esc(p.latin)}</div>`:''}
         ${locationLine}
       </div>
@@ -6001,12 +6106,25 @@ function plantCard(p){
       </div>
     </div>
     <div class="plant-meta">
-      <button onclick="togglePlantStatus('${escAttr(p.id)}')" style="font-family:'Space Mono',monospace;font-size:7px;padding:2px 8px;border-radius:10px;background:${statusBg[curStatus]};color:${statusColors[curStatus]};border:none;cursor:pointer;">${statusLabel[curStatus]}</button>
+      ${statusSelect}
+      ${bloomingNowPill}
       ${bloomRange?`<span class="plant-pill pill-gold">${bloomRange}</span>`:''}
+      ${sunPill}${waterPill}${pollPill}${wildlifePill}
+      ${seedPill}
       <span class="plant-pill pill-ink">${addedLabel}</span>
       ${notesHtml}
     </div>
   </div>`;
+}
+
+// Set plant status directly (replaces cycling togglePlantStatus). The old
+// toggle helper is kept for backward compatibility with any saved onclicks.
+function setPlantStatus(id, newStatus) {
+  const p = db.plants.find(p => p.id === id);
+  if (!p) return;
+  p.status = newStatus;
+  saveDB(db);
+  renderPlants();
 }
 let plantViewMode='list', plantLocFilter='all', plantSortMode='added', plantSearchQuery='';
 const _plantNotesCache={};
@@ -6014,11 +6132,14 @@ function setPlantView(mode,btn){
   plantViewMode=mode;
   document.querySelectorAll('#view-plants .pvt-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  const isList=mode==='list';
-  document.getElementById('plant-list-mode').style.display=isList?'':'none';
-  document.getElementById('plant-bloom-mode').style.display=isList?'none':'';
-  document.getElementById('plant-loc-filter').style.display=isList?'':'none';
-  document.getElementById('plant-search-sort').style.display=isList?'':'none';
+  const isListLike = mode==='list' || mode==='compact';
+  document.getElementById('plant-list-mode').style.display=isListLike?'':'none';
+  document.getElementById('plant-bloom-mode').style.display=isListLike?'none':'';
+  document.getElementById('plant-loc-filter').style.display=isListLike?'':'none';
+  document.getElementById('plant-search-sort').style.display=isListLike?'':'none';
+  // Toggle compact-list class on the list container so the same plantCard
+  // markup renders as a denser row when mode === 'compact'.
+  document.getElementById('plant-list-mode').classList.toggle('plant-list-compact', mode === 'compact');
   renderPlants();
 }
 function setLocFilter(loc,btn){
@@ -6062,6 +6183,12 @@ function editPlant(id){
   document.getElementById('ap-bloom-end').value=p.bloomEnd||'';
   document.getElementById('ap-notes').value=p.notes||'';
   document.getElementById('ap-emoji').value=p.emoji||'';
+  document.getElementById('ap-sun').value=p.sun||'';
+  document.getElementById('ap-water').value=p.water||'';
+  document.getElementById('ap-pollinator').value=p.pollinator||'';
+  document.getElementById('ap-wildlife').value=p.wildlife||'';
+  document.getElementById('ap-prune-month').value=p.pruneMonth||'';
+  document.getElementById('ap-divide-yrs').value=p.divideYears||'';
   openModal('add-plant-modal');
 }
 function deletePlant(id){
@@ -6083,6 +6210,7 @@ function renderPlants(){
     return`<button class="plant-loc-btn${plantLocFilter===val?' active':''}" onclick="setLocFilter('${val}',this)">${l}</button>`;
   }).join('');
   if(plantViewMode==='bloom'){renderBloomCalendar();return;}
+  // List and compact modes share the same renderer; compact gets denser CSS
 
   // Stats bar
   const BLOOM_IDX={};BLOOM_ORDER.forEach((m,i)=>BLOOM_IDX[m]=i);
