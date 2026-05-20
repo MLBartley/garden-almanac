@@ -719,7 +719,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
               <input type="checkbox" id="opt-three-sisters" style="width:15px;height:15px;flex-shrink:0;accent-color:var(--moss);">
               <span>🌽🫘🎃 <strong>Three Sisters</strong> — corn + beans + squash together</span>
             </label>
-            <button class="btn-primary" style="width:100%;padding:9px;font-size:.82rem;margin-bottom:6px;" onclick="autoPopulateAllBeds()">✨ Auto-suggest all beds from inventory</button>
+            <button class="btn-primary" style="width:100%;padding:9px;font-size:.82rem;margin-bottom:6px;" onclick="autoPopulateAllBeds()">✨ Fill empty squares with recommendations</button>
             <button class="btn-sm" style="width:100%;padding:6px;font-size:.78rem;color:var(--muted);border-color:var(--rule);" onclick="clearAllSuggestions()">✕ Clear suggestions</button>
           </div>
           <div id="companion-panel-wrap"></div>
@@ -1207,7 +1207,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
   <div class="modal-overlay" id="suggest-summary-modal">
     <div class="modal-sheet" style="max-height:80vh;overflow-y:auto;">
       <div class="modal-handle"></div>
-      <div class="modal-title">Auto-suggest Complete</div>
+      <div class="modal-title" id="suggest-summary-title">Fill Empty Squares — Done</div>
       <div id="suggest-summary-body" style="margin-top:12px;font-size:.83rem;line-height:1.6;"></div>
       <button class="btn-primary" style="width:100%;padding:10px;margin-top:16px;" onclick="closeModal('suggest-summary-modal')">Done</button>
     </div>
@@ -2325,9 +2325,9 @@ function renderCare(d) {
     const names=tender.length?tenderLabel(tender,false):halfhardy.length?tenderLabel(halfhardy,false):'tender transplants';
     tasks.push({cls:'urgent',icon:'🌡️',title:'Frost risk tonight',desc:`Low of ${nightLo}°F. Cover ${names}.`});
   }
-  if(rain>0.3||rainChance>70)tasks.push({cls:'info',icon:'🌧',title:'Skip oya top-off',desc:`${rain>0?rain+'" rain':rainChance+'% chance'}. Let nature handle irrigation.`});
-  else if(hi>=82)tasks.push({cls:'urgent',icon:'💧',title:'Top off all oya pots',desc:`High of ${hi}°F. Refill all 8 oya pots.`});
-  else tasks.push({cls:'normal',icon:'💧',title:'Check oya levels',desc:'No significant rain. Refill if soil feels dry at 2".'});
+  if(rain>0.3||rainChance>70)tasks.push({cls:'info',icon:'🌧',title:'Skip oya top-off',desc:`${rain>0?rain+'" rain':rainChance+'% chance'}. Let nature handle irrigation.`,onclick:'scrollToOya()'});
+  else if(hi>=82)tasks.push({cls:'urgent',icon:'💧',title:'Top off all oya pots',desc:`High of ${hi}°F. Refill all 8 oya pots.`,onclick:'scrollToOya()'});
+  else tasks.push({cls:'normal',icon:'💧',title:'Check oya levels',desc:'No significant rain. Refill if soil feels dry at 2".',onclick:'scrollToOya()'});
   if(wind>=20)tasks.push({cls:'urgent',icon:'💨',title:`Wind ${wind} mph`,desc:'Secure cages. Hold off on transplanting.'});
   if(hum>=80&&hi>=65)tasks.push({cls:'info',icon:'🍄',title:'Fungal watch',desc:'Warm + humid. Watch for mildew and blight.'});
   if(hi>=85){
@@ -2362,7 +2362,7 @@ function renderCare(d) {
   const careWrap = document.getElementById('care-wrap');
   if (careWrap) careWrap.style.display = tasks.length ? '' : 'none';
   document.getElementById('care-list').innerHTML = tasks.map(t=>
-    `<div class="care-task ${t.cls}"><div class="care-icon">${t.icon}</div><div class="care-body"><div class="care-title">${t.title}</div><div class="care-desc">${t.desc}</div></div></div>`
+    `<div class="care-task ${t.cls}"${t.onclick?` onclick="${t.onclick}" style="cursor:pointer;"`:''}><div class="care-icon">${t.icon}</div><div class="care-body"><div class="care-title">${t.title}${t.onclick?` <span style="font-size:.7rem;opacity:.55;">→</span>`:''}</div><div class="care-desc">${t.desc}</div></div></div>`
   ).join('');
 }
 
@@ -2535,10 +2535,16 @@ function renderTodayBar(d) {
   document.getElementById('tbar-alert-icon').textContent=alertIcon;
   document.getElementById('tbar-alert-text').textContent=alertText;
   document.getElementById('today-bar').className=urgent?'tbar-urgent':'';
+  const oyaAlert=alertText.toLowerCase().includes('oya');
+  document.getElementById('today-bar').onclick=oyaAlert?scrollToOya:switchToToday;
 }
 function switchToToday(){
   const btn=document.querySelector('[onclick*="\'today\'"]');
   if(btn)switchView('today',btn);
+}
+function scrollToOya(){
+  switchToToday();
+  setTimeout(()=>{const el=document.getElementById('oya-section');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});},120);
 }
 
 // ════════════════════════════════════════
@@ -3530,7 +3536,7 @@ function autoPopulateAllBeds() {
   runAutoPopulate();
 }
 
-function runAutoPopulate() {
+function runAutoPopulate(noRecommendations = false) {
   db.bedDesigns = db.bedDesigns || {};
   db.bedStatuses = db.bedStatuses || {};
 
@@ -3716,30 +3722,28 @@ function runAutoPopulate() {
   });
 
   // ── Pass 4: fill ALL remaining empty squares with recommended plants ────
-  // Build inventory-based sqFt allocation per libId so Pass 4 won't over-place
-  // plants already fully covered by actual stock.
-  // Live starts: sum qty×sqFt for each start (each is one physical plant needing space).
-  // Seed packets: use the deduped seedItems — multiple packets of the same type in the
-  // same bed count as one planting, so we don't inflate the quota and re-trigger recommendations.
-  const inventorySq = {};
-  (db.seeds || []).filter(s => !s.skipYear && s.storage === 'live').forEach(seed => {
-    const libId = seedToLibId(seed); if (!libId) return;
-    const plant = PLANT_IDX[libId]; if (!plant) return;
-    inventorySq[libId] = (inventorySq[libId] || 0) + Math.max(1, Math.round(plant.sqFt * (seed.qty || 1)));
-  });
-  seedItems.forEach(seed => {
-    const libId = seedToLibId(seed); if (!libId) return;
-    const plant = PLANT_IDX[libId]; if (!plant) return;
-    const sq = plant.sqFt >= 4 ? Math.ceil(plant.sqFt) : plant.sqFt >= 1 ? Math.max(4, Math.ceil(plant.sqFt * 4)) : 8;
-    inventorySq[libId] = (inventorySq[libId] || 0) + sq;
-  });
-  // Count squares already placed across all beds by Passes 1–3 (non-recommended)
-  const allocatedSq = {};
-  db.beds.forEach(b => {
-    const d = designs[b.key] || {}, s = statuses[b.key] || {};
-    Object.keys(d).forEach(i => { if (s[i] !== 'recommended') allocatedSq[d[i]] = (allocatedSq[d[i]] || 0) + 1; });
-  });
-  fillRecommendedPass(designs, statuses, capacities, inventorySq, allocatedSq);
+  if (!noRecommendations) {
+    // Build inventory-based sqFt allocation per libId so Pass 4 won't over-place
+    // plants already fully covered by actual stock.
+    const inventorySq = {};
+    (db.seeds || []).filter(s => !s.skipYear && s.storage === 'live').forEach(seed => {
+      const libId = seedToLibId(seed); if (!libId) return;
+      const plant = PLANT_IDX[libId]; if (!plant) return;
+      inventorySq[libId] = (inventorySq[libId] || 0) + Math.max(1, Math.round(plant.sqFt * (seed.qty || 1)));
+    });
+    seedItems.forEach(seed => {
+      const libId = seedToLibId(seed); if (!libId) return;
+      const plant = PLANT_IDX[libId]; if (!plant) return;
+      const sq = plant.sqFt >= 4 ? Math.ceil(plant.sqFt) : plant.sqFt >= 1 ? Math.max(4, Math.ceil(plant.sqFt * 4)) : 8;
+      inventorySq[libId] = (inventorySq[libId] || 0) + sq;
+    });
+    const allocatedSq = {};
+    db.beds.forEach(b => {
+      const d = designs[b.key] || {}, s = statuses[b.key] || {};
+      Object.keys(d).forEach(i => { if (s[i] !== 'recommended') allocatedSq[d[i]] = (allocatedSq[d[i]] || 0) + 1; });
+    });
+    fillRecommendedPass(designs, statuses, capacities, inventorySq, allocatedSq);
+  }
 
   // Save
   db.beds.forEach(b => {
@@ -3752,26 +3756,7 @@ function runAutoPopulate() {
   buildBedSelector();
   renderDesign();
 
-  // ── Post-suggest summary ──────────────────────────────────────────────
-  const summaryRows = db.beds.filter(b => b.type !== 'perennial').map(b => {
-    const d = designs[b.key] || {};
-    const s = statuses[b.key] || {};
-    const cap = b.cols * b.rows;
-    const suggested = Object.keys(d).filter(i => s[i] === 'suggested').length;
-    const recommended = Object.keys(d).filter(i => s[i] === 'recommended').length;
-    const confirmed = Object.keys(d).filter(i => s[i] === 'planned' || s[i] === 'planted').length;
-    const empty = cap - Object.keys(d).length;
-    const locked = (db.lockedBeds||[]).includes(b.key);
-    if (locked) return `<div style="padding:5px 0;border-top:1px solid var(--rule);opacity:.5;">🔒 ${b.name} — locked, not modified</div>`;
-    const parts = [];
-    if (suggested) parts.push(`<span style="color:var(--ink);">${suggested} from inventory</span>`);
-    if (recommended) parts.push(`<span style="color:#c4922a;">${recommended} recommendations</span>`);
-    if (confirmed) parts.push(`<span style="color:var(--moss);">${confirmed} confirmed</span>`);
-    if (empty) parts.push(`<span style="color:var(--muted);">${empty} empty</span>`);
-    return `<div style="padding:5px 0;border-top:1px solid var(--rule);"><strong>${b.name}</strong> <span style="opacity:.5;">${b.dims}</span><br><span style="font-size:.75rem;">${parts.join(' · ')}</span></div>`;
-  }).join('');
-  // ── Companion conflict scan ───────────────────────────────────────────
-  // Catch explicitly-assigned seeds sharing a bed with a bad companion.
+  // ── Companion conflict scan (always runs so sync mode can warn) ───────
   const conflictWarnings = [];
   db.beds.filter(b => b.type !== 'perennial' && b.type !== 'herb').forEach(b => {
     const d = designs[b.key] || {};
@@ -3782,7 +3767,6 @@ function runAutoPopulate() {
         const aP = PLANT_IDX[aId], bP = PLANT_IDX[bId];
         if (!aP || !bP) continue;
         if (!(aP.companions?.bad||[]).includes(bId) && !(bP.companions?.bad||[]).includes(aId)) continue;
-        // Find seeds for each plant — prefer explicit bed match, fall back to 'any'
         const aSeed = (db.seeds||[]).find(s=>!s.skipYear&&seedToLibId(s)===aId&&s.bed===b.key)
                    || (db.seeds||[]).find(s=>!s.skipYear&&seedToLibId(s)===aId);
         const bSeed = (db.seeds||[]).find(s=>!s.skipYear&&seedToLibId(s)===bId&&s.bed===b.key)
@@ -3833,22 +3817,53 @@ function runAutoPopulate() {
       <div style="font-size:.75rem;color:var(--muted);margin-top:7px;">To fix: reassign the seed packet to the new bed, or move some live starts to free up space.</div>
     </div>` : '';
 
+  // ── Sync mode: only show modal if there are actionable warnings ───────
+  if (noRecommendations) {
+    if (reroutedSeeds.length || conflictWarnings.length) {
+      document.getElementById('suggest-summary-title').textContent = '⚠️ Bed Sync Warnings';
+      document.getElementById('suggest-summary-body').innerHTML = reroutedHtml + conflictHtml;
+      openModal('suggest-summary-modal');
+    }
+    return;
+  }
+
+  // ── Full summary modal (Fill Empty Squares) ───────────────────────────
+  const summaryRows = db.beds.filter(b => b.type !== 'perennial').map(b => {
+    const d = designs[b.key] || {};
+    const s = statuses[b.key] || {};
+    const cap = b.cols * b.rows;
+    const suggested = Object.keys(d).filter(i => s[i] === 'suggested').length;
+    const recommended = Object.keys(d).filter(i => s[i] === 'recommended').length;
+    const confirmed = Object.keys(d).filter(i => s[i] === 'planned' || s[i] === 'planted').length;
+    const empty = cap - Object.keys(d).length;
+    const locked = (db.lockedBeds||[]).includes(b.key);
+    if (locked) return `<div style="padding:5px 0;border-top:1px solid var(--rule);opacity:.5;">🔒 ${b.name} — locked, not modified</div>`;
+    const parts = [];
+    if (suggested) parts.push(`<span style="color:var(--ink);">${suggested} from inventory</span>`);
+    if (recommended) parts.push(`<span style="color:#c4922a;">${recommended} recommendations</span>`);
+    if (confirmed) parts.push(`<span style="color:var(--moss);">${confirmed} confirmed</span>`);
+    if (empty) parts.push(`<span style="color:var(--muted);">${empty} empty</span>`);
+    return `<div style="padding:5px 0;border-top:1px solid var(--rule);"><strong>${b.name}</strong> <span style="opacity:.5;">${b.dims}</span><br><span style="font-size:.75rem;">${parts.join(' · ')}</span></div>`;
+  }).join('');
+
+  document.getElementById('suggest-summary-title').textContent = 'Fill Empty Squares — Done';
   document.getElementById('suggest-summary-body').innerHTML = (summaryRows || '<p>No beds updated.</p>') + reroutedHtml + conflictHtml;
   openModal('suggest-summary-modal');
 }
+
+function syncInventoryToBeds() { runAutoPopulate(true); }
 
 function acceptConflictMove(seedId, newBed, warnElemId) {
   const seed = db.seeds.find(s=>s.id===seedId);
   if (seed) { seed.bed = newBed; seed._userModified = true; saveDB(db); }
   closeModal('suggest-summary-modal');
-  autoPopulateAllBeds();
+  syncInventoryToBeds();
 }
 function reassignSeedBed(libId, fromBed, toBed) {
-  // Update bed assignment for the first seed that maps to libId and is assigned to fromBed
   const seed = (db.seeds||[]).find(s => seedToLibId(s) === libId && s.bed === fromBed);
   if (seed) { seed.bed = toBed; seed._userModified = true; saveDB(db); }
   closeModal('suggest-summary-modal');
-  autoPopulateAllBeds();
+  syncInventoryToBeds();
 }
 
 function clearAllSuggestions() {
@@ -4314,7 +4329,7 @@ function adjustQty(d){scanQty=Math.max(1,Math.min(99,scanQty+d));document.getEle
 function confirmSeed(){
   const name=document.getElementById('sr-name').value.trim();if(!name){alert('Enter a plant name.');return;}
   const seed={id:'s'+Date.now(),name,variety:document.getElementById('sr-variety').value.trim(),days:document.getElementById('sr-days').value.trim(),bed:document.getElementById('sr-bed').value,storage:document.getElementById('sr-storage').value,source:document.getElementById('sr-source').value.trim(),notes:document.getElementById('sr-notes').value.trim(),qty:scanQty,addedDate:new Date().toISOString().slice(0,10),thumb:currentScanImageB64?currentScanImageB64.replace(/^data:image\/\w+;base64,/,'').slice(0,8000):'',thumbType:currentScanImageB64?'image/jpeg':''};
-  db.seeds=db.seeds||[];db.seeds.unshift(seed);saveDB(db);closeModal('scan-modal');resetScan();renderSeeds();
+  db.seeds=db.seeds||[];db.seeds.unshift(seed);saveDB(db);closeModal('scan-modal');resetScan();renderSeeds();syncInventoryToBeds();
 }
 function filterSeeds(val,btn){activeSeedFilter=val;document.querySelectorAll('.bed-filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderSeeds();}
 function searchSeeds(q){seedSearchQuery=q.trim().toLowerCase();const clr=document.getElementById('seed-search-clear');if(clr)clr.style.display=seedSearchQuery?'':'none';renderSeeds();}
@@ -4377,28 +4392,28 @@ function seedBedMismatch(seed){
 }
 function changeSeedBed(id,newBed){
   const s=(db.seeds||[]).find(s=>s.id===id);if(!s)return;
-  s.bed=newBed;s._userModified=true;saveDB(db);renderSeeds();
+  s.bed=newBed;s._userModified=true;saveDB(db);renderSeeds();syncInventoryToBeds();
 }
 function changeSeedBed2(id,bed2){
   const s=(db.seeds||[]).find(s=>s.id===id);if(!s)return;
-  s.bed2=bed2;s._userModified=true;saveDB(db);renderSeeds();
+  s.bed2=bed2;s._userModified=true;saveDB(db);renderSeeds();syncInventoryToBeds();
 }
 function changeSeedQty2(id,val){
   const s=(db.seeds||[]).find(s=>s.id===id);if(!s)return;
   s.qty2=Math.max(1,Math.min((s.qty||1)-1,parseInt(val)||1));
-  s._userModified=true;saveDB(db);renderSeeds();
+  s._userModified=true;saveDB(db);renderSeeds();syncInventoryToBeds();
 }
 function addSeedSplit(id){
   const s=(db.seeds||[]).find(s=>s.id===id);if(!s)return;
   s.bed2='any';s.qty2=Math.max(1,Math.floor((s.qty||2)/2));
-  saveDB(db);renderSeeds();
+  saveDB(db);renderSeeds();syncInventoryToBeds();
 }
 function removeSeedSplit(id){
   const s=(db.seeds||[]).find(s=>s.id===id);if(!s)return;
-  delete s.bed2;delete s.qty2;saveDB(db);renderSeeds();
+  delete s.bed2;delete s.qty2;saveDB(db);renderSeeds();syncInventoryToBeds();
 }
-function skipSeed(id){const seed=(db.seeds||[]).find(s=>s.id===id);if(!seed)return;seed.skipYear=new Date().getFullYear();seed.nextReminder=calcNextReminder(seed);saveDB(db);renderSeeds();}
-function unskipSeed(id){const seed=(db.seeds||[]).find(s=>s.id===id);if(!seed)return;delete seed.skipYear;delete seed.nextReminder;saveDB(db);renderSeeds();}
+function skipSeed(id){const seed=(db.seeds||[]).find(s=>s.id===id);if(!seed)return;seed.skipYear=new Date().getFullYear();seed.nextReminder=calcNextReminder(seed);saveDB(db);renderSeeds();syncInventoryToBeds();}
+function unskipSeed(id){const seed=(db.seeds||[]).find(s=>s.id===id);if(!seed)return;delete seed.skipYear;delete seed.nextReminder;saveDB(db);renderSeeds();syncInventoryToBeds();}
 function renderSeeds(){
   const seeds=db.seeds||[];
   const total=seeds.length;
@@ -4441,7 +4456,7 @@ function renderSeeds(){
           placementHtml=`<div style="font-size:.78rem;margin-top:5px;color:var(--moss);">📍 In design: ${bedLabels}</div>`;
         }
       }else{
-        placementHtml=`<div style="font-size:.78rem;margin-top:5px;color:var(--muted);">📍 Not yet in Design — run ✨ Auto-suggest</div>`;
+        placementHtml=`<div style="font-size:.78rem;margin-top:5px;color:var(--muted);">📍 Not yet in Design — syncing…</div>`;
       }
       // Bed mismatch warning + quick reassign
       const mismatch=seedBedMismatch(s);
@@ -4520,7 +4535,7 @@ function renderSeeds(){
   if(visSkipped.length)html+=`<div class="seed-section-divider">💤 Saved for next year <span style="font-weight:400;opacity:.6;">(${visSkipped.length})</span></div>`+visSkipped.map(s=>buildCard(s,false,true)).join('');
   el.innerHTML=html||`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">No seeds yet.</div></div>`;
 }
-function deleteSeed(id){if(!confirm('Remove from inventory?'))return;db.seeds=db.seeds.filter(s=>s.id!==id);saveDB(db);renderSeeds();}
+function deleteSeed(id){if(!confirm('Remove from inventory?'))return;db.seeds=db.seeds.filter(s=>s.id!==id);saveDB(db);renderSeeds();syncInventoryToBeds();}
 
 // ════════════════════════════════════════
 //  PLANTS
