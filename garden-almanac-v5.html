@@ -1469,6 +1469,25 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 </div>
 <script>
 // ════════════════════════════════════════
+//  TEST-MODE GUARD — when loaded with ?test=1, skip auto-init and use
+//  in-memory storage so test harnesses don't clobber the user's data.
+// ════════════════════════════════════════
+const TEST_MODE = (typeof location !== 'undefined') && new URLSearchParams(location.search).has('test');
+if (TEST_MODE) {
+  const _mem = new Map();
+  const fakeLS = {
+    getItem: k => _mem.has(k) ? _mem.get(k) : null,
+    setItem: (k, v) => _mem.set(k, String(v)),
+    removeItem: k => _mem.delete(k),
+    clear: () => _mem.clear(),
+    get length() { return _mem.size; },
+    key: i => [..._mem.keys()][i] || null,
+  };
+  try { Object.defineProperty(window, 'localStorage', { configurable: true, get: () => fakeLS }); }
+  catch (_) { /* some browsers freeze localStorage — tests fall back to real storage */ }
+}
+
+// ════════════════════════════════════════
 //  ESCAPING — wrap user-supplied or OCR'd strings before injecting into HTML
 // ════════════════════════════════════════
 function esc(s) {
@@ -3585,14 +3604,15 @@ function autoPopulateAllBeds() {
   runAutoPopulate();
 }
 
-function runAutoPopulate(noRecommendations = false) {
-  db.bedDesigns = db.bedDesigns || {};
-  db.bedStatuses = db.bedStatuses || {};
+// Pure compute step: returns { designs, statuses, capacities, reroutedSeeds, conflictWarnings }
+// without touching DOM or saveDB. Use runAutoPopulate() to apply to live UI.
+function computeAutoPopulate(db, opts = {}) {
+  const { noRecommendations = false, threeSistersOn = false } = opts;
 
   const designs = {}, statuses = {}, capacities = {};
   db.beds.forEach(b => {
-    designs[b.key] = {...(db.bedDesigns[b.key] || {})};
-    statuses[b.key] = {...(db.bedStatuses[b.key] || {})};
+    designs[b.key] = {...((db.bedDesigns || {})[b.key] || {})};
+    statuses[b.key] = {...((db.bedStatuses || {})[b.key] || {})};
     capacities[b.key] = b.cols * b.rows;
   });
 
@@ -3642,7 +3662,6 @@ function runAutoPopulate(noRecommendations = false) {
     return false;
   }
 
-  const threeSistersOn = document.getElementById('opt-three-sisters')?.checked;
   const threeSistersIds = new Set(['corn', 'bean-bush', 'squash-winter']);
 
   // ── Pass 1: live starts (direct bed assignment) ──────────────────────
@@ -3794,17 +3813,6 @@ function runAutoPopulate(noRecommendations = false) {
     fillRecommendedPass(designs, statuses, capacities, inventorySq, allocatedSq);
   }
 
-  // Save
-  db.beds.forEach(b => {
-    db.bedDesigns[b.key] = designs[b.key];
-    db.bedStatuses[b.key] = statuses[b.key];
-  });
-  saveDB(db);
-  activeBedDesign = {...designs[activeBedKey]};
-  activeBedStatuses = {...statuses[activeBedKey]};
-  buildBedSelector();
-  renderDesign();
-
   // ── Companion conflict scan (always runs so sync mode can warn) ───────
   const conflictWarnings = [];
   db.beds.filter(b => b.type !== 'perennial' && b.type !== 'herb').forEach(b => {
@@ -3835,6 +3843,29 @@ function runAutoPopulate(noRecommendations = false) {
       }
     }
   });
+
+  return { designs, statuses, capacities, reroutedSeeds, conflictWarnings };
+}
+
+// Side-effectful wrapper: runs computeAutoPopulate, applies result to live db,
+// renders, and opens the summary/warning modal.
+function runAutoPopulate(noRecommendations = false) {
+  const threeSistersOn = document.getElementById('opt-three-sisters')?.checked;
+  const result = computeAutoPopulate(db, { noRecommendations, threeSistersOn });
+  const { designs, statuses, reroutedSeeds, conflictWarnings } = result;
+
+  db.bedDesigns = db.bedDesigns || {};
+  db.bedStatuses = db.bedStatuses || {};
+  db.beds.forEach(b => {
+    db.bedDesigns[b.key] = designs[b.key];
+    db.bedStatuses[b.key] = statuses[b.key];
+  });
+  saveDB(db);
+  activeBedDesign = {...designs[activeBedKey]};
+  activeBedStatuses = {...statuses[activeBedKey]};
+  buildBedSelector();
+  renderDesign();
+
   const conflictHtml = conflictWarnings.length ? `
     <div style="margin-top:12px;padding-top:10px;border-top:2px solid #e8b0b0;">
       <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:#7a1a1a;margin-bottom:8px;">⚠️ COMPANION CONFLICTS</div>
@@ -7046,49 +7077,61 @@ function dismissToast(tid) {
   _toasts.delete(tid);
 }
 
-// ── INIT ──
-updateHeaderDate();loadWeather();renderAll();checkSyncStatus();
-// Re-render header date at the next midnight so the displayed day rolls over without reload.
-(function scheduleMidnightTick(){
-  const now=new Date();
-  const next=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1,0,0,5);
-  setTimeout(()=>{updateHeaderDate();scheduleMidnightTick();},next-now);
-})();
-{const tbar=document.getElementById('today-bar');if(tbar){tbar.style.opacity='0';tbar.style.pointerEvents='none';}}
+// ── INIT (skipped in TEST_MODE so tests.html can drive without auto-render) ──
+if (!TEST_MODE) {
+  updateHeaderDate();loadWeather();renderAll();checkSyncStatus();
+  // Re-render header date at the next midnight so the displayed day rolls over without reload.
+  (function scheduleMidnightTick(){
+    const now=new Date();
+    const next=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1,0,0,5);
+    setTimeout(()=>{updateHeaderDate();scheduleMidnightTick();},next-now);
+  })();
+  const _tbar=document.getElementById('today-bar');if(_tbar){_tbar.style.opacity='0';_tbar.style.pointerEvents='none';}
 
-// ── Service worker with update detection ──
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').then(reg => {
-    function watchInstalling(installing) {
-      if (!installing) return;
-      installing.addEventListener('statechange', () => {
-        if (installing.state === 'installed' && navigator.serviceWorker.controller) {
-          showToast({
-            id: 'sw-update',
-            msg: 'New version available.',
-            action: () => { installing.postMessage('skip-waiting'); },
-            actionLabel: 'Reload',
-            duration: 0,
-          });
-        }
-      });
-    }
-    if (reg.waiting && navigator.serviceWorker.controller) {
-      showToast({
-        id: 'sw-update', msg: 'New version available.',
-        action: () => reg.waiting.postMessage('skip-waiting'),
-        actionLabel: 'Reload', duration: 0,
-      });
-    }
-    watchInstalling(reg.installing);
-    reg.addEventListener('updatefound', () => watchInstalling(reg.installing));
-  }).catch(()=>{});
-  let _reloading = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (_reloading) return;
-    _reloading = true;
-    window.location.reload();
-  });
+  // ── Service worker with update detection ──
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      function watchInstalling(installing) {
+        if (!installing) return;
+        installing.addEventListener('statechange', () => {
+          if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+            showToast({
+              id: 'sw-update',
+              msg: 'New version available.',
+              action: () => { installing.postMessage('skip-waiting'); },
+              actionLabel: 'Reload',
+              duration: 0,
+            });
+          }
+        });
+      }
+      if (reg.waiting && navigator.serviceWorker.controller) {
+        showToast({
+          id: 'sw-update', msg: 'New version available.',
+          action: () => reg.waiting.postMessage('skip-waiting'),
+          actionLabel: 'Reload', duration: 0,
+        });
+      }
+      watchInstalling(reg.installing);
+      reg.addEventListener('updatefound', () => watchInstalling(reg.installing));
+    }).catch(()=>{});
+    let _reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (_reloading) return;
+      _reloading = true;
+      window.location.reload();
+    });
+  }
+} else {
+  // Test mode: expose pure helpers + constants on window (let/const aren't auto-global),
+  // then signal readiness to parent harness.
+  window.GA_TEST = {
+    computeAutoPopulate, seedToLibId, fillRecommendedPass, placeThreeSisters,
+    PLANT_IDX, PLANT_LIB, BED_INFO, FAMILY_MAP,
+    defaultDB, defaultBeds, defaultSeeds, defaultPlants,
+    esc, escAttr,
+  };
+  try { window.parent && window.parent.postMessage('ga-test-ready', '*'); } catch (_) {}
 }
 </script>
 </body>

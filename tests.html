@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Garden Almanac — Tests</title>
+<style>
+  :root{--ok:#3d5c42;--fail:#7a1a1a;--muted:#7a7268;--rule:#d4cfc4;--paper:#f4f0e6;--ink:#0f1a0d;}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;background:#fafaf6;color:var(--ink);margin:0;padding:18px;}
+  h1{font-size:1.2rem;margin:0 0 14px;display:flex;align-items:center;gap:10px;}
+  #summary{font-family:'SF Mono',Menlo,monospace;font-size:.85rem;padding:8px 12px;border-radius:6px;background:white;border:1px solid var(--rule);}
+  #summary.ok{background:#eef6ee;border-color:#b8d9be;color:var(--ok);}
+  #summary.fail{background:#fde8e8;border-color:#e8b0b0;color:var(--fail);}
+  .case{background:white;border:1px solid var(--rule);border-radius:6px;padding:10px 14px;margin:6px 0;}
+  .case h3{margin:0 0 4px;font-size:.95rem;display:flex;align-items:center;gap:8px;}
+  .case h3 .badge{font-family:'SF Mono',monospace;font-size:.7rem;padding:2px 7px;border-radius:3px;}
+  .case.pass h3 .badge{background:#dceadd;color:var(--ok);}
+  .case.fail h3 .badge{background:#f5d0d0;color:var(--fail);}
+  .case .detail{font-size:.78rem;color:var(--muted);margin-top:3px;line-height:1.45;font-family:'SF Mono',monospace;white-space:pre-wrap;}
+  .case.fail .detail{color:#5a1a1a;}
+  iframe{display:none;}
+  button{font:inherit;padding:6px 14px;border:1px solid var(--rule);border-radius:5px;background:white;cursor:pointer;}
+</style>
+</head>
+<body>
+<h1>🌱 Garden Almanac Tests <button onclick="location.reload()">Re-run</button></h1>
+<div id="summary">Loading harness…</div>
+<div id="cases"></div>
+<iframe id="app" src="garden-almanac-v5.html?test=1"></iframe>
+<script>
+const results = [];
+function record(name, passed, detail = '') {
+  results.push({name, passed, detail});
+  const el = document.createElement('div');
+  el.className = 'case ' + (passed ? 'pass' : 'fail');
+  el.innerHTML = `<h3><span class="badge">${passed ? 'PASS' : 'FAIL'}</span>${name}</h3>${detail ? `<div class="detail"></div>` : ''}`;
+  if (detail) el.querySelector('.detail').textContent = detail;
+  document.getElementById('cases').appendChild(el);
+}
+function assert(name, cond, detail = '') {
+  record(name, !!cond, cond ? '' : detail || 'assertion failed');
+}
+function assertEq(name, actual, expected) {
+  const ok = JSON.stringify(actual) === JSON.stringify(expected);
+  record(name, ok, ok ? '' : `expected: ${JSON.stringify(expected)}\nactual:   ${JSON.stringify(actual)}`);
+}
+
+// ── Test fixture helpers ──────────────────────────────────────────────
+function makeBed(key, cols, rows, extra = {}) {
+  return {id:'bed'+key, key, name:'Bed '+key, dims:`${cols}×${rows}`, cols, rows, ...extra};
+}
+function makeSeed(name, opts = {}) {
+  return {id:'s-'+name.toLowerCase().replace(/\W+/g,'-')+'-'+Math.random().toString(36).slice(2,5),
+          name, qty:1, bed:'any', storage:'cool', ...opts};
+}
+function gridBeds() {
+  // 4×4 = 16 squares each; small enough to overflow predictably in tests
+  return [
+    makeBed('A', 4, 4),
+    makeBed('B', 4, 4),
+    makeBed('C', 4, 4),
+    makeBed('D', 4, 4),
+  ];
+}
+function emptyDB(overrides = {}) {
+  return {
+    schemaVersion: 4,
+    beds: gridBeds(),
+    seeds: [],
+    bedDesigns: {}, bedStatuses: {},
+    lockedBeds: [],
+    journal: [], plants: [], sowLogs: [], hardenLogs: [],
+    oyaLogs: {}, harvestLog: [], plantingList: [], settings: {},
+    bedHistory: {}, amendments: [], compostLog: [], wishlist: [],
+    seedSaving: [], checklists: {}, rainfallLog: [], soilTempLog: [],
+    gddLog: [], seasonReview: {}, bedPlantList: {}, bedZones: {},
+    ...overrides,
+  };
+}
+
+// Count placed squares in a designs map
+function countSquares(designs) {
+  const total = {};
+  Object.values(designs).forEach(d => Object.values(d).forEach(id => {
+    total[id] = (total[id] || 0) + 1;
+  }));
+  return total;
+}
+function bedSquares(designs, bedKey) {
+  return Object.values(designs[bedKey] || {}).reduce((a, id) => {
+    a[id] = (a[id] || 0) + 1; return a;
+  }, {});
+}
+
+// ── Wait for iframe and run tests ─────────────────────────────────────
+function runTests(win) {
+  const T = win.GA_TEST;
+  if (!T || typeof T.computeAutoPopulate !== 'function') {
+    record('Harness loads', false, 'GA_TEST.computeAutoPopulate not exported on iframe window');
+    return finish();
+  }
+  const { computeAutoPopulate, seedToLibId, PLANT_IDX } = T;
+  record('Harness loads', true);
+
+  // ── seedToLibId mapping tests ───────────────────────────────────────
+  assertEq('seedToLibId: tomato → tomato-ind', seedToLibId({name:'Tomato', variety:'Cherokee Purple'}), 'tomato-ind');
+  assertEq('seedToLibId: roma tomato → tomato-det', seedToLibId({name:'Tomato', variety:'Roma'}), 'tomato-det');
+  assertEq('seedToLibId: kale → brassica-kale', seedToLibId({name:'Kale'}), 'brassica-kale');
+  assertEq('seedToLibId: rosemary → rosemary (not thyme)', seedToLibId({name:'Rosemary'}), 'rosemary');
+  assertEq('seedToLibId: sage → sage (not thyme)', seedToLibId({name:'Sage'}), 'sage');
+  assertEq('seedToLibId: marigold → marigold', seedToLibId({name:'Marigold'}), 'marigold');
+  assertEq('seedToLibId: nasturtium → nasturtium', seedToLibId({name:'Nasturtium'}), 'nasturtium');
+  assertEq('seedToLibId: winter rye → cover-winter-rye', seedToLibId({name:'Winter Rye'}), 'cover-winter-rye');
+
+  // ── Scenario 1: Live start placed in assigned bed ───────────────────
+  {
+    const db = emptyDB({seeds: [makeSeed('Tomato', {storage:'live', bed:'A', qty:2, variety:'Cherokee Purple'})]});
+    const r = computeAutoPopulate(db, {noRecommendations: true});
+    const inA = bedSquares(r.designs, 'A');
+    assert('Scenario 1: live tomato lands in Bed A',
+      (inA['tomato-ind'] || 0) >= 2,
+      `Bed A has: ${JSON.stringify(inA)}`);
+    assertEq('Scenario 1: no reroutes', r.reroutedSeeds.length, 0);
+  }
+
+  // ── Scenario 2: skipYear seed should NOT be placed ──────────────────
+  {
+    const db = emptyDB({seeds: [makeSeed('Kale', {storage:'live', bed:'B', qty:3, skipYear: 2026})]});
+    const r = computeAutoPopulate(db, {noRecommendations: true});
+    const all = countSquares(r.designs);
+    assert('Scenario 2: skipYear seed is not placed',
+      !all['brassica-kale'],
+      `Found placements: ${JSON.stringify(all)}`);
+  }
+
+  // ── Scenario 3: duplicate packets in same bed dedup as one ──────────
+  // (Bug fix from earlier session: 3 packets shouldn't multiply into 24+ squares.)
+  {
+    const db = emptyDB({seeds: [
+      makeSeed('Arugula', {storage:'cool', bed:'A', qty:1}),
+      makeSeed('Arugula', {storage:'cool', bed:'A', qty:1}),
+      makeSeed('Arugula', {storage:'cool', bed:'A', qty:1}),
+    ]});
+    const r = computeAutoPopulate(db, {noRecommendations: true});
+    // Sum arugula squares across all beds (Pass 3 may overflow if Bed A fills with deduped patch first)
+    const total = countSquares(r.designs);
+    const arugulaSqs = total['arugula'] || 0;
+    // sqFt 0.25 → fewer than 1 → packet allocation = 8 sq. With dedup, expect ~8, not 24.
+    assert('Scenario 3: arugula packets dedup (≤10 sq across all beds, not 24+)',
+      arugulaSqs > 0 && arugulaSqs <= 10,
+      `Total arugula squares: ${arugulaSqs} (expected 1..10, NOT 24 which would indicate dedup bug)`);
+  }
+
+  // ── Scenario 4: locked beds preserve their planted squares ──────────
+  // Locked beds skip Step 0's clear, so 'planted' squares survive even if
+  // a seed is also assigned there. (Explicit user assignments to locked
+  // beds DO place — they're treated as user intent overriding the lock.)
+  {
+    const db = emptyDB({
+      // Seed assigned to 'any' so router doesn't have a reason to pick A
+      seeds: [makeSeed('Tomato', {storage:'cool', bed:'any', qty:1})],
+      lockedBeds: ['A'],
+      bedDesigns: { A: { 0: 'pre-existing' } },
+      bedStatuses: { A: { 0: 'planted' } },
+    });
+    const r = computeAutoPopulate(db, {noRecommendations: true});
+    assertEq('Scenario 4: locked Bed A preserves its planted plant',
+      r.designs.A[0], 'pre-existing');
+    assert('Scenario 4: locked Bed A status entry preserved',
+      r.statuses.A[0] === 'planted',
+      `Status was: ${r.statuses.A[0]}`);
+  }
+
+  // ── Scenario 5: overflow reports rerouted seed ──────────────────────
+  // Winter squash sqFt=6 → packet alloc = 6 sq. Bed A only has 4 → overflow.
+  {
+    const beds = [makeBed('A', 2, 2), makeBed('B', 4, 4), makeBed('C', 4, 4)];
+    const db = emptyDB({beds, seeds:[
+      makeSeed('Winter Squash', {storage:'cool', bed:'A', qty:1}),
+    ]});
+    const r = computeAutoPopulate(db, {noRecommendations: true});
+    assert('Scenario 5: squash packet rerouted out of small Bed A',
+      r.reroutedSeeds.length > 0,
+      `Expected reroutedSeeds, got: ${JSON.stringify(r.reroutedSeeds)}`);
+    if (r.reroutedSeeds.length) {
+      assertEq('Scenario 5: reroute fromBed = A', r.reroutedSeeds[0].fromBed, 'A');
+      assert('Scenario 5: reroute toBed is a different bed',
+        r.reroutedSeeds[0].toBed && r.reroutedSeeds[0].toBed !== 'A',
+        `toBed: ${r.reroutedSeeds[0].toBed}`);
+    }
+  }
+
+  // ── Scenario 6: perennial/herb beds not auto-populated ──────────────
+  {
+    const beds = [
+      makeBed('A', 4, 4),
+      makeBed('H', 4, 4, {type:'herb'}),
+      makeBed('P', 4, 4, {type:'perennial'}),
+    ];
+    const db = emptyDB({beds, seeds:[makeSeed('Lettuce', {storage:'cool', bed:'any', qty:1})]});
+    const r = computeAutoPopulate(db, {noRecommendations: true});
+    const inH = Object.keys(r.designs.H || {}).length;
+    const inP = Object.keys(r.designs.P || {}).length;
+    assertEq('Scenario 6: herb bed H untouched by Pass 3', inH, 0);
+    assertEq('Scenario 6: perennial bed P untouched by Pass 3', inP, 0);
+  }
+
+  // ── Scenario 7: companion conflict detection ────────────────────────
+  {
+    const tomatoBad = PLANT_IDX['tomato-ind']?.companions?.bad || [];
+    if (tomatoBad.length) {
+      const conflictPartner = tomatoBad[0];
+      const db = emptyDB({seeds:[
+        makeSeed('Tomato', {storage:'live', bed:'A', qty:1}),
+        // craft a seed that maps to the conflict partner
+        makeSeed(conflictPartner, {storage:'live', bed:'A', qty:1}),
+      ]});
+      const r = computeAutoPopulate(db, {noRecommendations: true});
+      // Conflict may or may not fire depending on whether the second seed maps to that lib id.
+      record('Scenario 7: conflict scan runs without crashing',
+        Array.isArray(r.conflictWarnings),
+        `conflictWarnings: ${r.conflictWarnings.length}`);
+    } else {
+      record('Scenario 7: skipped (no bad companions in plant lib)', true);
+    }
+  }
+
+  // ── Scenario 8: noRecommendations skips Pass 4 ──────────────────────
+  {
+    const db = emptyDB({seeds:[makeSeed('Tomato', {storage:'live', bed:'A', qty:1})]});
+    const r1 = computeAutoPopulate(db, {noRecommendations: true});
+    const r2 = computeAutoPopulate(db, {noRecommendations: false});
+    const r1Total = Object.values(r1.designs).reduce((a, d) => a + Object.keys(d).length, 0);
+    const r2Total = Object.values(r2.designs).reduce((a, d) => a + Object.keys(d).length, 0);
+    assert('Scenario 8: Pass 4 adds more squares than sync-only mode',
+      r2Total > r1Total,
+      `sync-only: ${r1Total} sq, full: ${r2Total} sq`);
+  }
+
+  finish();
+}
+function finish() {
+  const pass = results.filter(r => r.passed).length;
+  const total = results.length;
+  const sum = document.getElementById('summary');
+  sum.textContent = `${pass} / ${total} passed`;
+  sum.className = pass === total ? 'ok' : 'fail';
+  if (pass !== total) document.title = `❌ ${total-pass} failing — Garden Almanac Tests`;
+  else document.title = `✓ ${total} passing — Garden Almanac Tests`;
+}
+
+window.addEventListener('message', e => {
+  if (e.data !== 'ga-test-ready') return;
+  try { runTests(document.getElementById('app').contentWindow); }
+  catch (err) { record('Harness crashed', false, String(err && err.stack || err)); finish(); }
+});
+
+// Safety: if the iframe doesn't post within 5s, show what we have.
+setTimeout(() => {
+  if (!results.length) {
+    record('Iframe did not signal ready within 5s', false,
+      'Check that garden-almanac-v5.html?test=1 loads and posts "ga-test-ready"');
+    finish();
+  }
+}, 5000);
+</script>
+</body>
+</html>
