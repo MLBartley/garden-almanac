@@ -449,6 +449,14 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 .sq{width:44px;height:44px;border-radius:4px;border:1.5px solid rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;font-size:1.3rem;cursor:pointer;background:white;position:relative;transition:transform .1s;}
 .sq.block{width:auto;height:auto;min-width:44px;min-height:44px;font-size:1.7rem;}
 .sq:active{transform:scale(.92);}
+/* Hover tooltip for bed squares (desktop only; mobile uses tap → modal). */
+#sq-tooltip{position:fixed;z-index:300;background:var(--ink);color:var(--paper);padding:9px 12px;border-radius:6px;font-size:.78rem;line-height:1.5;max-width:260px;box-shadow:0 6px 18px rgba(0,0,0,.28);pointer-events:none;opacity:0;transition:opacity .15s;display:none;}
+#sq-tooltip.shown{opacity:1;}
+.sq-tt-name{font-weight:600;font-size:.92rem;margin-bottom:2px;}
+.sq-tt-meta{font-family:'Space Mono',monospace;font-size:7px;letter-spacing:.07em;color:rgba(255,255,255,.55);text-transform:uppercase;margin-bottom:6px;}
+.sq-tt-line{margin-top:2px;display:flex;align-items:flex-start;gap:5px;}
+.sq-tt-line .ttk{color:rgba(255,255,255,.55);font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.05em;flex-shrink:0;width:14px;text-align:center;}
+.sq-tt-notes{margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12);font-style:italic;opacity:.85;line-height:1.45;}
 .sq.occupied{background:#f0f8f0;}
 .sq.warn{border-color:#e8a060!important;background:#fff8f0;}
 .sq.empty-sq{background:#fafaf7;}
@@ -657,6 +665,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
   </div>
 
   <div id="toast-stack"></div>
+  <div id="sq-tooltip" role="tooltip"></div>
 
   <div id="scroll-area">
 
@@ -2851,6 +2860,12 @@ function renderDesign() {
                     : status === 'planted' ? '<div class="sq-status-badge">✓</div>' : '';
         sq.innerHTML = `${plant.emoji}<div class="sq-label">${esc(plant.name.split(' ')[0])}</div>${badge}`;
         sq.onclick = () => openSqModal(i);
+        // Hover tooltip on desktop. Wired with mouseenter/leave + focus so
+        // keyboard users get the same info; mobile users still use tap → modal.
+        sq.addEventListener('mouseenter', e => showSqTooltip(plantId, status, e.currentTarget));
+        sq.addEventListener('mouseleave', hideSqTooltip);
+        sq.addEventListener('focus', e => showSqTooltip(plantId, status, e.currentTarget));
+        sq.addEventListener('blur', hideSqTooltip);
       } else {
         sq.innerHTML = `<span style="color:#ccc;font-size:.9rem">+</span>`;
         sq.onclick = () => openPlantPicker(i);
@@ -4486,6 +4501,72 @@ function renderPlantLib() {
       </div>`;
     })
   ].join('');
+}
+
+// Build and show a hover tooltip with key plant info for a bed square.
+// Positioned relative to the hovered element; falls back below if there's
+// no room above, and clamps to viewport edges.
+const FROST_TOL_LABEL = {
+  veryhardy:'Very hardy — survives hard frost',
+  hardy:'Hardy — handles light frost',
+  halfhardy:'Half-hardy — light frost OK, no freeze',
+  tender:'Tender — needs frost-free conditions',
+  verytender:'Very tender — needs warm soil',
+};
+const STATUS_TT_LABEL = {
+  suggested:'From inventory',
+  recommended:'Recommended',
+  planned:'Planned',
+  planted:'Planted',
+};
+function showSqTooltip(plantId, status, anchorEl) {
+  const plant = PLANT_IDX[plantId];
+  const tt = document.getElementById('sq-tooltip');
+  if (!plant || !tt) return;
+  const days = plant.daysMin
+    ? (plant.daysMax && plant.daysMax !== plant.daysMin ? `${plant.daysMin}–${plant.daysMax}` : `${plant.daysMin}`)
+    : null;
+  const goodIds = (plant.companions?.good || []).slice(0, 4).map(id => PLANT_IDX[id]?.name || id);
+  const badIds  = (plant.companions?.bad  || []).slice(0, 4).map(id => PLANT_IDX[id]?.name || id);
+  const sun = plant.sun ? plant.sun : null;
+  const lines = [];
+  if (days)            lines.push(`<div class="sq-tt-line"><span class="ttk">⏱</span><span>${esc(days)} days to harvest</span></div>`);
+  if (plant.sqFt)      lines.push(`<div class="sq-tt-line"><span class="ttk">📐</span><span>${esc(plant.sqFt)} sq ft / plant${plant.spacing ? ' · ' + esc(plant.spacing) : ''}</span></div>`);
+  if (plant.frostTol)  lines.push(`<div class="sq-tt-line"><span class="ttk">🌡</span><span>${esc(FROST_TOL_LABEL[plant.frostTol] || plant.frostTol)}</span></div>`);
+  if (sun)             lines.push(`<div class="sq-tt-line"><span class="ttk">☀️</span><span>${esc(sun)}</span></div>`);
+  if (plant.bestBeds && plant.bestBeds.length)
+                       lines.push(`<div class="sq-tt-line"><span class="ttk">🛏</span><span>Best in Bed ${esc(plant.bestBeds.join('/'))}</span></div>`);
+  if (plant.sowMethod) lines.push(`<div class="sq-tt-line"><span class="ttk">🌱</span><span>${esc(plant.sowMethod === 'transplant' ? 'Start indoors / transplant' : plant.sowMethod === 'direct' ? 'Direct sow' : plant.sowMethod)}</span></div>`);
+  if (goodIds.length)  lines.push(`<div class="sq-tt-line"><span class="ttk">✓</span><span>With ${esc(goodIds.join(', '))}</span></div>`);
+  if (badIds.length)   lines.push(`<div class="sq-tt-line" style="color:#ffb0b0;"><span class="ttk">✗</span><span>Not with ${esc(badIds.join(', '))}</span></div>`);
+  const notesHtml = plant.notes ? `<div class="sq-tt-notes">${esc(plant.notes)}</div>` : '';
+  tt.innerHTML = `
+    <div class="sq-tt-name">${plant.emoji || ''} ${esc(plant.name)}</div>
+    <div class="sq-tt-meta">${esc(STATUS_TT_LABEL[status] || status || 'planned')}${plant.cat ? ' · ' + esc(plant.cat) : ''}</div>
+    ${lines.join('')}
+    ${notesHtml}
+  `;
+  tt.style.display = 'block';
+  // Position: prefer above, fall back below, clamp horizontally
+  const r = anchorEl.getBoundingClientRect();
+  // Reset transforms/coords so getBoundingClientRect measures intrinsic size
+  tt.style.left = '0px'; tt.style.top = '0px';
+  const ttr = tt.getBoundingClientRect();
+  let left = r.left + r.width / 2 - ttr.width / 2;
+  let top = r.top - ttr.height - 8;
+  if (top < 8) top = r.bottom + 8;
+  left = Math.max(8, Math.min(left, window.innerWidth - ttr.width - 8));
+  tt.style.left = left + 'px';
+  tt.style.top = top + 'px';
+  // Trigger CSS transition
+  requestAnimationFrame(() => tt.classList.add('shown'));
+}
+function hideSqTooltip() {
+  const tt = document.getElementById('sq-tooltip');
+  if (!tt) return;
+  tt.classList.remove('shown');
+  // Wait for fade-out to finish before hiding (avoids flicker on re-show)
+  setTimeout(() => { if (!tt.classList.contains('shown')) tt.style.display = 'none'; }, 160);
 }
 
 // Flood-fill from the clicked cell to find all connected same-plant cells —
