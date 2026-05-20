@@ -1199,7 +1199,8 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       <div class="modal-title" id="pp-title">Choose a plant</div>
       <div class="modal-subtitle" id="pp-subtitle">Tap to place in selected square</div>
       <div class="plant-picker-tabs">
-        <button class="pp-tab active" onclick="ppTab('all',this)">All plants</button>
+        <button class="pp-tab active" onclick="ppTab('recommended',this)">★ Recommended</button>
+        <button class="pp-tab" onclick="ppTab('all',this)">All plants</button>
         <button class="pp-tab" onclick="ppTab('veg',this)">Vegetables</button>
         <button class="pp-tab" onclick="ppTab('herb',this)">Herbs</button>
         <button class="pp-tab" onclick="ppTab('flower',this)">Flowers</button>
@@ -4480,9 +4481,14 @@ function openPlantPicker(sqIdx) {
   document.getElementById('pp-subtitle').textContent = current
     ? `Currently: ${PLANT_IDX[current]?.emoji} ${PLANT_IDX[current]?.name} — tap to replace or clear`
     : 'Tap a plant to place it here';
-  ppCategory = 'all';
-  document.querySelectorAll('.pp-tab').forEach(t => t.classList.remove('active'));
-  document.querySelector('.pp-tab').classList.add('active');
+  // Default to Recommended for empty squares (quick "what fits here?"),
+  // All plants when replacing an existing pick.
+  ppCategory = current ? 'all' : 'recommended';
+  document.querySelectorAll('.pp-tab').forEach((t, i) => {
+    // 'recommended' is the first tab, 'all' is second — match by category arg in onclick
+    const isActive = (ppCategory === 'recommended' && i === 0) || (ppCategory === 'all' && i === 1);
+    t.classList.toggle('active', isActive);
+  });
   renderPlantLib();
   openModal('plant-picker-modal');
 }
@@ -4498,23 +4504,66 @@ function renderPlantLib() {
   const bed = db.beds.find(b => b.key === activeBedKey);
   const stockNames = new Set((db.seeds||[]).map(s => s.name.toLowerCase()));
 
+  // Build companion conflict set from plants already in this bed —
+  // recommendations exclude anything that conflicts with current neighbors.
+  const placedIds = [...new Set(Object.values(activeBedDesign || {}).filter(Boolean))];
+  const badNeighborIds = new Set();
+  placedIds.forEach(id => {
+    (PLANT_IDX[id]?.companions?.bad || []).forEach(b => badNeighborIds.add(b));
+    // Also block plants that flag THIS bed's residents as bad
+    PLANT_LIB.forEach(p => {
+      if ((p.companions?.bad || []).includes(id)) badNeighborIds.add(p.id);
+    });
+  });
+
   let plants = PLANT_LIB;
   if (ppCategory === 'veg') plants = plants.filter(p => p.cat === 'veg');
   else if (ppCategory === 'herb') plants = plants.filter(p => p.cat === 'herb');
   else if (ppCategory === 'flower') plants = plants.filter(p => p.cat === 'flower');
   else if (ppCategory === 'cover') plants = plants.filter(p => p.cat === 'cover');
   else if (ppCategory === 'stock') plants = plants.filter(p => stockNames.has(p.name.toLowerCase()) || (db.seeds||[]).some(s => p.name.toLowerCase().includes(s.name.toLowerCase())));
+  else if (ppCategory === 'recommended') {
+    // Plants that list this bed in bestBeds AND don't conflict with current
+    // neighbors. Excludes cover crops (always manual). Falls back to all
+    // non-conflicting plants if no bestBed matches exist.
+    let pool = plants.filter(p =>
+      p.cat !== 'cover'
+      && p.bestBeds.includes(activeBedKey)
+      && !badNeighborIds.has(p.id)
+    );
+    if (!pool.length) {
+      pool = plants.filter(p => p.cat !== 'cover' && !badNeighborIds.has(p.id));
+    }
+    plants = pool;
+  }
 
-  // Sort: best for this bed first
+  // Sort:
+  //   1. Plants that fit this bed (bestBeds includes key) first
+  //   2. Then in-stock plants (user already has seeds)
+  //   3. Then by plant-now timing
+  //   4. Then by sqFt ascending (smaller fillers behind large structural plants)
+  const timingRank = {now:0, indoor:1, soon:2, wait:3, late:4};
   const sorted = [...plants].sort((a,b) => {
     const aFit = a.bestBeds.includes(activeBedKey) ? 0 : 1;
     const bFit = b.bestBeds.includes(activeBedKey) ? 0 : 1;
-    return aFit - bFit;
+    if (aFit !== bFit) return aFit - bFit;
+    const aStock = stockNames.has(a.name.toLowerCase()) ? 0 : 1;
+    const bStock = stockNames.has(b.name.toLowerCase()) ? 0 : 1;
+    if (aStock !== bStock) return aStock - bStock;
+    const aT = timingRank[getPlantingStatus(a, wxData).status] ?? 5;
+    const bT = timingRank[getPlantingStatus(b, wxData).status] ?? 5;
+    if (aT !== bT) return aT - bT;
+    return a.sqFt - b.sqFt;
   });
 
   const current = activeBedDesign[selectedSqIdx];
 
-  document.getElementById('plant-lib-list').innerHTML = [
+  // Lead-in hint for Recommended mode so users understand the filter
+  const recHint = (ppCategory === 'recommended' && !current)
+    ? `<div style="padding:8px 10px;background:#f0f8f0;border:1px solid #b8d9be;border-radius:6px;margin-bottom:10px;font-size:.78rem;color:var(--moss);">★ Filtered to plants that fit ${esc(bed?.name || 'this bed')}${placedIds.length ? ' and don\'t conflict with what\'s already planted' : ''}.</div>`
+    : '';
+
+  document.getElementById('plant-lib-list').innerHTML = recHint + [
     current ? `<div class="lib-item" onclick="clearSquare()"><div class="lib-emoji">🗑</div><div class="lib-info"><div class="lib-name">Clear this square</div><div class="lib-detail">Remove ${PLANT_IDX[current]?.name||''}</div></div></div>` : '',
     ...sorted.map(p => {
       const t = getPlantingStatus(p, wxData);
