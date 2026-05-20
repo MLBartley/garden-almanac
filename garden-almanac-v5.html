@@ -4066,16 +4066,28 @@ function runAutoPopulate(noRecommendations = false) {
     <div style="margin-top:12px;padding-top:10px;border-top:2px solid #e8b0b0;">
       <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:#7a1a1a;margin-bottom:8px;">⚠️ COMPANION CONFLICTS</div>
       ${conflictWarnings.map((w,wi)=>{
-        const moveOption = (seed, plant, alts) => seed && alts.length
-          ? `<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;padding:6px 9px;background:#fff8f8;border:1px solid #e8c8c8;border-radius:4px;">
-               <span style="font-size:.78rem;font-weight:600;color:#7a1a1a;margin-right:2px;">Move ${plant.emoji} ${plant.name}</span>
-               ${alts.map(k=>`<button onclick="acceptConflictMove('${seed.id}','${k}','conflict-warn-${wi}')" style="font-size:.73rem;padding:3px 9px;border:1px solid #c47a7a;border-radius:4px;background:white;color:#7a1a1a;cursor:pointer;">→ ${BED_INFO[k]?.label||k}</button>`).join('')}
-             </div>` : '';
+        // Build a dropdown of every bed (plus Unassigned), excluding the
+        // conflict bed itself. Plant.bestBeds are marked with ★ as hints.
+        const conflictBedKey = (db.beds.find(b => b.name === w.bedName) || {}).key;
+        const moveOption = (seed, plant, suggestedKeys) => {
+          if (!seed) return '';
+          const hints = new Set(suggestedKeys || []);
+          const opts = (db.beds || []).filter(b => b.key !== conflictBedKey)
+            .map(b => `<option value="${escAttr(b.key)}">${hints.has(b.key) ? '★ ' : ''}${esc(b.name)}${hints.has(b.key) ? ' (recommended)' : ''}</option>`)
+            .join('') + `<option value="any">📦 Unassigned</option>`;
+          return `<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;padding:6px 9px;background:#fff8f8;border:1px solid #e8c8c8;border-radius:4px;">
+            <span style="font-size:.78rem;font-weight:600;color:#7a1a1a;flex-shrink:0;">Move ${plant.emoji} ${esc(plant.name)} →</span>
+            <select id="conflict-move-${wi}-${escAttr(seed.id)}" style="flex:1;min-width:120px;font-size:.78rem;padding:3px 6px;border:1px solid #c47a7a;border-radius:4px;background:white;color:#7a1a1a;cursor:pointer;">
+              <option value="">Pick a bed…</option>${opts}
+            </select>
+            <button onclick="const sel=document.getElementById('conflict-move-${wi}-${escAttr(seed.id)}'); if(sel.value) acceptConflictMove('${escAttr(seed.id)}',sel.value,'conflict-warn-${wi}')" style="font-size:.73rem;padding:3px 9px;border:1px solid #c47a7a;border-radius:4px;background:#7a1a1a;color:white;cursor:pointer;">Move</button>
+          </div>`;
+        };
         const optA = moveOption(w.seedA, w.plantA, w.altA);
         const optB = moveOption(w.seedB, w.plantB, w.altB);
         const choiceLabel = (optA && optB) ? `<div style="font-size:.73rem;color:var(--muted);margin-top:2px;">Choose which to move:</div>` : '';
         return `<div id="conflict-warn-${wi}" class="rotation-conflict" style="display:flex;flex-direction:column;gap:5px;">
-          <div style="font-size:.85rem;"><strong>${w.plantA.emoji} ${w.plantA.name}</strong> + <strong>${w.plantB.emoji} ${w.plantB.name}</strong> in ${w.bedName} — bad companions</div>
+          <div style="font-size:.85rem;"><strong>${w.plantA.emoji} ${esc(w.plantA.name)}</strong> + <strong>${w.plantB.emoji} ${esc(w.plantB.name)}</strong> in ${esc(w.bedName)} — bad companions</div>
           ${choiceLabel}${optA}${optB}
           <div><button onclick="document.getElementById('conflict-warn-${wi}').style.display='none'" style="font-size:.73rem;padding:3px 9px;border:1px solid var(--rule);border-radius:4px;background:transparent;color:var(--muted);cursor:pointer;">Keep as-is</button></div>
         </div>`;
