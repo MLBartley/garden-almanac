@@ -2392,11 +2392,14 @@ function renderCare(d) {
   // Daily min occurs early AM; after 10 AM use tomorrow's min as the upcoming overnight low
   const nightLo=Math.round(d.daily.temperature_2m_min[now.getHours()>=10?1:0]);
 
-  // Scan bed designs for what's actually planted
+  // Scan bed designs for what's actually planted (status === 'planted').
+  // Suggestions and planned squares are not yet outdoors.
   const plantedByLib={}; // libId -> {plant, beds:[]}
   ['A','B','C','D'].forEach(key=>{
     const design=(db.bedDesigns&&db.bedDesigns[key])||{};
-    Object.values(design).forEach(libId=>{
+    const statuses=(db.bedStatuses&&db.bedStatuses[key])||{};
+    Object.entries(design).forEach(([idx,libId])=>{
+      if(statuses[idx]!=='planted')return;
       const p=PLANT_IDX[libId];if(!p)return;
       if(!plantedByLib[libId])plantedByLib[libId]={plant:p,beds:[]};
       if(!plantedByLib[libId].beds.includes(key))plantedByLib[libId].beds.push(key);
@@ -2410,12 +2413,25 @@ function renderCare(d) {
   const tenderLabel=(list,withBed)=>list.map(p=>`${p.plant.emoji} ${p.plant.name.replace(/ \(.*\)/,'')}${withBed?' (Bed '+p.beds.join('/')+')'  :''}`).join(', ');
 
   const tasks=[];
+  const hardeningOutside = (db.hardenLogs||[]).filter(e=>!e.done).length;
   if(nightLo<=28){
-    const names=tender.length?tenderLabel(tender,true):'tender transplants';
-    tasks.push({cls:'urgent',icon:'🥶',title:'Hard frost tonight',desc:`Low of ${nightLo}°F. Cover ${names}. Fill oya pots before covering.`});
+    if(tender.length){
+      tasks.push({cls:'urgent',icon:'🥶',title:'Hard frost tonight',desc:`Low of ${nightLo}°F. Cover ${tenderLabel(tender,true)}. Fill oya pots before covering.`});
+    } else if(hardeningOutside){
+      tasks.push({cls:'urgent',icon:'🥶',title:'Hard frost tonight',desc:`Low of ${nightLo}°F. Bring hardening trays inside.`});
+    } else {
+      tasks.push({cls:'info',icon:'🥶',title:'Hard frost tonight',desc:`Low of ${nightLo}°F. Nothing planted outside yet — no action needed.`});
+    }
   } else if(nightLo<=36){
-    const names=tender.length?tenderLabel(tender,false):halfhardy.length?tenderLabel(halfhardy,false):'tender transplants';
-    tasks.push({cls:'urgent',icon:'🌡️',title:'Frost risk tonight',desc:`Low of ${nightLo}°F. Cover ${names}.`});
+    if(tender.length){
+      tasks.push({cls:'urgent',icon:'🌡️',title:'Frost risk tonight',desc:`Low of ${nightLo}°F. Cover ${tenderLabel(tender,false)}.`});
+    } else if(halfhardy.length){
+      tasks.push({cls:'urgent',icon:'🌡️',title:'Frost risk tonight',desc:`Low of ${nightLo}°F. Cover ${tenderLabel(halfhardy,false)}.`});
+    } else if(hardeningOutside){
+      tasks.push({cls:'urgent',icon:'🌡️',title:'Frost risk tonight',desc:`Low of ${nightLo}°F. Bring hardening trays inside.`});
+    } else {
+      tasks.push({cls:'info',icon:'🌡️',title:'Frost risk tonight',desc:`Low of ${nightLo}°F. Nothing planted outside yet — no action needed.`});
+    }
   }
   if(rain>0.3||rainChance>70)tasks.push({cls:'info',icon:'🌧',title:'Skip oya top-off',desc:`${rain>0?rain+'" rain':rainChance+'% chance'}. Let nature handle irrigation.`,onclick:'scrollToOya()'});
   else if(hi>=82)tasks.push({cls:'urgent',icon:'💧',title:'Top off all oya pots',desc:`High of ${hi}°F. Refill all 8 oya pots.`,onclick:'scrollToOya()'});
@@ -2485,12 +2501,16 @@ function renderFrostAlert(d) {
     }
   }
 
-  // Determine what's planted (from bed designs) — tender plants at risk
+  // Determine what's actually OUTSIDE and at frost risk. Only count cells
+  // with status === 'planted' (already transplanted). Suggestions and planned
+  // plants are still indoors / not in the ground yet.
   const tenderIds = new Set();
   const halftenderIds = new Set();
-  if (db.bedDesigns) {
-    Object.values(db.bedDesigns).forEach(design => {
-      Object.values(design).forEach(plantId => {
+  if (db.bedDesigns && db.bedStatuses) {
+    Object.entries(db.bedDesigns).forEach(([bedKey, design]) => {
+      const statuses = db.bedStatuses[bedKey] || {};
+      Object.entries(design).forEach(([idx, plantId]) => {
+        if (statuses[idx] !== 'planted') return;
         const p = PLANT_IDX[plantId];
         if (!p) return;
         if (p.frostTol === 'tender' || p.frostTol === 'verytender') tenderIds.add(p.name);
@@ -2498,17 +2518,11 @@ function renderFrostAlert(d) {
       });
     });
   }
-  // Also check current planted beds
-  db.beds.forEach(bed => {
-    bed.current.forEach(p => {
-      // Guess from name
-      const name = p.name.toLowerCase();
-      if (name.includes('tomato') || name.includes('pepper') || name.includes('basil') ||
-          name.includes('zucchini') || name.includes('squash') || name.includes('cucumber') ||
-          name.includes('bean') || name.includes('nasturtium') || name.includes('borage')) {
-        tenderIds.add(p.name);
-      }
-    });
+  // Hardening starts spend daytime outside but typically come in at night.
+  // Track separately so we can warn the user without urging fleece-covering.
+  const hardeningNames = new Set();
+  (db.hardenLogs || []).filter(e => !e.done).forEach(e => {
+    if (e.name) hardeningNames.add(e.name);
   });
 
   if (frostDays.length === 0) {
@@ -2552,7 +2566,7 @@ function renderFrostAlert(d) {
   const actions = [];
 
   if (tenderIds.size > 0) {
-    const names = [...tenderIds].slice(0, 3).join(', ') + (tenderIds.size > 3 ? ` +${tenderIds.size-3} more` : '');
+    const names = [...tenderIds].slice(0, 3).map(esc).join(', ') + (tenderIds.size > 3 ? ` +${tenderIds.size-3} more` : '');
     if (firstFrost.i === 0) {
       actions.push(`Cover ${names} with fleece or row cover <strong>tonight</strong>`);
       actions.push('Fill oya pots before covering — wet soil holds heat better');
@@ -2562,18 +2576,30 @@ function renderFrostAlert(d) {
   }
 
   if (halftenderIds.size > 0 && firstFrost.hard) {
-    const names = [...halftenderIds].slice(0, 2).join(', ');
+    const names = [...halftenderIds].slice(0, 2).map(esc).join(', ');
     actions.push(`Hard frost: also protect half-hardy plants — ${names}`);
   }
 
-  if (firstFrost.killing) {
+  if (firstFrost.killing && tenderIds.size > 0) {
     actions.push('Harvest any ripe tomatoes and peppers now — killing frost will end the plant');
-    actions.push('Bring any potted herbs or starts indoors');
+  }
+
+  if (hardeningNames.size > 0) {
+    const names = [...hardeningNames].slice(0, 3).map(esc).join(', ');
+    actions.push(`🌿 Bring hardening trays inside tonight — ${names}`);
   }
 
   if (tenderIds.size === 0 && halftenderIds.size === 0) {
-    actions.push('No tender plants detected in your bed plans yet');
-    actions.push('Check any transplants or seedlings hardening off outside');
+    if (hardeningNames.size === 0) {
+      actions.push('✓ Nothing planted outside yet — no frost protection needed');
+      // Helpful follow-up only if any indoor starts could harden soon
+      const startsCount = (db.seeds || []).filter(s => s.storage === 'live' && !s.skipYear).length;
+      if (startsCount > 0) {
+        actions.push(`You have ${startsCount} indoor start${startsCount===1?'':'s'} — wait until frost risk passes before hardening off`);
+      }
+    } else {
+      actions.push('Nothing in beds yet — only hardening trays need to come in');
+    }
   }
 
   // Add morning check action if overnight frost
