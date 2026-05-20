@@ -787,7 +787,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
             <div style="font-size:1rem;font-weight:600;">Seed Inventory</div>
             <div style="font-size:.78rem;color:var(--muted);" id="seed-count-label">0 packets</div>
           </div>
-          <button class="btn-primary" style="padding:8px 14px;font-size:.78rem;" onclick="openScanModal()">📷 Scan packet</button>
+          <button class="btn-primary" style="padding:8px 14px;font-size:.78rem;" onclick="openScanModal()">＋ Add inventory</button>
         </div>
         <button class="btn-sm" id="storage-guide-btn" onclick="toggleStorageGuide()" style="width:100%;margin-bottom:8px;text-align:left;padding:7px 11px;">📖 Storage &amp; winter sowing guide ▾</button>
         <div id="storage-guide" style="display:none;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);padding:13px 14px;margin-bottom:12px;font-size:.82rem;line-height:1.65;color:var(--ink);">
@@ -5417,7 +5417,7 @@ function renderSeeds(){
     if(!vis.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">${seedSearchQuery?`No seeds in this bed match "${esc(seedSearchQuery)}".`:'No seeds assigned to this bed.'}</div></div>`;return;}
     el.innerHTML=vis.map(s=>buildCard(s,s.storage==='live',false)).join('');return;
   }
-  if(!seeds.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">No seeds yet.\nTap "Scan packet" to add your first.</div></div><div class="scan-zone" onclick="openScanModal()"><div class="scan-icon">📷</div><div class="scan-text">SCAN YOUR FIRST SEED PACKET</div><div class="scan-sub">AI reads the packet and fills in all the details</div></div>`;return;}
+  if(!seeds.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">No inventory yet.\nTap "Add inventory" to add your first.</div></div><div class="scan-zone" onclick="openScanModal()"><div class="scan-icon">＋</div><div class="scan-text">ADD YOUR FIRST PACKET OR START</div><div class="scan-sub">Scan a seed packet or enter a plant start manually</div></div>`;return;}
   const visStarts=applySearch(liveStarts),visNormal=applySearch(normalSeeds),visSkipped=applySearch(skipped);
   if(seedSearchQuery&&!visStarts.length&&!visNormal.length&&!visSkipped.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">No seeds match "${esc(seedSearchQuery)}".</div></div>`;return;}
   let html='';
