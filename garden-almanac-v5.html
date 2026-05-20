@@ -3930,6 +3930,35 @@ function computeAutoPopulate(db, opts = {}) {
 
   const threeSistersIds = new Set(['corn', 'bean-bush', 'squash-winter']);
 
+  // ── Confirmed-cell accounting ─────────────────────────────────────────
+  // Cells the user has confirmed ('planned' or 'planted') survive Step 0
+  // and represent inventory the user has already placed. Subtract them
+  // from each seed's placement need so Pass 1/3 don't re-place plants
+  // that are already accounted for (which would otherwise overflow into
+  // other beds when the original bed is now "full" of planned cells).
+  const confirmedCells = {};
+  db.beds.forEach(b => {
+    const d = designs[b.key] || {}, s = statuses[b.key] || {};
+    Object.keys(d).forEach(idx => {
+      if (s[idx] === 'planned' || s[idx] === 'planted') {
+        confirmedCells[d[idx]] = (confirmedCells[d[idx]] || 0) + 1;
+      }
+    });
+  });
+  function blockAreaOf(plant) {
+    if (!plant || plant.sqFt < 1) return 1;
+    return plantBlockDims(plant)[0] * plantBlockDims(plant)[1];
+  }
+  // Subtract up to `cellsNeeded` from confirmedCells[libId]; returns remaining
+  // cells still needing placement.
+  function consumeConfirmed(libId, cellsNeeded) {
+    const have = confirmedCells[libId] || 0;
+    if (!have) return cellsNeeded;
+    const use = Math.min(have, cellsNeeded);
+    confirmedCells[libId] = have - use;
+    return cellsNeeded - use;
+  }
+
   // ── Pass 1: live starts (direct bed assignment) ──────────────────────
   // Live starts MUST all get placed. If their assigned bed is full, overflow to
   // whatever full-sun bed has the most remaining space.
@@ -3947,13 +3976,16 @@ function computeAutoPopulate(db, opts = {}) {
     if (!libId) return;
     if (threeSistersOn && threeSistersIds.has(libId)) return;
     const plant = PLANT_IDX[libId]; if (!plant) return;
-    // Units = individuals for sqFt>=1 (each = a w×h block), else total cells
+    // Cells this seed wants in total
+    const cellsTotal = liveStartSquares(seed, plant);
+    // Subtract any cells already confirmed (planned/planted) for this libId.
+    const cellsRemaining = consumeConfirmed(libId, cellsTotal);
+    if (cellsRemaining <= 0) return; // already covered by confirmed plantings
+    // Convert remaining cells back to "units" for placement
+    const area = blockAreaOf(plant);
     let unitsLeft;
-    if (plant.sqFt >= 1) {
-      unitsLeft = Math.max(1, seed.qty || 1);
-    } else {
-      unitsLeft = Math.max(1, Math.round((seed.qty || 1) * plant.sqFt));
-    }
+    if (plant.sqFt >= 1) unitsLeft = Math.max(1, Math.ceil(cellsRemaining / area));
+    else unitsLeft = Math.max(1, cellsRemaining);
 
     if (seed.bed !== 'any') {
       const leftover = placeUnits(seed.bed, libId, plant, unitsLeft);
@@ -4019,7 +4051,12 @@ function computeAutoPopulate(db, opts = {}) {
     const n = seedPacketPlantCount(seed, plant);
     const blockArea = plant.sqFt >= 1
       ? plantBlockDims(plant)[0] * plantBlockDims(plant)[1] : 1;
-    let unitsLeft = plant.sqFt >= 1 ? n : Math.max(1, Math.ceil(n * plant.sqFt));
+    // Total cells this packet wants
+    const cellsTotal = plant.sqFt >= 1 ? n * blockArea : Math.max(1, Math.ceil(n * plant.sqFt));
+    // Subtract confirmed placements first
+    const cellsRemaining = consumeConfirmed(libId, cellsTotal);
+    if (cellsRemaining <= 0) return; // already covered by confirmed plantings
+    let unitsLeft = plant.sqFt >= 1 ? Math.max(1, Math.ceil(cellsRemaining / blockArea)) : cellsRemaining;
 
     if (seed.bed !== 'any') {
       const leftoverCells = placeUnits(seed.bed, libId, plant, unitsLeft);

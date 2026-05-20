@@ -355,6 +355,59 @@ function runTests(win) {
     assertEq('Scenario 16: 2 tomatillos = 8 cells total (2 blocks of 4)', total, 8);
   }
 
+  // ── Scenario 18: confirmed plants don't trigger re-placement ────────
+  // Bug: User has 5 tomatillo starts in Bed A. Pass 1 places 5×4=20 cells as
+  // 'suggested'. User confirms all 5 blocks as 'planned'. Next sync runs —
+  // Pass 0 preserves 'planned' (good). But Pass 1 used to try placing all 5
+  // tomatillos again, finding Bed A "full" of planned cells and overflowing
+  // some into Bed B. Now confirmed cells consume inventory first.
+  {
+    const beds = [makeBed('A', 8, 4), makeBed('B', 4, 4)];
+    // Pre-populate Bed A with 20 'planned' tomatillo cells (5 starts confirmed)
+    const bedDesigns = { A: {} }, bedStatuses = { A: {} };
+    for (let i = 0; i < 20; i++) {
+      bedDesigns.A[i] = 'tomatillo';
+      bedStatuses.A[i] = 'planned';
+    }
+    const db = emptyDB({
+      beds,
+      bedDesigns,
+      bedStatuses,
+      seeds: [makeSeed('Tomatillo', {storage:'live', bed:'A', qty:5})],
+    });
+    const r = computeAutoPopulate(db, {noRecommendations: true});
+    // 20 planned cells in A satisfy the 20-cell inventory; no new placements.
+    const inA = Object.values(r.designs.A || {}).filter(id => id === 'tomatillo').length;
+    const inB = Object.values(r.designs.B || {}).filter(id => id === 'tomatillo').length;
+    assertEq('Scenario 18: 20 planned tomatillo cells in A preserved', inA, 20);
+    assertEq('Scenario 18: zero new tomatillo overflow to Bed B', inB, 0);
+    assertEq('Scenario 18: no reroute warnings', r.reroutedSeeds.length, 0);
+  }
+
+  // ── Scenario 18b: partial confirmation — only place the difference ──
+  {
+    const beds = [makeBed('A', 8, 4), makeBed('B', 4, 4)];
+    // 8 cells planned (2 tomatillo blocks of 4); user still has 5 starts so
+    // 3 more should be placed this sync.
+    const bedDesigns = { A: {} }, bedStatuses = { A: {} };
+    for (let i = 0; i < 8; i++) {
+      bedDesigns.A[i] = 'tomatillo';
+      bedStatuses.A[i] = 'planned';
+    }
+    const db = emptyDB({
+      beds,
+      bedDesigns,
+      bedStatuses,
+      seeds: [makeSeed('Tomatillo', {storage:'live', bed:'A', qty:5})],
+    });
+    const r = computeAutoPopulate(db, {noRecommendations: true});
+    // 8 confirmed + 12 new (3 blocks of 4) = 20 total. All in A (A has 32 cells).
+    const inA = Object.values(r.designs.A || {}).filter(id => id === 'tomatillo').length;
+    const inB = Object.values(r.designs.B || {}).filter(id => id === 'tomatillo').length;
+    assertEq('Scenario 18b: 8 confirmed + 12 new = 20 tomatillo cells in Bed A', inA, 20);
+    assertEq('Scenario 18b: still no overflow to Bed B', inB, 0);
+  }
+
   // ── Scenario 16b: perennial bed is unlimited — no overflow out ──────
   // Bed P is a perennial (zone-managed) bed with default 10×3 = 30 cells.
   // Assigning more individuals than that should still fit entirely in P with
