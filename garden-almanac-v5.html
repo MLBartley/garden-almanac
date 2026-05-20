@@ -8,6 +8,9 @@
 <meta name="apple-mobile-web-app-title" content="Garden Almanac">
 <meta name="theme-color" content="#0f1a0d">
 <title>Bozeman Garden Almanac</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -402,6 +405,14 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 .form-label{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:3px;}
 .form-input{width:100%;border:none;outline:none;font-family:'Crimson Pro',serif;font-size:1rem;color:var(--ink);background:transparent;}
 .form-select{width:100%;border:none;outline:none;font-family:'Space Mono',monospace;font-size:11px;color:var(--ink);background:transparent;-webkit-appearance:none;}
+/* toast / update banner */
+#toast-stack{position:absolute;left:0;right:0;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 12px);display:flex;flex-direction:column;align-items:center;gap:6px;z-index:200;pointer-events:none;padding:0 12px;}
+.toast{background:var(--ink);color:var(--paper);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:.85rem;box-shadow:0 8px 24px rgba(0,0,0,.3);pointer-events:auto;max-width:440px;width:100%;animation:toast-in .25s ease-out;}
+.toast.warn{background:#3a1508;}
+.toast-msg{flex:1;min-width:0;}
+.toast-action{background:none;border:1px solid rgba(255,255,255,.4);color:var(--paper);font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.08em;padding:5px 10px;border-radius:4px;cursor:pointer;}
+.toast-close{background:none;border:none;color:rgba(255,255,255,.7);font-size:1.1rem;cursor:pointer;line-height:1;padding:0 3px;}
+@keyframes toast-in{from{transform:translateY(20px);opacity:0;}to{transform:translateY(0);opacity:1;}}
 /* modal */
 .modal-overlay{position:absolute;inset:0;background:rgba(15,26,13,.55);backdrop-filter:blur(2px);z-index:100;display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity .22s;}
 .modal-overlay.open{opacity:1;pointer-events:all;}
@@ -643,6 +654,8 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
     </div>
     <span class="tbar-hint">TAP FOR DETAIL ›</span>
   </div>
+
+  <div id="toast-stack"></div>
 
   <div id="scroll-area">
 
@@ -1456,6 +1469,18 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 </div>
 <script>
 // ════════════════════════════════════════
+//  ESCAPING — wrap user-supplied or OCR'd strings before injecting into HTML
+// ════════════════════════════════════════
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => (
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
+  ));
+}
+// Use for values that go into onclick/onchange attributes built via template strings.
+// Escapes the same characters as esc() plus backticks/parens that could break the attr.
+function escAttr(s) { return esc(s).replace(/`/g, '&#96;'); }
+
+// ════════════════════════════════════════
 //  PLANT LIBRARY — full Bozeman database
 // ════════════════════════════════════════
 // frostTol: 'hardy' (survives frost, plant 4wks before LF),
@@ -1825,22 +1850,41 @@ function estimatedHarvest(seed, plant) {
 // ════════════════════════════════════════
 const DB_KEY = 'bozeman_almanac_v3';
 const SHEETS_KEY = 'bozeman_sheets_url';
+const BACKUP_PREFIX = 'bozeman_almanac_backup_';
+const SCHEMA_VERSION = 4;
+// Stash a snapshot before any destructive migration. Keep at most 3 backups.
+function backupBeforeMigration(d, label) {
+  try {
+    const key = BACKUP_PREFIX + label + '_' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+    localStorage.setItem(key, JSON.stringify(d));
+    const backups = Object.keys(localStorage).filter(k => k.startsWith(BACKUP_PREFIX)).sort();
+    while (backups.length > 3) localStorage.removeItem(backups.shift());
+  } catch (_) { /* quota exceeded — non-fatal, migration still proceeds */ }
+}
 function loadDB() {
   try {
     const v3 = localStorage.getItem(DB_KEY);
     if (v3) {
       const d = JSON.parse(v3);
+      const fromVersion = d.schemaVersion || 0;
       // Migrate: replace old sample plant list with actual inventory
       const oldIds = new Set(['p1','p2','p3','p4','p5','p6','p7']);
       if (d.plants && d.plants.length <= 7 && d.plants.every(p => oldIds.has(p.id))) {
+        backupBeforeMigration(d, 'sample-plants');
         d.plants = defaultPlants();
       }
       // Migrate: replace old fake bed history with accurate bed metadata
       if (d.beds && d.beds[0] && d.beds[0].history && d.beds[0].history.length &&
           d.beds[0].history[0].year === 2024) {
+        backupBeforeMigration(d, 'fake-bed-history');
         const fresh = defaultBeds();
         d.beds = d.beds.map((b,i) => Object.assign({}, fresh[i] || b, {current: b.current, bedDesigns: b.bedDesigns}));
       }
+      // Guard against partial/corrupt backups missing core collections
+      if (!Array.isArray(d.plants)) d.plants = defaultPlants();
+      if (!Array.isArray(d.seeds))  d.seeds  = defaultSeeds();
+      if (!Array.isArray(d.beds))   d.beds   = defaultBeds();
+      if (!Array.isArray(d.journal)) d.journal = [];
       // Additive migration: add any new defaultPlants() IDs not yet in local data
       { const knownIds = new Set(d.plants.map(p => p.id));
         const missing = defaultPlants().filter(p => !knownIds.has(p.id));
@@ -1991,17 +2035,22 @@ function loadDB() {
         (d.seeds||[]).forEach(s=>{if(skipIds.includes(s.id)&&!s.skipYear)s.skipYear=2026;});
         d._seedTiming2026=true;
       }
+      d.schemaVersion = SCHEMA_VERSION;
       saveDB(d);
       return d;
     }
     const v2 = localStorage.getItem('bozeman_almanac_v2');
-    if (v2) { const d = JSON.parse(v2); d.seeds = d.seeds||[]; d.bedDesigns = {}; saveDB(d); return d; }
+    if (v2) { const d = JSON.parse(v2); d.seeds = d.seeds||[]; d.bedDesigns = {}; d.schemaVersion=SCHEMA_VERSION; saveDB(d); return d; }
     return defaultDB();
-  } catch { return defaultDB(); }
+  } catch (err) {
+    console.error('loadDB failed, falling back to defaults:', err);
+    try { localStorage.setItem(BACKUP_PREFIX + 'corrupt_' + Date.now(), localStorage.getItem(DB_KEY) || ''); } catch(_){}
+    return defaultDB();
+  }
 }
 function saveDB(db) { localStorage.setItem(DB_KEY, JSON.stringify(db)); }
 function defaultDB() {
-  return { journal:[], plants:defaultPlants(), beds:defaultBeds(), seeds:defaultSeeds(), bedDesigns:{}, bedStatuses:{},
+  return { schemaVersion:SCHEMA_VERSION, journal:[], plants:defaultPlants(), beds:defaultBeds(), seeds:defaultSeeds(), bedDesigns:{}, bedStatuses:{},
     sowLogs:[], hardenLogs:[], oyaLogs:{}, harvestLog:[], plantingList:[], settings:{},
     bedHistory:{}, amendments:[], compostLog:[], wishlist:[], seedSaving:[], checklists:{},
     rainfallLog:[], soilTempLog:[], gddLog:[], seasonReview:{}, lockedBeds:[], bedPlantList:{} };
@@ -2753,7 +2802,7 @@ function renderFreeformBed(bed) {
 
   // Bed notes banner
   const noteHtml = bed.notes
-    ? `<div style="background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-bottom:12px;font-size:.82rem;line-height:1.55;color:var(--muted);">${bed.notes}</div>`
+    ? `<div style="background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-bottom:12px;font-size:.82rem;line-height:1.55;color:var(--muted);">${esc(bed.notes)}</div>`
     : '';
 
   // Seeds / starts from inventory assigned to this bed
@@ -2772,7 +2821,7 @@ function renderFreeformBed(bed) {
       return `<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--rule);">
         <div style="font-size:1.25rem;flex-shrink:0;line-height:1;">${emoji}</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:.85rem;font-weight:600;">${s.name}${s.variety&&!s.variety.startsWith('(')?` <span style="opacity:.6;font-weight:400;">${s.variety}</span>`:''}</div>
+          <div style="font-size:.85rem;font-weight:600;">${esc(s.name)}${s.variety&&!s.variety.startsWith('(')?` <span style="opacity:.6;font-weight:400;">${esc(s.variety)}</span>`:''}</div>
           <div style="margin-top:2px;display:flex;gap:4px;">${typeBadge}<span style="font-family:'Space Mono',monospace;font-size:7px;background:#fff8e8;color:#8a5a00;padding:1px 5px;border-radius:3px;border:1px solid #e8d08a;">×${qty}</span>${isSplit?`<span style="font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);"> split</span>`:''}</div>
         </div>
         <div style="font-size:.72rem;color:var(--muted);white-space:nowrap;">Pending</div>
@@ -2798,24 +2847,24 @@ function renderFreeformBed(bed) {
           <div style="font-size:1rem;margin-top:1px;">${zone.emoji||'📍'}</div>
           <div style="flex:1;min-width:0;">
             <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">
-              <span style="font-size:.9rem;font-weight:600;">${zone.name}</span>
+              <span style="font-size:.9rem;font-weight:600;">${esc(zone.name)}</span>
               <span style="font-family:'Space Mono',monospace;font-size:7px;background:var(--rule);color:var(--muted);padding:1px 6px;border-radius:3px;letter-spacing:.05em;">LANDMARK</span>
             </div>
-            ${zone.notes?`<div style="font-size:.76rem;color:var(--muted);margin-top:3px;line-height:1.45;">${zone.notes}</div>`:''}
+            ${zone.notes?`<div style="font-size:.76rem;color:var(--muted);margin-top:3px;line-height:1.45;">${esc(zone.notes)}</div>`:''}
           </div>
         </div>
       </div>`;
     }
-    const zoneOpts = zones.map(z=>`<option value="${z.id}"${z.id===zone.id?' selected':''}>${z.name}</option>`).join('');
+    const zoneOpts = zones.map(z=>`<option value="${escAttr(z.id)}"${z.id===zone.id?' selected':''}>${esc(z.name)}</option>`).join('');
     const plantsHtml = (zone.plants||[]).length
       ? (zone.plants||[]).map((entry, i) => {
           const pl = db.plants.find(p=>p.id===entry.plantId)||{common:entry.name||'?',emoji:entry.emoji||'🌿'};
           const sc = STATUS_C[entry.status]||'var(--muted)';
-          const safeNotes = (entry.notes||'').replace(/"/g,'&quot;');
+          const safeNotes = esc(entry.notes||'');
           return `<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-top:1px solid var(--rule);">
             <div style="font-size:1.25rem;flex-shrink:0;line-height:1;">${pl.emoji}</div>
             <div style="flex:1;min-width:0;">
-              <div style="font-size:.88rem;font-weight:600;">${pl.common}</div>
+              <div style="font-size:.88rem;font-weight:600;">${esc(pl.common)}</div>
               <input value="${safeNotes}" placeholder="Add notes…"
                 style="width:100%;font-size:.75rem;color:var(--muted);border:none;border-bottom:1px dashed transparent;background:transparent;outline:none;padding:1px 0;box-sizing:border-box;margin-top:2px;cursor:text;"
                 onfocus="this.style.borderBottomColor='var(--rule)'"
@@ -2837,8 +2886,8 @@ function renderFreeformBed(bed) {
       <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;">
         <div style="font-size:1rem;margin-top:2px;">${zone.emoji||'🌿'}</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:.92rem;font-weight:600;">${zone.name}</div>
-          ${zone.notes?`<div style="font-size:.76rem;color:var(--muted);margin-top:2px;line-height:1.45;">${zone.notes}</div>`:''}
+          <div style="font-size:.92rem;font-weight:600;">${esc(zone.name)}</div>
+          ${zone.notes?`<div style="font-size:.76rem;color:var(--muted);margin-top:2px;line-height:1.45;">${esc(zone.notes)}</div>`:''}
         </div>
         <button onclick="removeZone('${bed.key}','${zone.id}')" style="background:none;border:1px solid var(--rule);color:var(--muted);font-size:.7rem;border-radius:4px;padding:2px 7px;cursor:pointer;flex-shrink:0;">Remove</button>
       </div>
@@ -3289,7 +3338,7 @@ function renderGroundSuggestions() {
         const tag = s.storage === 'live' ? '<span style="font-family:\'Space Mono\',monospace;font-size:7px;background:#e2f0e4;color:#2a6a2a;padding:1px 5px;border-radius:3px;margin-right:4px;">LIVE START</span>' : '<span style="font-family:\'Space Mono\',monospace;font-size:7px;background:#f5edd8;color:#8a6010;padding:1px 5px;border-radius:3px;margin-right:4px;">SEED</span>';
         const varNote = s.variety && !s.variety.startsWith('(') ? ` — ${s.variety}` : '';
         const firstNote = (s.notes || '').split('.')[0];
-        return `<div style="font-size:.8rem;line-height:1.5;padding:5px 0;border-top:1px solid var(--rule);">${tag}<strong>${s.name}${varNote}</strong><br><span style="color:var(--muted)">${firstNote}.</span></div>`;
+        return `<div style="font-size:.8rem;line-height:1.5;padding:5px 0;border-top:1px solid var(--rule);">${tag}<strong>${esc(s.name)}${esc(varNote)}</strong><br><span style="color:var(--muted)">${esc(firstNote)}.</span></div>`;
       }).join('')}
     </div>`);
   }
@@ -3309,7 +3358,7 @@ function renderGroundSuggestions() {
   // Squash & pumpkins: let vines sprawl beyond beds
   const squashes = seeds.filter(s => ['squash','pumpkin'].includes(s.name.toLowerCase()));
   if (squashes.length) {
-    const varieties = squashes.map(s => s.variety && !s.variety.startsWith('(') ? `${s.name} (${s.variety})` : s.name).join(', ');
+    const varieties = esc(squashes.map(s => s.variety && !s.variety.startsWith('(') ? `${s.name} (${s.variety})` : s.name).join(', '));
     cards.push(`<div class="card" style="margin-bottom:8px;">
       <div style="font-weight:600;font-size:.9rem;margin-bottom:4px;">🎃 Squash &amp; Pumpkins — let vines sprawl</div>
       <div style="font-size:.8rem;line-height:1.55;color:var(--ink);"><strong>${varieties}</strong> — plant at the bed edge in Bed C or A, let vines trail out onto path or lawn. You have ${squashes.length} variety${squashes.length>1?'s — grow only ONE sugar pie variety this season':''}.
@@ -3381,7 +3430,7 @@ function renderBedInventoryPanel(){
     const mismatchNote=mismatch?`<span style="color:#7a1a1a;font-size:.72rem;"> · Best: Bed ${(plant?.bestBeds||[]).join('/')}</span>`:'';
     const sqNote=sqEst?`<span style="color:var(--muted);font-size:.72rem;"> ${sqEst} sq</span>`:'';
     return`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-top:1px solid var(--rule);gap:6px;">
-      <div style="font-size:.82rem;flex:1;min-width:0;"><strong>${s.name}</strong>${s.variety&&!s.variety.startsWith('(')?` <span style="opacity:.6;">${s.variety}</span>`:''} ${isStart?'<span style="font-family:\'Space Mono\',monospace;font-size:7px;background:#e2f0e4;color:#2a6a2a;padding:1px 5px;border-radius:3px;">START</span>':''}<span class="plant-pill pill-gold" style="font-size:.7rem;">×${s.qty||1}</span>${sqNote}${mismatchNote}</div>
+      <div style="font-size:.82rem;flex:1;min-width:0;"><strong>${esc(s.name)}</strong>${s.variety&&!s.variety.startsWith('(')?` <span style="opacity:.6;">${esc(s.variety)}</span>`:''} ${isStart?'<span style="font-family:\'Space Mono\',monospace;font-size:7px;background:#e2f0e4;color:#2a6a2a;padding:1px 5px;border-radius:3px;">START</span>':''}<span class="plant-pill pill-gold" style="font-size:.7rem;">×${s.qty||1}</span>${sqNote}${mismatchNote}</div>
       <div>${statusDot}</div>
     </div>`;
   }).join('');
@@ -3481,7 +3530,7 @@ function autoPopulateAllBeds() {
     const plant = PLANT_IDX[libId]; if (!plant) return;
     const sq = Math.max(1, Math.round(plant.sqFt * (seed.qty || 1)));
     const targetBed = seed.bed !== 'any' ? seed.bed : (plant.bestBeds || [])[0] || 'A';
-    tally(targetBed, `${seed.name}${seed.variety ? ' ('+seed.variety+')' : ''} ×${seed.qty||1} (start)`, sq);
+    tally(targetBed, esc(`${seed.name}${seed.variety ? ' ('+seed.variety+')' : ''} ×${seed.qty||1} (start)`), sq);
   });
   // Also count explicitly-assigned seed packets (same dedup as Pass 3: one per libId+bed).
   // Without this, live starts can silently fill a bed and seed packets assigned to the
@@ -3495,7 +3544,7 @@ function autoPopulateAllBeds() {
     seenCapKey.add(key);
     const sq = plant.sqFt >= 4 ? Math.ceil(plant.sqFt)
              : plant.sqFt >= 1 ? Math.max(4, Math.ceil(plant.sqFt * 4)) : 8;
-    tally(seed.bed, `${seed.name}${seed.variety ? ' ('+seed.variety+')' : ''} (packet)`, sq);
+    tally(seed.bed, esc(`${seed.name}${seed.variety ? ' ('+seed.variety+')' : ''} (packet)`), sq);
   });
 
   const hasWarning = Object.keys(bedSqNeeded).some(k => {
@@ -3811,8 +3860,8 @@ function runAutoPopulate(noRecommendations = false) {
       <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:#8a6010;margin-bottom:8px;">⚠️ SEEDS REROUTED — assigned bed was full</div>
       ${reroutedSeeds.map(r=>`
         <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--rule);gap:8px;">
-          <div style="font-size:.82rem;">${PLANT_IDX[r.libId]?.emoji||'🌱'} <strong>${r.name}</strong> — ${BED_INFO[r.fromBed]?.label||r.fromBed} full → placed in ${BED_INFO[r.toBed]?.label||r.toBed}</div>
-          <button onclick="reassignSeedBed('${r.libId}','${r.fromBed}','${r.toBed}')" style="font-size:.72rem;padding:3px 9px;border:1px solid #c4922a;border-radius:4px;background:white;color:#8a6010;cursor:pointer;flex-shrink:0;">Update assignment →</button>
+          <div style="font-size:.82rem;">${PLANT_IDX[r.libId]?.emoji||'🌱'} <strong>${esc(r.name)}</strong> — ${esc(BED_INFO[r.fromBed]?.label||r.fromBed)} full → placed in ${esc(BED_INFO[r.toBed]?.label||r.toBed)}</div>
+          <button onclick="reassignSeedBed('${escAttr(r.libId)}','${escAttr(r.fromBed)}','${escAttr(r.toBed)}')" style="font-size:.72rem;padding:3px 9px;border:1px solid #c4922a;border-radius:4px;background:white;color:#8a6010;cursor:pointer;flex-shrink:0;">Update assignment →</button>
         </div>`).join('')}
       <div style="font-size:.75rem;color:var(--muted);margin-top:7px;">To fix: reassign the seed packet to the new bed, or move some live starts to free up space.</div>
     </div>` : '';
@@ -4124,15 +4173,23 @@ function clearSquare() {
 }
 
 function clearBedDesign() {
-  if (!confirm('Clear all plants from this bed plan?')) return;
+  const bedKey = activeBedKey;
+  const prevDesign = {...(db.bedDesigns?.[bedKey] || {})};
+  const prevStatuses = {...(db.bedStatuses?.[bedKey] || {})};
+  if (!Object.keys(prevDesign).length) return;
   activeBedDesign = {};
   activeBedStatuses = {};
   db.bedDesigns = db.bedDesigns || {};
-  db.bedDesigns[activeBedKey] = {};
+  db.bedDesigns[bedKey] = {};
   db.bedStatuses = db.bedStatuses || {};
-  db.bedStatuses[activeBedKey] = {};
+  db.bedStatuses[bedKey] = {};
   saveDB(db);
   renderDesign();
+  showToast({msg:`Cleared bed ${BED_INFO[bedKey]?.label||bedKey}`, action:()=>{
+    db.bedDesigns[bedKey]=prevDesign; db.bedStatuses[bedKey]=prevStatuses;
+    if (activeBedKey===bedKey) { activeBedDesign={...prevDesign}; activeBedStatuses={...prevStatuses}; }
+    saveDB(db); renderDesign();
+  }});
 }
 
 function openSqModal(sqIdx) {
@@ -4259,7 +4316,7 @@ function renderJournal(){
   document.getElementById('journal-list').innerHTML=db.journal.map(e=>{
     const ds=new Date(e.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
     const wx=e.weather?` · ${e.weather.temp}°F`:'';
-    return`<div class="journal-entry"><div class="entry-meta"><div class="entry-date">${ds}${wx}</div><div style="font-size:.83rem">${e.mood||''}</div><div class="entry-tags">${e.tags.map(t=>`<span class="entry-tag">${t}</span>`).join('')}</div></div><div class="entry-text">${e.text}</div></div>`;
+    return`<div class="journal-entry"><div class="entry-meta"><div class="entry-date">${ds}${wx}</div><div style="font-size:.83rem">${esc(e.mood||'')}</div><div class="entry-tags">${e.tags.map(t=>`<span class="entry-tag">${esc(t)}</span>`).join('')}</div></div><div class="entry-text">${esc(e.text)}</div></div>`;
   }).join('');
 }
 
@@ -4473,11 +4530,11 @@ function renderSeeds(){
       const ALL_BEDS=['A','B','C','D','A1','B1','C1','H','P','any'];
       const bedOpts=ALL_BEDS.map(k=>`<option value="${k}"${s.bed===k?' selected':''}>${BED_INFO[k]?.label||k}</option>`).join('');
       const bedChangeHtml=`<div style="margin-top:6px;display:flex;align-items:center;gap:6px;"><span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">ASSIGN TO</span><select style="font-size:.78rem;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;background:white;" onchange="changeSeedBed('${s.id}',this.value)">${bedOpts}</select></div>`;
-      bodyContent=`<div class="seed-meta-row"><span class="storage-badge store-live">🌱 Live start</span>${s.source?`<span class="plant-pill pill-sage">${s.source}</span>`:''}</div>${rec?`<div class="seed-detail seed-planting-rec">📍 ${rec}</div>`:''} ${s.notes?`<div class="seed-detail" style="margin-top:4px;">${s.notes}</div>`:''} ${placementHtml}${mismatchHtml}${bedChangeHtml}<div style="margin-top:8px;">${hardenHtml}</div>`;
+      bodyContent=`<div class="seed-meta-row"><span class="storage-badge store-live">🌱 Live start</span>${s.source?`<span class="plant-pill pill-sage">${esc(s.source)}</span>`:''}</div>${rec?`<div class="seed-detail seed-planting-rec">📍 ${esc(rec)}</div>`:''} ${s.notes?`<div class="seed-detail" style="margin-top:4px;">${esc(s.notes)}</div>`:''} ${placementHtml}${mismatchHtml}${bedChangeHtml}<div style="margin-top:8px;">${hardenHtml}</div>`;
     }else if(isSkipped){
       const tip=storageTipForSeed(s);
-      const reminderTag=s.nextReminder?`<div style="margin-top:5px;"><span class="seed-reminder-tag">🔔 Remind me ${s.nextReminder}</span></div>`:'';
-      bodyContent=`<div class="seed-meta-row"><span class="storage-badge ${store.cls}">${store.icon} ${store.label}</span>${s.source?`<span class="plant-pill pill-sage">${s.source}</span>`:''}</div><div class="seed-detail">${tip}</div>${reminderTag}<div style="margin-top:8px;"><button class="seed-skip-btn seed-unskip-btn" onclick="unskipSeed('${s.id}')">↩ Back in rotation</button></div>`;
+      const reminderTag=s.nextReminder?`<div style="margin-top:5px;"><span class="seed-reminder-tag">🔔 Remind me ${esc(s.nextReminder)}</span></div>`:'';
+      bodyContent=`<div class="seed-meta-row"><span class="storage-badge ${store.cls}">${store.icon} ${store.label}</span>${s.source?`<span class="plant-pill pill-sage">${esc(s.source)}</span>`:''}</div><div class="seed-detail">${esc(tip)}</div>${reminderTag}<div style="margin-top:8px;"><button class="seed-skip-btn seed-unskip-btn" onclick="unskipSeed('${escAttr(s.id)}')">↩ Back in rotation</button></div>`;
     }else{
       const ALL_BEDS_N=['A','B','C','D','A1','B1','C1','H','P','any'];
       const bedOptsN=ALL_BEDS_N.map(k=>`<option value="${k}"${s.bed===k?' selected':''}>${BED_INFO[k]?.label||k}</option>`).join('');
@@ -4485,57 +4542,64 @@ function renderSeeds(){
       const splitRow=s.bed2
         ?`<div style="display:flex;align-items:center;gap:5px;margin-top:5px;">
             <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">ALSO IN</span>
-            <select style="font-size:.78rem;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;background:white;" onchange="changeSeedBed2('${s.id}',this.value)">${bed2OptsN}</select>
+            <select style="font-size:.78rem;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;background:white;" onchange="changeSeedBed2('${escAttr(s.id)}',this.value)">${bed2OptsN}</select>
             <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">×</span>
-            <input type="number" min="1" max="${Math.max(1,(s.qty||1)-1)}" value="${s.qty2||1}" style="width:40px;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;font-size:.78rem;text-align:center;" onchange="changeSeedQty2('${s.id}',this.value)">
-            <button onclick="removeSeedSplit('${s.id}')" style="background:none;border:none;color:var(--muted);font-size:.95rem;cursor:pointer;padding:2px 5px;line-height:1;" title="Remove split">×</button>
+            <input type="number" min="1" max="${Math.max(1,(s.qty||1)-1)}" value="${s.qty2||1}" style="width:40px;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;font-size:.78rem;text-align:center;" onchange="changeSeedQty2('${escAttr(s.id)}',this.value)">
+            <button onclick="removeSeedSplit('${escAttr(s.id)}')" style="background:none;border:none;color:var(--muted);font-size:.95rem;cursor:pointer;padding:2px 5px;line-height:1;" title="Remove split">×</button>
           </div>`
-        :(s.qty||1)>=2?`<button class="seed-skip-btn" style="margin-top:5px;" onclick="addSeedSplit('${s.id}')">+ Split to second location</button>`:'';
+        :(s.qty||1)>=2?`<button class="seed-skip-btn" style="margin-top:5px;" onclick="addSeedSplit('${escAttr(s.id)}')">+ Split to second location</button>`:'';
       const assignHtmlN=`<div style="margin-top:7px;">
         <div style="display:flex;align-items:center;gap:5px;">
           <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">ASSIGN TO</span>
-          <select style="font-size:.78rem;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;background:white;" onchange="changeSeedBed('${s.id}',this.value)">${bedOptsN}</select>
+          <select style="font-size:.78rem;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;background:white;" onchange="changeSeedBed('${escAttr(s.id)}',this.value)">${bedOptsN}</select>
         </div>${splitRow}</div>`;
-      bodyContent=`<div class="seed-meta-row"><span class="storage-badge ${store.cls}">${store.icon} ${store.label}</span>${s.source?`<span class="plant-pill pill-sage">${s.source}</span>`:''}</div>${s.notes?`<div class="seed-detail">${s.notes}</div>`:''}${assignHtmlN}<div style="margin-top:8px;"><button class="seed-skip-btn" onclick="skipSeed('${s.id}')">💤 Not this year</button></div>`;
+      bodyContent=`<div class="seed-meta-row"><span class="storage-badge ${store.cls}">${store.icon} ${store.label}</span>${s.source?`<span class="plant-pill pill-sage">${esc(s.source)}</span>`:''}</div>${s.notes?`<div class="seed-detail">${esc(s.notes)}</div>`:''}${assignHtmlN}<div style="margin-top:8px;"><button class="seed-skip-btn" onclick="skipSeed('${escAttr(s.id)}')">💤 Not this year</button></div>`;
     }
     const bed2tag=s.bed2&&s.bed2!=='any'?`<span class="seed-bed-tag ${(BED_INFO[s.bed2]||{}).cls||''}">${(BED_INFO[s.bed2]||{}).label||s.bed2}</span>`:'';
     const qtyDisplay=s.bed2&&s.qty2?`×${(s.qty||1)-(s.qty2||0)}+${s.qty2}`:`×${s.qty||1}`;
-    return`<div class="seed-card${isSkipped?' skipped':''}"><div class="seed-card-header">${thumbHtml}<div style="flex:1;min-width:0;"><div class="seed-name">${s.name}</div><div class="seed-variety">${s.variety||'—'}</div><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;"><span class="seed-bed-tag ${bed.cls}">${bed.label}</span>${bed2tag}${s.days?`<span class="plant-pill pill-ink">⏱ ${s.days}d</span>`:''}<span class="plant-pill pill-gold">${qtyDisplay}</span>${timingBadge}${viabBadge}</div></div><button onclick="deleteSeed('${s.id}')" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:4px;flex-shrink:0;">×</button></div><div class="seed-body">${bodyContent}</div></div>`;
+    return`<div class="seed-card${isSkipped?' skipped':''}"><div class="seed-card-header">${thumbHtml}<div style="flex:1;min-width:0;"><div class="seed-name">${esc(s.name)}</div><div class="seed-variety">${esc(s.variety||'—')}</div><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;"><span class="seed-bed-tag ${bed.cls}">${bed.label}</span>${bed2tag}${s.days?`<span class="plant-pill pill-ink">⏱ ${esc(s.days)}d</span>`:''}<span class="plant-pill pill-gold">${qtyDisplay}</span>${timingBadge}${viabBadge}</div></div><button onclick="deleteSeed('${escAttr(s.id)}')" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:4px;flex-shrink:0;">×</button></div><div class="seed-body">${bodyContent}</div></div>`;
   }
   const el=document.getElementById('seed-list');
   if(activeSeedFilter==='starts'){
     const vis=applySearch(liveStarts);
     if(!liveStarts.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌱</div><div class="empty-text">No plant starts in inventory.\nAdd a start with storage set to "Plant soon".</div></div>`;return;}
-    if(!vis.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">No starts match "${seedSearchQuery}".</div></div>`;return;}
+    if(!vis.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">No starts match "${esc(seedSearchQuery)}".</div></div>`;return;}
     el.innerHTML=vis.map(s=>buildCard(s,true,false)).join('');return;
   }
   if(activeSeedFilter==='skip'){
     const vis=applySearch(skipped);
     if(!skipped.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">💤</div><div class="empty-text">No seeds saved for next year yet.\nTap "Not this year" on any seed packet.</div></div>`;return;}
-    if(!vis.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">No skipped seeds match "${seedSearchQuery}".</div></div>`;return;}
+    if(!vis.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">No skipped seeds match "${esc(seedSearchQuery)}".</div></div>`;return;}
     el.innerHTML=vis.map(s=>buildCard(s,false,true)).join('');return;
   }
   if(activeSeedFilter==='bags'){
     const BAG_KEYS=['A1','B1','C1'];
     const vis=applySearch(seeds.filter(s=>BAG_KEYS.includes(s.bed)&&!s.skipYear&&s.storage!=='live'));
-    if(!vis.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">${seedSearchQuery?`No bag seeds match "${seedSearchQuery}".`:'No seeds assigned to the grow bags.'}</div></div>`;return;}
+    if(!vis.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">${seedSearchQuery?`No bag seeds match "${esc(seedSearchQuery)}".`:'No seeds assigned to the grow bags.'}</div></div>`;return;}
     el.innerHTML=vis.map(s=>buildCard(s,false,false)).join('');return;
   }
   if(activeSeedFilter!=='all'){
     const vis=applySearch(seeds.filter(s=>(s.bed===activeSeedFilter||s.bed2===activeSeedFilter)&&!s.skipYear));
-    if(!vis.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">${seedSearchQuery?`No seeds in this bed match "${seedSearchQuery}".`:'No seeds assigned to this bed.'}</div></div>`;return;}
+    if(!vis.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">${seedSearchQuery?`No seeds in this bed match "${esc(seedSearchQuery)}".`:'No seeds assigned to this bed.'}</div></div>`;return;}
     el.innerHTML=vis.map(s=>buildCard(s,s.storage==='live',false)).join('');return;
   }
   if(!seeds.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">No seeds yet.\nTap "Scan packet" to add your first.</div></div><div class="scan-zone" onclick="openScanModal()"><div class="scan-icon">📷</div><div class="scan-text">SCAN YOUR FIRST SEED PACKET</div><div class="scan-sub">AI reads the packet and fills in all the details</div></div>`;return;}
   const visStarts=applySearch(liveStarts),visNormal=applySearch(normalSeeds),visSkipped=applySearch(skipped);
-  if(seedSearchQuery&&!visStarts.length&&!visNormal.length&&!visSkipped.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">No seeds match "${seedSearchQuery}".</div></div>`;return;}
+  if(seedSearchQuery&&!visStarts.length&&!visNormal.length&&!visSkipped.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">No seeds match "${esc(seedSearchQuery)}".</div></div>`;return;}
   let html='';
   if(visStarts.length)html+=`<div class="seed-section-divider">🌱 Plant starts <span style="font-weight:400;opacity:.6;">(${visStarts.length})</span></div>`+visStarts.map(s=>buildCard(s,true,false)).join('');
   if(visNormal.length)html+=`<div class="seed-section-divider">🌾 Seed packets <span style="font-weight:400;opacity:.6;">(${visNormal.length})</span></div>`+visNormal.map(s=>buildCard(s,false,false)).join('');
   if(visSkipped.length)html+=`<div class="seed-section-divider">💤 Saved for next year <span style="font-weight:400;opacity:.6;">(${visSkipped.length})</span></div>`+visSkipped.map(s=>buildCard(s,false,true)).join('');
   el.innerHTML=html||`<div class="empty-state"><div class="empty-icon">🌾</div><div class="empty-text">No seeds yet.</div></div>`;
 }
-function deleteSeed(id){if(!confirm('Remove from inventory?'))return;db.seeds=db.seeds.filter(s=>s.id!==id);saveDB(db);renderSeeds();syncInventoryToBeds();}
+function deleteSeed(id){
+  const idx=(db.seeds||[]).findIndex(s=>s.id===id);
+  if(idx<0)return;
+  const removed=db.seeds[idx];
+  db.seeds.splice(idx,1);
+  saveDB(db);renderSeeds();syncInventoryToBeds();
+  showToast({msg:`Removed "${removed.name}" from inventory`,action:()=>{db.seeds.splice(idx,0,removed);saveDB(db);renderSeeds();syncInventoryToBeds();}});
+}
 
 // ════════════════════════════════════════
 //  PLANTS
@@ -4585,29 +4649,29 @@ function plantCard(p){
     :p.bloom&&p.bloom!=='—'?`🌸 ${p.bloom}`:'';
   const zones=findPlantZones(p.id);
   const locationLine=zones.length
-    ?`<div style="font-size:.72rem;color:var(--muted);margin-top:2px;">📍 ${zones.join(', ')}</div>`
-    :p.location?`<div style="font-size:.72rem;color:var(--muted);margin-top:1px;">📍 ${p.location}</div>`:'';
-  const addedLabel=curStatus==='planned'?`Planned ${p.added}`:`Since ${p.added}`;
+    ?`<div style="font-size:.72rem;color:var(--muted);margin-top:2px;">📍 ${esc(zones.join(', '))}</div>`
+    :p.location?`<div style="font-size:.72rem;color:var(--muted);margin-top:1px;">📍 ${esc(p.location)}</div>`:'';
+  const addedLabel=curStatus==='planned'?`Planned ${esc(p.added)}`:`Since ${esc(p.added)}`;
   const notesHtml=p.notes
     ?p.notes.length>60
-      ?`<span id="pn-${p.id}" class="plant-pill pill-sage" style="cursor:pointer;" data-expanded="0" onclick="expandPlantNotes('${p.id}')" title="Tap to expand">${p.notes.slice(0,60)}…</span>`
-      :`<span class="plant-pill pill-sage">${p.notes}</span>`
+      ?`<span id="pn-${escAttr(p.id)}" class="plant-pill pill-sage" style="cursor:pointer;" data-expanded="0" onclick="expandPlantNotes('${escAttr(p.id)}')" title="Tap to expand">${esc(p.notes.slice(0,60))}…</span>`
+      :`<span class="plant-pill pill-sage">${esc(p.notes)}</span>`
     :'';
   return`<div class="plant-card${dimmed}">
     <div class="plant-header">
       <div class="plant-icon-circle" style="background:${bg}20;border:2px solid ${bg}60;">${p.emoji||'🌿'}</div>
       <div style="flex:1;min-width:0;">
-        <div class="plant-common">${p.common}</div>
-        ${p.latin?`<div class="plant-latin">${p.latin}</div>`:''}
+        <div class="plant-common">${esc(p.common)}</div>
+        ${p.latin?`<div class="plant-latin">${esc(p.latin)}</div>`:''}
         ${locationLine}
       </div>
       <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-end;flex-shrink:0;margin-left:6px;">
-        <button onclick="editPlant('${p.id}')" style="background:none;border:1px solid var(--rule);border-radius:4px;font-size:.68rem;padding:2px 8px;cursor:pointer;color:var(--muted);white-space:nowrap;">Edit</button>
-        <button onclick="deletePlant('${p.id}')" style="background:none;border:none;font-size:1rem;cursor:pointer;color:#ccc;padding:1px 4px;line-height:1;" title="Remove">×</button>
+        <button onclick="editPlant('${escAttr(p.id)}')" style="background:none;border:1px solid var(--rule);border-radius:4px;font-size:.68rem;padding:2px 8px;cursor:pointer;color:var(--muted);white-space:nowrap;">Edit</button>
+        <button onclick="deletePlant('${escAttr(p.id)}')" style="background:none;border:none;font-size:1rem;cursor:pointer;color:#ccc;padding:1px 4px;line-height:1;" title="Remove">×</button>
       </div>
     </div>
     <div class="plant-meta">
-      <button onclick="togglePlantStatus('${p.id}')" style="font-family:'Space Mono',monospace;font-size:7px;padding:2px 8px;border-radius:10px;background:${statusBg[curStatus]};color:${statusColors[curStatus]};border:none;cursor:pointer;">${statusLabel[curStatus]}</button>
+      <button onclick="togglePlantStatus('${escAttr(p.id)}')" style="font-family:'Space Mono',monospace;font-size:7px;padding:2px 8px;border-radius:10px;background:${statusBg[curStatus]};color:${statusColors[curStatus]};border:none;cursor:pointer;">${statusLabel[curStatus]}</button>
       ${bloomRange?`<span class="plant-pill pill-gold">${bloomRange}</span>`:''}
       <span class="plant-pill pill-ink">${addedLabel}</span>
       ${notesHtml}
@@ -4671,9 +4735,12 @@ function editPlant(id){
   openModal('add-plant-modal');
 }
 function deletePlant(id){
-  if(!confirm('Remove this plant from the inventory?'))return;
-  db.plants=db.plants.filter(p=>p.id!==id);
+  const idx=db.plants.findIndex(p=>p.id===id);
+  if(idx<0)return;
+  const removed=db.plants[idx];
+  db.plants.splice(idx,1);
   saveDB(db);renderPlants();
+  showToast({msg:`Removed "${removed.common||removed.name||'plant'}"`,action:()=>{db.plants.splice(idx,0,removed);saveDB(db);renderPlants();}});
 }
 function renderPlants(){
   const zoneNames=new Set(Object.values(db.bedZones||{}).flatMap(zones=>(zones||[]).filter(z=>z.type!=='landmark').map(z=>z.name)));
@@ -5079,8 +5146,12 @@ function updateSowStatus(id, status) {
 }
 
 function deleteSowLog(id) {
-  db.sowLogs = (db.sowLogs||[]).filter(e=>e.id!==id);
+  const arr=db.sowLogs||[];
+  const idx=arr.findIndex(e=>e.id===id);
+  if(idx<0)return;
+  const removed=arr.splice(idx,1)[0];
   saveDB(db); renderSpring();
+  showToast({msg:`Removed sow log: ${removed.name||'entry'}`,action:()=>{arr.splice(idx,0,removed);saveDB(db);renderSpring();}});
 }
 
 function renderGermination() {
@@ -5120,7 +5191,7 @@ function renderGermination() {
       showActions = true;
     } else {
       statusCls='gs-waiting'; statusText=`${daysLeft}d to go`;
-      detail=`Day ${daysSinceSow} of ${expectedDay} · sowed ${e.date}${e.notes?' · '+e.notes:''}`;
+      detail=esc(`Day ${daysSinceSow} of ${expectedDay} · sowed ${e.date}${e.notes?' · '+e.notes:''}`);
       showActions = daysLeft <= 2;
     }
 
@@ -5134,7 +5205,7 @@ function renderGermination() {
       <div class="germ-header">
         <div class="germ-emoji">${emoji}</div>
         <div class="germ-name">
-          <div class="germ-plant-name">${e.name}</div>
+          <div class="germ-plant-name">${esc(e.name)}</div>
           <div class="germ-meta">${bedLabel} · ${e.method==='direct'?'direct sow':e.method==='indoor'?'indoors':'transplant'}</div>
         </div>
         <div class="germ-status ${statusCls}">${statusText}</div>
@@ -5197,8 +5268,12 @@ function advanceHarden(id) {
 }
 
 function deleteHarden(id) {
-  db.hardenLogs = (db.hardenLogs||[]).filter(e=>e.id!==id);
+  const arr=db.hardenLogs||[];
+  const idx=arr.findIndex(e=>e.id===id);
+  if(idx<0)return;
+  const removed=arr.splice(idx,1)[0];
   saveDB(db); renderSpring();
+  showToast({msg:`Removed hardening log: ${removed.name||'entry'}`,action:()=>{arr.splice(idx,0,removed);saveDB(db);renderSpring();}});
 }
 
 function resetAllHarden() {
@@ -5264,7 +5339,7 @@ function renderHardening() {
       <div class="harden-header">
         <div class="harden-emoji">${emoji}</div>
         <div class="harden-name">
-          <div class="harden-plant-name">${e.name} (×${e.qty})</div>
+          <div class="harden-plant-name">${esc(e.name)} (×${e.qty|0})</div>
           <div class="harden-meta">Started ${e.startDate}</div>
         </div>
         <div class="harden-stage ${stageCls}">${stageText}</div>
@@ -5631,7 +5706,7 @@ function renderPlanList(){
       const v=VEG_DB.find(x=>x.k===i.vegKey);
       const loc=i.bedRec?(i.bedRec==='herb'?'Herb section':'Bed '+i.bedRec):'';
       const tag=i.accepted&&loc?`<span style="font-family:'Space Mono',monospace;font-size:7px;color:var(--moss);margin-left:4px;">✓ ${loc}</span>`:'';
-      return`<div class="plan-item"><span style="font-size:1rem;">${v?v.e:'🌱'}</span><span style="flex:1;">${i.name}${tag}</span><span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">×${i.qty}</span><span class="plan-type-tag plan-type-${i.type}">${i.type}</span><button onclick="removeFromPlan('${i.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:2px 4px;flex-shrink:0;">×</button></div>`;
+      return`<div class="plan-item"><span style="font-size:1rem;">${v?v.e:'🌱'}</span><span style="flex:1;">${esc(i.name)}${tag}</span><span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">×${i.qty|0}</span><span class="plan-type-tag plan-type-${esc(i.type)}">${esc(i.type)}</span><button onclick="removeFromPlan('${escAttr(i.id)}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:2px 4px;flex-shrink:0;">×</button></div>`;
     }).join('')
   }</div>`;
 }
@@ -5797,9 +5872,13 @@ function saveHarvest(){
   renderHarvestLog();
 }
 function deleteHarvest(id){
-  if(!confirm('Delete this harvest entry?'))return;
-  db.harvestLog=(db.harvestLog||[]).filter(h=>h.id!==id);
+  const arr=db.harvestLog||[];
+  const idx=arr.findIndex(h=>h.id===id);
+  if(idx<0)return;
+  const removed=arr[idx];
+  arr.splice(idx,1);
   saveDB(db);renderHarvestLog();
+  showToast({msg:`Removed harvest: ${removed.crop||'entry'}`,action:()=>{arr.splice(idx,0,removed);saveDB(db);renderHarvestLog();}});
 }
 function renderHarvestLog(){
   const el=document.getElementById('harvest-list');if(!el)return;
@@ -5807,8 +5886,8 @@ function renderHarvestLog(){
   if(!logs.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🧺</div><div class="empty-text">No harvests logged yet.</div></div>`;return;}
   el.innerHTML=logs.slice(0,50).map(h=>{
     const d=new Date(h.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
-    const qty=h.qty?` · ${h.qty} ${h.unit}`:'';
-    return`<div class="harvest-card"><div style="font-size:1.4rem;">🧺</div><div class="harvest-body"><div class="harvest-crop">${h.crop}</div><div class="harvest-meta">${d} · ${HV_BEDS[h.bed]||h.bed}${qty}</div></div><button onclick="deleteHarvest('${h.id}')" style="background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;padding:4px;">×</button></div>`;
+    const qty=h.qty?` · ${esc(h.qty)} ${esc(h.unit||'')}`:'';
+    return`<div class="harvest-card"><div style="font-size:1.4rem;">🧺</div><div class="harvest-body"><div class="harvest-crop">${esc(h.crop)}</div><div class="harvest-meta">${d} · ${esc(HV_BEDS[h.bed]||h.bed)}${qty}</div></div><button onclick="deleteHarvest('${escAttr(h.id)}')" style="background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;padding:4px;">×</button></div>`;
   }).join('');
 }
 
@@ -5829,8 +5908,14 @@ function importDB(input){
     try{
       const d=JSON.parse(e.target.result);
       if(!d.plants||!d.journal)throw new Error('Invalid');
-      if(!confirm('Replace all local data with this backup? This cannot be undone.'))return;
+      if(!confirm('Replace all local data with this backup?'))return;
+      const prevSnapshot=JSON.parse(JSON.stringify(db));
+      backupBeforeMigration(prevSnapshot, 'import');
       Object.assign(db,d);saveDB(db);renderAll();closeModal('settings-modal');
+      showToast({msg:'Imported backup. Previous data saved.',action:()=>{
+        Object.keys(db).forEach(k=>delete db[k]);
+        Object.assign(db,prevSnapshot);saveDB(db);renderAll();
+      },actionLabel:'Restore',duration:30000});
     }catch{alert('Could not read backup — file may be invalid.');}
     input.value='';
   };
@@ -5859,13 +5944,15 @@ async function syncData(){
   if(!url){const u=prompt('Paste your Google Apps Script Web App URL.\n(Cancel to use local only)');if(u&&u.startsWith('https://script.google.com')){setSheetsUrl(u);checkSyncStatus();syncData();}return;}
   const btn=document.getElementById('sync-btn'),status=document.getElementById('sync-status');
   btn.classList.add('syncing');status.textContent='…';
+  let pullError=null;
   try{
     // 1. Pull remote snapshot and merge into local (remote adds new IDs; local wins for existing)
     let pulled=false;
     try{
       const pr=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'pull'})});
       const remote=await pr.json();
-      if(remote.status!=='empty'&&remote.status!=='error'){
+      if(remote.status==='error') throw new Error(remote.message||'remote pull error');
+      if(remote.status!=='empty'){
         ['journal','plants','seeds','sowLogs','hardenLogs','harvestLog','plantingList'].forEach(key=>{
           if(!remote[key])return;
           const ids=new Set((db[key]||[]).map(x=>x.id));
@@ -5875,15 +5962,21 @@ async function syncData(){
         if(remote.bedDesigns)Object.keys(remote.bedDesigns).forEach(k=>{if(!db.bedDesigns[k])db.bedDesigns[k]=remote.bedDesigns[k];});
         saveDB(db);renderAll();pulled=true;
       }
-    }catch(e){}
+    }catch(e){pullError=e;console.warn('sync pull failed:',e);}
     // 2. Push merged data — strip seed thumbnails to keep payload small
     const payload=JSON.parse(JSON.stringify(db));
     (payload.seeds||[]).forEach(s=>{s.thumb='';s.thumbType='';});
     const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'sync',data:payload})});
     const r=await res.json();
-    if(r.status==='ok'){status.textContent=pulled?'SYNCED ↕':'SYNCED ↑';status.className='sync-status sync-ok';}
-    else throw new Error();
-  }catch{status.textContent='ERR';status.className='sync-status sync-off';}
+    if(r.status==='ok'){
+      status.textContent=pulled?'SYNCED ↕':'SYNCED ↑';status.className='sync-status sync-ok';
+      if(pullError) showToast({msg:'Push OK, but pull failed — local changes uploaded; remote not merged.',variant:'warn'});
+    } else throw new Error(r.message||'push failed');
+  }catch(e){
+    console.error('sync failed:',e);
+    status.textContent='ERR';status.className='sync-status sync-off';
+    showToast({msg:`Sync failed: ${e.message||'unknown error'}`,variant:'warn'});
+  }
   btn.classList.remove('syncing');
 }
 function checkSyncStatus(){
@@ -5963,14 +6056,14 @@ function renderReadyToPlant() {
       const isHardening=activeHardenNames.has(s.name.toLowerCase());
       const hardenBtn=isHardening
         ?`<span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--moss);">🌿 Hardening in progress</span>`
-        :`<button class="rtp-btn rtp-btn-harden" onclick="startHardeningFromSeed('${s.id}')">🌿 Start hardening</button>`;
+        :`<button class="rtp-btn rtp-btn-harden" onclick="startHardeningFromSeed('${escAttr(s.id)}')">🌿 Start hardening</button>`;
       const harvest = estimatedHarvest(s, plant);
       const harvestLine = harvest ? `<span style="color:var(--moss);">🗓 ~${fmtDate(harvest)}</span>` : '';
       return `<div class="rtp-card"><div class="rtp-emoji">${emoji}</div><div class="rtp-body">
-        <div class="rtp-name">${s.name}${s.variety?' · '+s.variety:''} ×${s.qty||1}</div>
+        <div class="rtp-name">${esc(s.name)}${s.variety?' · '+esc(s.variety):''} ×${s.qty||1}</div>
         <div class="rtp-meta">${bed.label}${sqFt?' · '+sqFt:''}${harvest?' · '+harvestLine:''}</div>
         <div class="rtp-actions">
-          <button class="rtp-btn rtp-btn-plant" onclick="logStartAsTransplanted('${s.id}')">🌱 Log as transplanted</button>
+          <button class="rtp-btn rtp-btn-plant" onclick="logStartAsTransplanted('${escAttr(s.id)}')">🌱 Log as transplanted</button>
           ${hardenBtn}
         </div>
       </div></div>`;
@@ -6698,7 +6791,14 @@ function saveAmendment(){
   ['am-amount','am-notes'].forEach(f=>{const el=document.getElementById(f);if(el)el.value='';});
   renderCompost();
 }
-function deleteAmendment(id){db.amendments=(db.amendments||[]).filter(a=>a.id!==id);saveDB(db);renderCompost();}
+function deleteAmendment(id){
+  const arr=db.amendments||[];
+  const idx=arr.findIndex(a=>a.id===id);
+  if(idx<0)return;
+  const removed=arr.splice(idx,1)[0];
+  saveDB(db);renderCompost();
+  showToast({msg:`Removed amendment: ${removed.type||'entry'}`,action:()=>{arr.splice(idx,0,removed);saveDB(db);renderCompost();}});
+}
 function renderCompost(){
   renderTumblerStatus();renderTumblerLog();renderAmendmentList();renderAmendRecs();
 }
@@ -6749,7 +6849,7 @@ function renderTumblerLog(){
   el.innerHTML=log.map(e=>`<div class="comp-log-row">
     <span class="comp-badge ${clsMap[e.type]||''}">${labelMap[e.type]||e.type.toUpperCase()}</span>
     <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);margin-left:6px;">${new Date(e.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
-    <span style="font-size:.8rem;color:var(--ink);margin-left:8px;flex:1;">${e.material?matLabel[e.material]||e.material:''}${e.notes&&e.material?' · ':''} ${e.notes||''}</span>
+    <span style="font-size:.8rem;color:var(--ink);margin-left:8px;flex:1;">${e.material?esc(matLabel[e.material]||e.material):''}${e.notes&&e.material?' · ':''} ${esc(e.notes||'')}</span>
   </div>`).join('');
 }
 function renderAmendmentList(){
@@ -6757,13 +6857,13 @@ function renderAmendmentList(){
   const list=(db.amendments||[]).slice(0,20);
   if(!list.length){el.innerHTML='<div style="color:var(--muted);font-size:.85rem;padding:10px 0;">No amendments logged yet.</div>';return;}
   el.innerHTML=list.map(a=>`<div class="amend-row">
-    <span class="amend-bed-tag">${a.bed}</span>
+    <span class="amend-bed-tag">${esc(a.bed)}</span>
     <div style="flex:1;min-width:0;">
-      <div style="font-size:.88rem;font-weight:600;">${a.type}${a.amount?' — '+a.amount:''}</div>
-      ${a.notes?`<div style="font-size:.78rem;color:var(--muted);">${a.notes}</div>`:''}
+      <div style="font-size:.88rem;font-weight:600;">${esc(a.type)}${a.amount?' — '+esc(a.amount):''}</div>
+      ${a.notes?`<div style="font-size:.78rem;color:var(--muted);">${esc(a.notes)}</div>`:''}
       <div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-top:2px;">${new Date(a.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>
     </div>
-    <button onclick="deleteAmendment('${a.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:2px 6px;">✕</button>
+    <button onclick="deleteAmendment('${escAttr(a.id)}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:2px 6px;">✕</button>
   </div>`).join('');
 }
 function renderAmendRecs(){
@@ -6796,10 +6896,10 @@ function renderSeasonReview(){
   if(saved){
     el.innerHTML=`<div class="section-label" style="margin-top:0;">${yr} Season review</div>
       <div class="review-saved">
-        ${saved.best?`<div>🏆 <strong>Best crop:</strong> ${saved.best}</div>`:''}
-        ${saved.worst?`<div>📉 <strong>Underperformed:</strong> ${saved.worst}</div>`:''}
-        ${saved.rotate?`<div>🔄 <strong>Rotation notes:</strong> ${saved.rotate}</div>`:''}
-        ${saved.notes?`<div>📝 ${saved.notes}</div>`:''}
+        ${saved.best?`<div>🏆 <strong>Best crop:</strong> ${esc(saved.best)}</div>`:''}
+        ${saved.worst?`<div>📉 <strong>Underperformed:</strong> ${esc(saved.worst)}</div>`:''}
+        ${saved.rotate?`<div>🔄 <strong>Rotation notes:</strong> ${esc(saved.rotate)}</div>`:''}
+        ${saved.notes?`<div>📝 ${esc(saved.notes)}</div>`:''}
       </div>
       <button class="btn-sm" style="margin:8px 0 14px;padding:6px 12px;font-size:.78rem;" onclick="clearSeasonReview(${yr})">Edit review</button>`;
     return;
@@ -6852,7 +6952,14 @@ function addWishlistItem(){
   ['wl-name','wl-notes'].forEach(f=>{const el=document.getElementById(f);if(el)el.value='';});
   renderWishlist();
 }
-function deleteWishlistItem(id){db.wishlist=(db.wishlist||[]).filter(w=>w.id!==id);saveDB(db);renderWishlist();}
+function deleteWishlistItem(id){
+  const arr=db.wishlist||[];
+  const idx=arr.findIndex(w=>w.id===id);
+  if(idx<0)return;
+  const removed=arr.splice(idx,1)[0];
+  saveDB(db);renderWishlist();
+  showToast({msg:`Removed "${removed.name||'wishlist item'}"`,action:()=>{arr.splice(idx,0,removed);saveDB(db);renderWishlist();}});
+}
 function renderWishlist(){
   const el=document.getElementById('wishlist-content');if(!el)return;
   const list=db.wishlist||[];
@@ -6861,10 +6968,10 @@ function renderWishlist(){
   el.innerHTML=list.map(w=>`<div class="wish-item">
     <span style="font-size:1rem;">${typeIcon[w.type]||'📌'}</span>
     <div style="flex:1;min-width:0;">
-      <div style="font-size:.9rem;font-weight:600;">${w.name}</div>
-      ${w.notes?`<div style="font-size:.78rem;color:var(--muted);">${w.notes}</div>`:''}
+      <div style="font-size:.9rem;font-weight:600;">${esc(w.name)}</div>
+      ${w.notes?`<div style="font-size:.78rem;color:var(--muted);">${esc(w.notes)}</div>`:''}
     </div>
-    <button onclick="deleteWishlistItem('${w.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:2px 6px;">✕</button>
+    <button onclick="deleteWishlistItem('${escAttr(w.id)}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:2px 6px;">✕</button>
   </div>`).join('');
 }
 function saveSeedSave(){
@@ -6881,7 +6988,14 @@ function saveSeedSave(){
   ['ss-name','ss-source','ss-qty','ss-notes'].forEach(f=>{const el=document.getElementById(f);if(el)el.value='';});
   renderSeedSaving();
 }
-function deleteSeedSave(id){db.seedSaving=(db.seedSaving||[]).filter(s=>s.id!==id);saveDB(db);renderSeedSaving();}
+function deleteSeedSave(id){
+  const arr=db.seedSaving||[];
+  const idx=arr.findIndex(s=>s.id===id);
+  if(idx<0)return;
+  const removed=arr.splice(idx,1)[0];
+  saveDB(db);renderSeedSaving();
+  showToast({msg:`Removed saved seed: ${removed.name||'entry'}`,action:()=>{arr.splice(idx,0,removed);saveDB(db);renderSeedSaving();}});
+}
 function renderSeedSaving(){
   const el=document.getElementById('seed-save-content');if(!el)return;
   const list=db.seedSaving||[];
@@ -6890,21 +7004,92 @@ function renderSeedSaving(){
   el.innerHTML=list.map(s=>`<div class="seed-save-card">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;">
       <div style="flex:1;min-width:0;">
-        <div style="font-weight:600;font-size:.92rem;">${s.name}${s.source?` <span style="font-size:.78rem;color:var(--muted);font-weight:400;">from ${s.source}</span>`:''}</div>
-        <div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-top:3px;">${s.date?new Date(s.date+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):''} ${s.qty?'· '+s.qty+' seeds':''} · ${storageLabel[s.storage]||s.storage}</div>
-        ${s.notes?`<div style="font-size:.8rem;color:var(--muted);margin-top:3px;">${s.notes}</div>`:''}
+        <div style="font-weight:600;font-size:.92rem;">${esc(s.name)}${s.source?` <span style="font-size:.78rem;color:var(--muted);font-weight:400;">from ${esc(s.source)}</span>`:''}</div>
+        <div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-top:3px;">${s.date?new Date(s.date+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):''} ${s.qty?'· '+esc(s.qty)+' seeds':''} · ${esc(storageLabel[s.storage]||s.storage)}</div>
+        ${s.notes?`<div style="font-size:.8rem;color:var(--muted);margin-top:3px;">${esc(s.notes)}</div>`:''}
       </div>
-      <button onclick="deleteSeedSave('${s.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:2px 6px;flex-shrink:0;">✕</button>
+      <button onclick="deleteSeedSave('${escAttr(s.id)}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:2px 6px;flex-shrink:0;">✕</button>
     </div>
   </div>`).join('');
 }
 
 function renderAll(){renderJournal();renderPlants();renderTimeline();renderSeeds();renderSpring();renderReadyToPlant();renderWeekSprint();renderMoonWidget();renderYear();}
 
+// ── Toast helper (used for undo, sync errors, update prompts) ──
+const _toasts = new Map();
+function showToast({id, msg, action, actionLabel, duration=7000, variant=''}) {
+  const stack = document.getElementById('toast-stack');
+  if (!stack) return;
+  if (id && _toasts.has(id)) dismissToast(id);
+  const tid = id || ('t'+Date.now()+Math.random().toString(36).slice(2,6));
+  const el = document.createElement('div');
+  el.className = 'toast' + (variant ? ' ' + variant : '');
+  el.dataset.tid = tid;
+  el.innerHTML = `<span class="toast-msg"></span>${action?'<button class="toast-action"></button>':''}<button class="toast-close" aria-label="Close">×</button>`;
+  el.querySelector('.toast-msg').textContent = msg;
+  if (action) {
+    const ab = el.querySelector('.toast-action');
+    ab.textContent = actionLabel || 'Undo';
+    ab.onclick = () => { try { action(); } finally { dismissToast(tid); } };
+  }
+  el.querySelector('.toast-close').onclick = () => dismissToast(tid);
+  stack.appendChild(el);
+  const timer = duration ? setTimeout(() => dismissToast(tid), duration) : null;
+  _toasts.set(tid, {el, timer});
+  return tid;
+}
+function dismissToast(tid) {
+  const entry = _toasts.get(tid);
+  if (!entry) return;
+  if (entry.timer) clearTimeout(entry.timer);
+  entry.el.remove();
+  _toasts.delete(tid);
+}
+
 // ── INIT ──
 updateHeaderDate();loadWeather();renderAll();checkSyncStatus();
+// Re-render header date at the next midnight so the displayed day rolls over without reload.
+(function scheduleMidnightTick(){
+  const now=new Date();
+  const next=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1,0,0,5);
+  setTimeout(()=>{updateHeaderDate();scheduleMidnightTick();},next-now);
+})();
 {const tbar=document.getElementById('today-bar');if(tbar){tbar.style.opacity='0';tbar.style.pointerEvents='none';}}
-if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+// ── Service worker with update detection ──
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    function watchInstalling(installing) {
+      if (!installing) return;
+      installing.addEventListener('statechange', () => {
+        if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+          showToast({
+            id: 'sw-update',
+            msg: 'New version available.',
+            action: () => { installing.postMessage('skip-waiting'); },
+            actionLabel: 'Reload',
+            duration: 0,
+          });
+        }
+      });
+    }
+    if (reg.waiting && navigator.serviceWorker.controller) {
+      showToast({
+        id: 'sw-update', msg: 'New version available.',
+        action: () => reg.waiting.postMessage('skip-waiting'),
+        actionLabel: 'Reload', duration: 0,
+      });
+    }
+    watchInstalling(reg.installing);
+    reg.addEventListener('updatefound', () => watchInstalling(reg.installing));
+  }).catch(()=>{});
+  let _reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (_reloading) return;
+    _reloading = true;
+    window.location.reload();
+  });
+}
 </script>
 </body>
 </html>

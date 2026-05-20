@@ -1,0 +1,19 @@
+{
+  "name": "Bozeman Garden Almanac",
+  "short_name": "Garden Almanac",
+  "description": "A garden planner, planting tracker, and seasonal almanac tuned for Bozeman, MT (Zone 5b).",
+  "start_url": "garden-almanac-v5.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f0e6",
+  "theme_color": "#0f1a0d",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
