@@ -2768,9 +2768,10 @@ function renderDesign() {
     });
   });
 
-  // Render row-major, grouping contiguous same-plant cells into one spanning
-  // block div so multi-cell plants (tomatillo 2×2, squash 2×3) show as a
-  // single outlined rectangle with no internal grid lines.
+  // Render row-major. Each plant gets its OWN outline at its canonical
+  // plantBlockDims footprint (tomatillo→2×2, squash→2×3, sqFt<1 plants→1×1),
+  // so two adjacent tomatillos render as two distinct 2×2 blocks — not one
+  // merged 2×4 rectangle.
   const cols = bed.cols, rows = bed.rows;
   const handled = new Array(totalSq).fill(false);
   for (let r = 0; r < rows; r++) {
@@ -2781,18 +2782,26 @@ function renderDesign() {
       const plant = plantId ? PLANT_IDX[plantId] : null;
       const status = activeBedStatuses[i];
 
-      // Find rectangular extent of this block (same plant, same status, unhandled)
+      // Default to 1×1; if this plant has sqFt ≥ 1, try to claim its
+      // canonical w×h footprint (or rotated h×w) starting here.
       let w = 1, h = 1;
-      if (plant) {
-        while (c + w < cols && activeBedDesign[r*cols+(c+w)] === plantId &&
-               activeBedStatuses[r*cols+(c+w)] === status && !handled[r*cols+(c+w)]) w++;
-        outer: while (r + h < rows) {
-          for (let dc = 0; dc < w; dc++) {
-            const idx = (r+h)*cols + (c+dc);
-            if (activeBedDesign[idx] !== plantId || activeBedStatuses[idx] !== status || handled[idx]) break outer;
+      if (plant && plant.sqFt >= 1) {
+        const [bw, bh] = plantBlockDims(plant);
+        const canFit = (W, H) => {
+          if (c + W > cols || r + H > rows) return false;
+          for (let dr = 0; dr < H; dr++) {
+            for (let dc = 0; dc < W; dc++) {
+              const idx = (r + dr) * cols + (c + dc);
+              if (activeBedDesign[idx] !== plantId
+                  || activeBedStatuses[idx] !== status
+                  || handled[idx]) return false;
+            }
           }
-          h++;
-        }
+          return true;
+        };
+        if (canFit(bw, bh)) { w = bw; h = bh; }
+        else if (bw !== bh && canFit(bh, bw)) { w = bh; h = bw; }
+        // else: scattered/partial cell — render as 1×1
       }
 
       const conflicts = plantId ? (conflictFor[plantId] || []) : [];
