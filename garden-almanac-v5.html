@@ -577,6 +577,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 .seed-timing-now{display:inline-flex;align-items:center;font-family:'Space Mono',monospace;font-size:8px;padding:2px 6px;border-radius:10px;background:#e2f0e4;color:#2a6a2a;font-weight:600;}
 .seed-timing-soon{display:inline-flex;align-items:center;font-family:'Space Mono',monospace;font-size:8px;padding:2px 6px;border-radius:10px;background:#fff8e2;color:#8a6010;font-weight:600;}
 .seed-timing-wait{display:inline-flex;align-items:center;font-family:'Space Mono',monospace;font-size:8px;padding:2px 6px;border-radius:10px;background:var(--surface);color:var(--muted);}
+.seed-timing-late{display:inline-flex;align-items:center;font-family:'Space Mono',monospace;font-size:8px;padding:2px 6px;border-radius:10px;background:#fde8e8;color:#7a1a1a;font-weight:700;border:1px solid #e8b0b0;}
 .seed-reminder-tag{display:inline-flex;align-items:center;font-family:'Space Mono',monospace;font-size:8px;padding:2px 7px;border-radius:10px;background:#fff8e2;color:#8a6010;margin-top:5px;}
 .seed-planting-rec{font-size:.78rem;color:var(--moss);margin-top:3px;}
 .ai-thinking{display:flex;align-items:center;gap:9px;padding:13px;background:#f0f5f0;border:1px solid #c4d4c5;border-radius:var(--radius);margin-bottom:11px;}
@@ -5154,9 +5155,37 @@ function storageTipForSeed(seed){
   const tips={fridge:'Sealed paper envelope in fridge (35–40°F). Remove 24h before sowing.',freezer:'Airtight container in freezer. Thaw 24h before sowing.',cool:'Sealed envelope in cool, dark spot (40–60°F). Avoid humidity.',ambient:'Sealed container, dry dark shelf. Use within 1–2 seasons.'};
   return tips[seed.storage]||'Keep dry and cool in a sealed envelope.';
 }
+// Detect whether a seed packet has missed its planting window this season.
+// Returns null if not too late, or a short reason string if it is.
+// Live starts and perennials always return null.
+function seedTooLateReason(seed) {
+  if (!seed || seed.storage === 'live') return null;
+  const libId = seedToLibId(seed);
+  const plant = PLANT_IDX[libId];
+  if (!plant) return null;
+  if (!plant.daysMin || plant.daysMin === 0) return null;  // perennials
+  if (plant.cat === 'cover') return null;                  // cover crops have their own window
+  const now = new Date();
+  const ff = new Date(now.getFullYear(), FIRST_FROST_MONTH, FIRST_FROST_DAY);
+  const daysToFrost = Math.round((ff - now) / 86400000);
+  if (daysToFrost < 0) return `Past first frost (${fmtDate(ff)})`;
+  // Transplant-only crops need a few weeks of indoor time before going out.
+  // 28 days is a tight floor; many need 6–8 weeks.
+  const indoorBuffer = plant.sowMethod === 'transplant' ? 28 : 0;
+  const totalNeeded = (plant.daysMin || 0) + indoorBuffer;
+  if (daysToFrost < totalNeeded) {
+    const verb = indoorBuffer ? 'start indoors' : 'direct sow';
+    return `Only ${daysToFrost} days until frost · ${plant.name} needs ${totalNeeded}+ to ${verb} now`;
+  }
+  return null;
+}
+
 function seedTimingBadge(seed){
   const libId=seedToLibId(seed);const plant=PLANT_IDX[libId];
   if(plant){
+    // Packet-level "too late" check first (catches cases getPlantingStatus
+    // misses, like a transplant-only crop past its indoor window).
+    if (seedTooLateReason(seed)) return '<span class="seed-timing-late">⛔ Too late this season</span>';
     const ps=getPlantingStatus(plant,wxData); // wxData may be null — getPlantingStatus handles it
     if(ps.status==='now')return'<span class="seed-timing-now">🟢 Plant now</span>';
     if(ps.status==='soon')return ps.forecastAlert
@@ -5164,7 +5193,7 @@ function seedTimingBadge(seed){
       :`<span class="seed-timing-soon">🟡 ${ps.daysUntilOutside}d to go</span>`;
     if(ps.status==='indoor')return'<span class="seed-timing-soon">🪴 Start indoors</span>';
     if(ps.status==='wait'){const d=ps.daysUntilOutside||0;return d<=14?`<span class="seed-timing-soon">🟡 ${d}d to go</span>`:`<span class="seed-timing-wait">⏳ ~${Math.round(d/7)}wk</span>`;}
-    if(ps.status==='late')return'<span class="seed-timing-wait">⏳ Past window</span>';
+    if(ps.status==='late')return'<span class="seed-timing-late">⛔ Too late this season</span>';
   }
   return'<span class="seed-timing-wait">⏳ —</span>';
 }
@@ -5353,7 +5382,12 @@ function renderSeeds(){
           <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">ASSIGN TO</span>
           <select style="font-size:.78rem;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;background:white;" onchange="changeSeedBed('${escAttr(s.id)}',this.value)">${bedOptsN}</select>
         </div>${plantCountRow}${splitRow}</div>`;
-      bodyContent=`<div class="seed-meta-row"><span class="storage-badge ${store.cls}">${store.icon} ${store.label}</span>${s.source?`<span class="plant-pill pill-sage">${esc(s.source)}</span>`:''}</div>${s.notes?`<div class="seed-detail">${esc(s.notes)}</div>`:''}${assignHtmlN}<div style="margin-top:8px;"><button class="seed-skip-btn" onclick="skipSeed('${escAttr(s.id)}')">💤 Not this year</button></div>`;
+      const lateReason = seedTooLateReason(s);
+      const lateCallout = lateReason ? `<div style="margin-top:7px;padding:7px 10px;background:#fde8e8;border:1px solid #e8b0b0;border-radius:4px;font-size:.78rem;color:#7a1a1a;line-height:1.45;">
+        <strong>⛔ Too late this season.</strong> ${esc(lateReason)}.
+        <button class="seed-skip-btn" style="margin-top:5px;border-color:#c47a7a;color:#7a1a1a;background:white;" onclick="skipSeed('${escAttr(s.id)}')">💤 Save for next year</button>
+      </div>` : '';
+      bodyContent=`<div class="seed-meta-row"><span class="storage-badge ${store.cls}">${store.icon} ${store.label}</span>${s.source?`<span class="plant-pill pill-sage">${esc(s.source)}</span>`:''}</div>${s.notes?`<div class="seed-detail">${esc(s.notes)}</div>`:''}${lateCallout}${assignHtmlN}<div style="margin-top:8px;"><button class="seed-skip-btn" onclick="skipSeed('${escAttr(s.id)}')">💤 Not this year</button></div>`;
     }
     const bed2tag=s.bed2&&s.bed2!=='any'?`<span class="seed-bed-tag ${(BED_INFO[s.bed2]||{}).cls||''}">${(BED_INFO[s.bed2]||{}).label||s.bed2}</span>`:'';
     const qtyDisplay=s.bed2&&s.qty2?`×${(s.qty||1)-(s.qty2||0)}+${s.qty2}`:`×${s.qty||1}`;
@@ -7905,7 +7939,7 @@ if (!TEST_MODE) {
   window.GA_TEST = {
     computeAutoPopulate, seedToLibId, fillRecommendedPass, placeThreeSisters,
     defaultSeedPlantCount, seedPacketPlantCount, seedPacketSquares, liveStartSquares,
-    plantBlockDims,
+    plantBlockDims, seedTooLateReason,
     PLANT_IDX, PLANT_LIB, BED_INFO, FAMILY_MAP,
     defaultDB, defaultBeds, defaultSeeds, defaultPlants,
     esc, escAttr,
