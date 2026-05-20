@@ -355,6 +355,28 @@ function runTests(win) {
     assertEq('Scenario 16: 2 tomatillos = 8 cells total (2 blocks of 4)', total, 8);
   }
 
+  // ── Scenario 16b: perennial bed is unlimited — no overflow out ──────
+  // Bed P is a perennial (zone-managed) bed with default 10×3 = 30 cells.
+  // Assigning more individuals than that should still fit entirely in P with
+  // no overflow into other beds.
+  {
+    const beds = [
+      makeBed('A', 4, 4),
+      makeBed('B', 4, 4),
+      makeBed('P', 10, 3, {type:'perennial'}),
+    ];
+    // 12 tomatillos × 4 sqft = 48 cells. P cap is 30; should still fit (unlimited).
+    const db = emptyDB({beds, seeds:[makeSeed('Tomatillo', {storage:'live', bed:'P', qty:12})]});
+    const r = computeAutoPopulate(db, {noRecommendations: true});
+    const inA = Object.values(r.designs.A || {}).filter(id => id === 'tomatillo').length;
+    const inB = Object.values(r.designs.B || {}).filter(id => id === 'tomatillo').length;
+    const inP = Object.values(r.designs.P || {}).filter(id => id === 'tomatillo').length;
+    assertEq('Scenario 16b: 12 tomatillos × 4sqft = 48 cells all in perennial Bed P', inP, 48);
+    assertEq('Scenario 16b: zero tomatillo overflow into Bed A', inA, 0);
+    assertEq('Scenario 16b: zero tomatillo overflow into Bed B', inB, 0);
+    assertEq('Scenario 16b: no reroute warnings from perennial', r.reroutedSeeds.length, 0);
+  }
+
   // ── Scenario 17: rotation — 2×3 squash fits in 6×2 bed by rotating ──
   {
     const beds = [makeBed('A', 6, 2)];

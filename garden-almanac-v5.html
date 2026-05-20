@@ -3787,14 +3787,20 @@ function computeAutoPopulate(db, opts = {}) {
   });
 
   // ── Step 0: clear previously auto-suggested/recommended squares ──────
-  // Preserves 'planted' and 'planned' squares, locked beds, and perennial beds.
+  // Preserves 'planted' and 'planned' squares, locked beds, and herb beds
+  // (herb is user-managed). Perennial gets its auto-suggested cells cleared
+  // too — it has unlimited capacity so accumulation would otherwise occur.
   const lockedBeds = new Set(db.lockedBeds || []);
   db.beds.forEach(b => {
     if (lockedBeds.has(b.key)) return; // locked — leave entirely alone
-    if (b.type === 'perennial' || b.type === 'herb') return; // user-managed — never auto-cleared
+    if (b.type === 'herb') return; // herb bed is user-managed
     const d = designs[b.key], s = statuses[b.key], cap = capacities[b.key];
-    if (!d || cap === undefined) return;
-    for (let i = 0; i < cap; i++) {
+    if (!d) return;
+    // For perennial: unlimited grid — clear every suggested/recommended cell
+    // we know about (including indices beyond cap).
+    const limit = (b.type === 'perennial') ? Math.max(cap || 0, ...Object.keys(d).map(k => +k + 1), 0) : cap;
+    if (limit === undefined) return;
+    for (let i = 0; i < limit; i++) {
       if (!s[i] || s[i] === 'suggested' || s[i] === 'recommended') {
         delete d[i]; delete s[i];
       }
@@ -3810,10 +3816,22 @@ function computeAutoPopulate(db, opts = {}) {
     return n;
   }
 
-  // Fill sqNeeded squares of libId into bedKey; return how many were NOT placed
+  // Fill sqNeeded squares of libId into bedKey; return how many were NOT placed.
+  // Perennial beds are treated as unlimited (assignments always fit, never overflow).
   function fillInto(bedKey, libId, sqNeeded) {
     const d = designs[bedKey], s = statuses[bedKey], cap = capacities[bedKey];
     if (!d || cap === undefined) return sqNeeded;
+    const bed = db.beds.find(bb => bb.key === bedKey);
+    const unlimited = bed && bed.type === 'perennial';
+    if (unlimited) {
+      // Scan for empty indices starting at 0 and extending past cap as needed.
+      let i = 0, safety = 0;
+      while (sqNeeded > 0 && safety++ < 10000) {
+        if (!d[i]) { d[i] = libId; s[i] = 'suggested'; sqNeeded--; }
+        i++;
+      }
+      return 0;
+    }
     for (let i = 0; i < cap && sqNeeded > 0; i++) {
       if (!d[i]) { d[i] = libId; s[i] = 'suggested'; sqNeeded--; }
     }
@@ -3865,8 +3883,18 @@ function computeAutoPopulate(db, opts = {}) {
   // plantBlockDims(plant); for sqFt < 1, fall back to per-cell fillInto. If
   // block placement can't fit all blocks, the remaining blocks scatter via
   // fillInto so live starts never silently disappear.
+  // Perennial beds skip the block fitting (grid isn't rendered) — scatter all.
   // Returns leftover squares (not plants/blocks).
   function placeUnits(bedKey, libId, plant, units) {
+    const bed = db.beds.find(bb => bb.key === bedKey);
+    const isPerennial = bed && bed.type === 'perennial';
+    if (isPerennial) {
+      const cellsPerUnit = plant && plant.sqFt >= 1
+        ? plantBlockDims(plant)[0] * plantBlockDims(plant)[1]
+        : (plant ? plant.sqFt : 1);
+      const cells = Math.max(1, Math.round(units * cellsPerUnit));
+      return fillInto(bedKey, libId, cells); // unlimited bed, always returns 0
+    }
     if (!plant || plant.sqFt < 1) {
       const cells = plant ? Math.max(1, Math.round(units * plant.sqFt)) : units;
       return fillInto(bedKey, libId, cells);
