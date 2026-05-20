@@ -958,6 +958,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
     <div class="view" id="view-plants">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;margin-top:4px;">
         <div id="plant-stats-bar" style="font-size:.74rem;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex:1;min-width:0;"></div>
+        <button class="btn-sm" style="flex-shrink:0;padding:7px 12px;font-size:.78rem;" onclick="openNativeLibrary()">📚 Library</button>
         <button class="btn-primary" style="flex-shrink:0;padding:7px 14px;font-size:.78rem;" onclick="openAddPlantModal()">+ Add plant</button>
       </div>
       <div id="plant-search-sort" style="display:flex;gap:6px;margin-bottom:8px;align-items:center;flex-wrap:wrap;">
@@ -1299,6 +1300,17 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       <div class="modal-title" id="suggest-summary-title">Fill Empty Squares — Done</div>
       <div id="suggest-summary-body" style="margin-top:12px;font-size:.83rem;line-height:1.6;"></div>
       <button class="btn-primary" style="width:100%;padding:10px;margin-top:16px;" onclick="closeModal('suggest-summary-modal')">Done</button>
+    </div>
+  </div>
+
+  <!-- NATIVE PLANT LIBRARY MODAL -->
+  <div class="modal-overlay" id="native-library-modal">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-title">📚 Bozeman native &amp; pollinator library</div>
+      <div class="modal-subtitle">Tap to add to your inventory as <strong>planned</strong>. You can edit details after adding.</div>
+      <div id="native-library-list" style="margin-top:14px;max-height:60dvh;overflow-y:auto;"></div>
+      <button class="btn-sm" style="width:100%;padding:11px;margin-top:10px;" onclick="closeModal('native-library-modal')">Cancel</button>
     </div>
   </div>
 
@@ -2599,6 +2611,58 @@ function renderCare(d) {
   if(mon===8)tasks.push({cls:'info',icon:'🌾',title:'Fall prep',desc:'Sow second arugula + spinach. Order garlic.'});
   if(mon>=9)tasks.push({cls:'normal',icon:'🍂',title:'Season wind-down',desc:'First frost ~Sept 20. Harvest green tomatoes. Top-dress beds.'});
   tasks.push({cls:'normal',icon:'🔍',title:'Scout pests',desc:'Flea beetles · aphids · squash vine borer.'});
+
+  // Plant maintenance reminders — drives off plant.pruneMonth and
+  // plant.divideYears. Pruning fires once for the current month; dividing
+  // fires when (now - lastDivided OR added year) ≥ divideYears.
+  const monNow = now.getMonth() + 1;
+  const yrNow = now.getFullYear();
+  (db.plants || []).forEach(p => {
+    if (p.status === 'noted' || p.status === 'planned') return; // only established plants
+    if (p.pruneMonth && +p.pruneMonth === monNow) {
+      tasks.push({
+        cls:'normal', icon:'✂️',
+        title:`Prune ${p.common}`,
+        desc:`Scheduled prune month is ${new Date(2000, p.pruneMonth-1, 1).toLocaleString('en-US',{month:'long'})}.`,
+        onclick:`markPruned('${p.id}')`,
+      });
+    }
+    if (p.divideYears && p.divideYears > 0) {
+      const lastDivRef = p.lastDivided || (p.added || '');
+      const refYear = parseInt(String(lastDivRef).slice(0,4), 10);
+      if (Number.isFinite(refYear) && (yrNow - refYear) >= p.divideYears) {
+        tasks.push({
+          cls:'info', icon:'🪴',
+          title:`Divide ${p.common}`,
+          desc:`${yrNow - refYear} years since ${p.lastDivided ? 'last divided' : 'planted'} — schedule is every ${p.divideYears}.`,
+          onclick:`markDivided('${p.id}')`,
+        });
+      }
+    }
+  });
+
+  // Plants blooming right now — light reminder so you can stop and look
+  const monNameNow = now.toLocaleString('en-US', {month:'long'});
+  const BLOOM_TASK_IDX = {March:0,April:1,May:2,June:3,July:4,August:5,September:6,October:7};
+  const curIdx = BLOOM_TASK_IDX[monNameNow] ?? -1;
+  if (curIdx >= 0) {
+    const blooming = (db.plants || []).filter(p => {
+      const start = BLOOM_TASK_IDX[p.bloom] ?? -1;
+      const end = p.bloomEnd ? (BLOOM_TASK_IDX[p.bloomEnd] ?? start) : start;
+      return start >= 0 && curIdx >= start && curIdx <= end;
+    });
+    if (blooming.length) {
+      const names = blooming.slice(0, 4).map(p => `${p.emoji||'🌸'} ${p.common}`).join(', ');
+      const more = blooming.length > 4 ? ` +${blooming.length - 4} more` : '';
+      tasks.push({
+        cls:'info', icon:'🌸',
+        title:`${blooming.length} plant${blooming.length===1?'':'s'} blooming now`,
+        desc:`${names}${more}`,
+        onclick:`switchViewByName('plants');togglePlantQuickFilter('blooming')`,
+      });
+    }
+  }
+
   // Skipped seed reminders — surface when within 21 days of pull-out date
   const reminderCutoff=21;
   (db.seeds||[]).filter(s=>s.nextReminder&&s.skipYear).forEach(s=>{
@@ -6355,6 +6419,102 @@ function setPlantStatus(id, newStatus) {
   saveDB(db);
   renderPlants();
 }
+
+// Maintenance acknowledgements — stamp the action with today's date so the
+// task drops off the Today list. Tracked on the plant record so reminders
+// can compute "X years since last divided" next season.
+// Curated Bozeman / Zone 5b native and pollinator-friendly perennials.
+// Tap a card → adds to db.plants with status='planned', then the user can
+// edit details to reflect their yard. Already-added plants surface a "✓ In
+// inventory" badge so users don't double-add.
+const NATIVE_LIBRARY = [
+  {common:'Blanketflower',latin:'Gaillardia aristata',emoji:'🌻',bloom:'June',bloomEnd:'September',sun:'full',water:'dry',pollinator:'bees',wildlife:'',notes:'Heat- and drought-tolerant Montana native. Deadhead for more bloom.'},
+  {common:'Purple Coneflower',latin:'Echinacea purpurea',emoji:'🌸',bloom:'July',bloomEnd:'September',sun:'full',water:'medium',pollinator:'all',wildlife:'Finches eat seed heads',notes:'Long-blooming. Leave seed heads through winter for birds.'},
+  {common:'Black-eyed Susan',latin:'Rudbeckia hirta',emoji:'🌼',bloom:'July',bloomEnd:'September',sun:'full',water:'medium',pollinator:'bees',wildlife:'',notes:'Reliable Montana wildflower. Self-seeds modestly.'},
+  {common:'Pasqueflower',latin:'Pulsatilla patens',emoji:'💜',bloom:'April',bloomEnd:'May',sun:'full',water:'dry',pollinator:'bees',wildlife:'',notes:'One of the earliest bloomers — emerges through late snow.'},
+  {common:'Yarrow',latin:'Achillea millefolium',emoji:'🤍',bloom:'June',bloomEnd:'September',sun:'full',water:'dry',pollinator:'all',wildlife:'',notes:'Native, drought-tolerant. Cut back after first flush for a second bloom.'},
+  {common:'Wild Bergamot',latin:'Monarda fistulosa',emoji:'💜',bloom:'July',bloomEnd:'August',sun:'full',water:'medium',pollinator:'all',wildlife:'',notes:'Lavender-pink flowers loved by hummingbirds. Mint-family, can spread.'},
+  {common:'Showy Milkweed',latin:'Asclepias speciosa',emoji:'🦋',bloom:'June',bloomEnd:'August',sun:'full',water:'medium',pollinator:'butterflies',wildlife:'Monarch host plant',notes:'Required host plant for monarch butterflies. Slow to establish, then long-lived.'},
+  {common:'Silvery Lupine',latin:'Lupinus argenteus',emoji:'🪻',bloom:'May',bloomEnd:'July',sun:'full',water:'dry',pollinator:'bees',wildlife:'',notes:'Native Montana lupine. Fixes nitrogen. Don\'t move once planted — long taproot.'},
+  {common:'Rocky Mountain Penstemon',latin:'Penstemon strictus',emoji:'💙',bloom:'June',bloomEnd:'July',sun:'full',water:'dry',pollinator:'hummingbirds',wildlife:'',notes:'Deep blue-purple tubular flowers. Hummingbird favorite. Excellent drainage.'},
+  {common:'Showy Goldenrod',latin:'Solidago missouriensis',emoji:'🟡',bloom:'August',bloomEnd:'October',sun:'full',water:'medium',pollinator:'all',wildlife:'',notes:'Late-season pollinator anchor. Does NOT cause hay fever (that\'s ragweed).'},
+  {common:'Smooth Blue Aster',latin:'Symphyotrichum laeve',emoji:'💠',bloom:'September',bloomEnd:'October',sun:'full',water:'medium',pollinator:'all',wildlife:'',notes:'Critical late-season nectar for migrating pollinators. Pair with goldenrod.'},
+  {common:'Wild Iris',latin:'Iris missouriensis',emoji:'🪻',bloom:'May',bloomEnd:'June',sun:'full',water:'moist',pollinator:'bees',wildlife:'',notes:'Native to wet montane meadows. Likes consistent moisture.'},
+  {common:'Prairie Sage',latin:'Artemisia ludoviciana',emoji:'🌿',bloom:'July',bloomEnd:'August',sun:'full',water:'dry',pollinator:'',wildlife:'Larval host for Painted Lady',notes:'Silvery foliage, aromatic. Tough, drought-tolerant. Spreads via rhizomes.'},
+  {common:'Beebalm (Scarlet)',latin:'Monarda didyma',emoji:'❤️',bloom:'July',bloomEnd:'August',sun:'partial',water:'moist',pollinator:'hummingbirds',wildlife:'',notes:'Showier garden cousin of wild bergamot. Loves richer, moister soil.'},
+];
+
+function openNativeLibrary() {
+  const list = document.getElementById('native-library-list');
+  if (!list) return;
+  const existingNames = new Set((db.plants || []).map(p => (p.common||'').toLowerCase()));
+  list.innerHTML = NATIVE_LIBRARY.map((entry, i) => {
+    const have = existingNames.has(entry.common.toLowerCase());
+    const POLL_LABEL_LIB={bees:'🐝 Bees',butterflies:'🦋 Butterflies',hummingbirds:'🐦 Hummingbirds',all:'🐝🦋🐦 All'};
+    const SUN_LABEL_LIB={full:'☀️ Full sun',partial:'⛅ Part shade',shade:'🌑 Shade'};
+    const WATER_LABEL_LIB={dry:'💧 Dry',medium:'💧💧 Med',moist:'💧💧💧 Moist'};
+    return `<div style="background:white;border:1px solid var(--rule);border-radius:6px;padding:11px 13px;margin-bottom:8px;display:flex;align-items:flex-start;gap:10px;">
+      <div style="font-size:1.6rem;flex-shrink:0;">${entry.emoji}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:.95rem;">${esc(entry.common)}${have?` <span style="font-family:'Space Mono',monospace;font-size:7px;background:#e2f0e4;color:#2a6a2a;padding:1px 5px;border-radius:3px;margin-left:4px;">✓ IN INVENTORY</span>`:''}</div>
+        <div style="font-style:italic;font-size:.78rem;color:var(--muted);">${esc(entry.latin)}</div>
+        <div style="margin-top:5px;display:flex;gap:4px;flex-wrap:wrap;">
+          <span class="plant-pill pill-gold">🌸 ${esc(entry.bloom)}${entry.bloomEnd&&entry.bloomEnd!==entry.bloom?'–'+esc(entry.bloomEnd.slice(0,3)):''}</span>
+          ${SUN_LABEL_LIB[entry.sun]?`<span class="plant-pill pill-sage">${SUN_LABEL_LIB[entry.sun]}</span>`:''}
+          ${WATER_LABEL_LIB[entry.water]?`<span class="plant-pill pill-sage">${WATER_LABEL_LIB[entry.water]}</span>`:''}
+          ${POLL_LABEL_LIB[entry.pollinator]?`<span class="plant-pill pill-gold">${POLL_LABEL_LIB[entry.pollinator]}</span>`:''}
+        </div>
+        <div style="font-size:.78rem;color:var(--ink);margin-top:5px;line-height:1.45;">${esc(entry.notes)}</div>
+      </div>
+      <button onclick="addFromNativeLibrary(${i})" class="btn-sm" style="flex-shrink:0;padding:6px 12px;font-size:.78rem;${have?'opacity:.5;':''}" ${have?'disabled':''}>+ Add</button>
+    </div>`;
+  }).join('');
+  openModal('native-library-modal');
+}
+
+function addFromNativeLibrary(idx) {
+  const entry = NATIVE_LIBRARY[idx];
+  if (!entry) return;
+  const data = {
+    id: 'p' + Date.now(),
+    added: new Date().toISOString().slice(0, 7),
+    category: 'native',
+    common: entry.common,
+    latin: entry.latin,
+    emoji: entry.emoji,
+    location: '',
+    bloom: entry.bloom,
+    bloomEnd: entry.bloomEnd,
+    status: 'planned',
+    notes: entry.notes,
+    sun: entry.sun,
+    water: entry.water,
+    pollinator: entry.pollinator,
+    wildlife: entry.wildlife,
+  };
+  db.plants.push(data);
+  saveDB(db);
+  closeModal('native-library-modal');
+  renderPlants();
+  showToast({msg:`Added ${entry.common} as Planned — tap Edit to refine details`});
+}
+
+function markPruned(id) {
+  const p = db.plants.find(p => p.id === id);
+  if (!p) return;
+  p.lastPruned = new Date().toISOString().slice(0,10);
+  saveDB(db);
+  if (wxData) renderCare(wxData);
+  showToast({msg:`Marked ${p.common} as pruned`});
+}
+function markDivided(id) {
+  const p = db.plants.find(p => p.id === id);
+  if (!p) return;
+  p.lastDivided = new Date().toISOString().slice(0,10);
+  saveDB(db);
+  if (wxData) renderCare(wxData);
+  showToast({msg:`Marked ${p.common} as divided — next reminder in ${p.divideYears} years`});
+}
 let plantViewMode='list', plantLocFilter='all', plantSortMode='added', plantSearchQuery='';
 let plantQuickFilters = new Set(); // 'blooming', 'native', 'pollinator', 'edible'
 let plantGroupBy = 'category';     // 'category' | 'status' | 'bloom' | 'zone' | 'sun' | 'water'
@@ -7712,10 +7872,53 @@ function renderBloomCalendar(){
     const end=ei>=0?ei:si;
     for(let i=si;i<=end;i++)byMonth[BLOOM_ORDER[i]].push(p);
   });
+
+  // ── Phenology bars (horizontal timeline) ─────────────────────────────
+  // Each plant becomes a row with a colored bar spanning its bloom months.
+  // A "NOW" vertical marker shows where we are in the season.
+  const plantsWithBloom = db.plants
+    .filter(p => p.bloom && BLOOM_ORDER.indexOf(p.bloom) >= 0)
+    .sort((a, b) => {
+      const aS = BLOOM_ORDER.indexOf(a.bloom);
+      const bS = BLOOM_ORDER.indexOf(b.bloom);
+      if (aS !== bS) return aS - bS;
+      return (a.common || '').localeCompare(b.common || '');
+    });
+  const curIdx = BLOOM_ORDER.indexOf(curMonth);
+  let phenologyHtml = '';
+  if (plantsWithBloom.length) {
+    const headerCols = BLOOM_ORDER.map(m => `<div style="text-align:center;font-family:'Space Mono',monospace;font-size:8px;color:${m===curMonth?'var(--moss)':'var(--muted)'};letter-spacing:.05em;${m===curMonth?'font-weight:700;':''}">${m.slice(0,3).toUpperCase()}</div>`).join('');
+    const rows = plantsWithBloom.map(p => {
+      const start = BLOOM_ORDER.indexOf(p.bloom);
+      const end = p.bloomEnd ? BLOOM_ORDER.indexOf(p.bloomEnd) : start;
+      const span = (end - start + 1);
+      const color = BLOOM_C[p.bloom] || '#a8b89c';
+      const dim = p.status === 'noted' ? 'opacity:.6;' : '';
+      const isCurrentlyBlooming = curIdx >= start && curIdx <= end;
+      return `<div style="display:contents;">
+        <div style="font-size:.78rem;padding:3px 6px 3px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${dim}${isCurrentlyBlooming?'font-weight:600;':''}" title="${esc(p.common)}">${p.emoji||'🌿'} ${esc(p.common)}</div>
+        <div style="grid-column: ${start + 2} / span ${span};background:${color}60;border:1.5px solid ${color};border-radius:10px;margin:2px 0;display:flex;align-items:center;justify-content:center;padding:1px 6px;${dim}">
+          <span style="font-family:'Space Mono',monospace;font-size:7px;color:${color === '#fbbf24' ? '#8a6010' : 'var(--ink)'};letter-spacing:.04em;">${span === 1 ? p.bloom.slice(0,3) : p.bloom.slice(0,3) + '–' + (p.bloomEnd ? p.bloomEnd.slice(0,3) : p.bloom.slice(0,3))}</span>
+        </div>
+      </div>`;
+    }).join('');
+    // grid columns: name column + 8 month columns. Use grid-template-columns
+    // with name fixed-width, months equal share.
+    phenologyHtml = `
+      <div style="background:white;border:1px solid var(--rule);border-radius:6px;padding:10px 12px;margin-bottom:14px;position:relative;">
+        <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;">PHENOLOGY — bloom timeline</div>
+        <div style="display:grid;grid-template-columns:130px repeat(8, 1fr);column-gap:2px;row-gap:2px;align-items:center;position:relative;">
+          <div></div>${headerCols}
+          ${rows}
+        </div>
+        ${curIdx >= 0 ? `<div style="position:absolute;top:30px;bottom:10px;left:calc(130px + 14px + ${curIdx} * ((100% - 130px - 24px) / 8) + ((100% - 130px - 24px) / 16));width:2px;background:var(--moss);pointer-events:none;"><span style="position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-family:'Space Mono',monospace;font-size:7px;color:var(--moss);font-weight:700;background:white;padding:0 4px;">NOW</span></div>` : ''}
+      </div>`;
+  }
+
   // Show months that have plants, always include current month
   const activeMonths=BLOOM_ORDER.filter(m=>byMonth[m].length||m===curMonth);
   const filterNote=plantLocFilter!=='all'?`<div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:10px;letter-spacing:.06em;">📍 Showing: ${plantLocFilter} — use location filter above to change</div>`:'';
-  el.innerHTML=filterNote+activeMonths.map(month=>{
+  el.innerHTML=filterNote+phenologyHtml+activeMonths.map(month=>{
     const ps=byMonth[month],isCur=month===curMonth;
     const col=BLOOM_C[month]||'#ccc';
     const rows=!ps.length
