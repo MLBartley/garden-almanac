@@ -325,6 +325,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 /* plants */
 .plant-card{background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:13px;margin-bottom:8px;}
 .plant-card-blooming{border-color:#7ec87e;box-shadow:0 0 0 1px rgba(126,200,126,.25);}
+.plant-card-selected{background:#eef6ee;border-color:var(--moss);box-shadow:0 0 0 1px var(--moss);}
 /* Compact list view — one row per plant */
 .plant-list-compact .plant-card{padding:8px 12px;display:flex;align-items:center;gap:10px;}
 .plant-list-compact .plant-header{flex:1;min-width:0;}
@@ -334,6 +335,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 .plant-list-compact .plant-latin{display:none;}
 .plant-header{display:flex;align-items:flex-start;gap:10px;margin-bottom:7px;}
 .plant-icon-circle{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;}
+.plant-icon-photo{display:block;}
 .plant-common{font-size:.97rem;font-weight:600;line-height:1.2;}
 .plant-latin{font-style:italic;font-size:.78rem;color:var(--muted);}
 .plant-meta{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;}
@@ -956,11 +958,11 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
     <div class="view" id="view-plants">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;margin-top:4px;">
         <div id="plant-stats-bar" style="font-size:.74rem;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex:1;min-width:0;"></div>
-        <button class="btn-primary" style="flex-shrink:0;padding:7px 14px;font-size:.78rem;" onclick="openModal('add-plant-modal')">+ Add plant</button>
+        <button class="btn-primary" style="flex-shrink:0;padding:7px 14px;font-size:.78rem;" onclick="openAddPlantModal()">+ Add plant</button>
       </div>
-      <div id="plant-search-sort" style="display:flex;gap:6px;margin-bottom:8px;align-items:center;">
+      <div id="plant-search-sort" style="display:flex;gap:6px;margin-bottom:8px;align-items:center;flex-wrap:wrap;">
         <input id="plant-search" type="text" placeholder="Search plants…"
-          style="flex:1;border:1px solid var(--rule);border-radius:20px;padding:6px 12px;font-size:.82rem;outline:none;background:white;"
+          style="flex:1;min-width:160px;border:1px solid var(--rule);border-radius:20px;padding:6px 12px;font-size:.82rem;outline:none;background:white;"
           oninput="plantSearchQuery=this.value;renderPlants()">
         <select id="plant-sort-select" onchange="plantSortMode=this.value;renderPlants()"
           style="border:1px solid var(--rule);border-radius:20px;padding:5px 10px;font-size:.78rem;background:white;color:var(--muted);outline:none;cursor:pointer;">
@@ -968,12 +970,24 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
           <option value="alpha">A–Z</option>
           <option value="bloom">Bloom order</option>
         </select>
+        <select id="plant-group-select" onchange="plantGroupBy=this.value;renderPlants()"
+          style="border:1px solid var(--rule);border-radius:20px;padding:5px 10px;font-size:.78rem;background:white;color:var(--muted);outline:none;cursor:pointer;" title="Group by">
+          <option value="category">Group: Category</option>
+          <option value="status">Group: Status</option>
+          <option value="bloom">Group: Bloom season</option>
+          <option value="zone">Group: Zone</option>
+          <option value="sun">Group: Sun</option>
+          <option value="water">Group: Water</option>
+        </select>
+        <button id="plant-bulk-btn" onclick="togglePlantBulkMode()"
+          style="border:1px solid var(--rule);border-radius:20px;padding:5px 12px;font-size:.78rem;background:white;color:var(--muted);outline:none;cursor:pointer;">☑ Select</button>
       </div>
       <div class="plant-view-toggle">
         <button class="pvt-btn active" id="pvt-list" onclick="setPlantView('list',this)">List</button>
         <button class="pvt-btn" id="pvt-compact" onclick="setPlantView('compact',this)">Compact</button>
         <button class="pvt-btn" id="pvt-bloom" onclick="setPlantView('bloom',this)">Bloom calendar</button>
       </div>
+      <div id="plant-quick-filters" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;"></div>
       <div class="plant-loc-filter" id="plant-loc-filter"></div>
       <!-- list mode -->
       <div id="plant-list-mode">
@@ -6126,6 +6140,17 @@ function clearPlantPhoto() {
   if (input) input.value = '';
 }
 
+// Open the add-plant modal with the staged photo reset (so it doesn't
+// inherit whatever a previous edit/add left in memory).
+function openAddPlantModal() {
+  _plantPhotoStaged = null;
+  const wrap = document.getElementById('ap-photo-preview');
+  if (wrap) wrap.style.display = 'none';
+  const input = document.getElementById('ap-photo-input');
+  if (input) input.value = '';
+  openModal('add-plant-modal');
+}
+
 function savePlant(){
   const common=document.getElementById('ap-common').value.trim();if(!common){alert('Enter a name.');return;}
   const editId=document.getElementById('ap-edit-id').value;
@@ -6224,18 +6249,31 @@ function plantCard(p){
     `<option value="${s}"${s===curStatus?' selected':''}>${s}</option>`).join('');
   const statusSelect=`<select onchange="setPlantStatus('${escAttr(p.id)}',this.value)" style="font-family:'Space Mono',monospace;font-size:7px;padding:2px 6px;border-radius:10px;background:${statusBg[curStatus]};color:${statusColors[curStatus]};border:none;cursor:pointer;-webkit-appearance:none;appearance:none;">${statusOptions}</select>`;
 
-  const cardCls = `plant-card${dimmed}${isBloomingNow?' plant-card-blooming':''}`;
-  return`<div class="${cardCls}">
-    <div class="plant-header">
-      <div class="plant-icon-circle" style="background:${bg}20;border:2px solid ${bg}60;">${p.emoji||'🌿'}</div>
+  const cardCls = `plant-card${dimmed}${isBloomingNow?' plant-card-blooming':''}${plantBulkMode&&plantBulkSelected.has(p.id)?' plant-card-selected':''}`;
+  // Photo thumbnail replaces the emoji circle when set
+  const iconHtml = p.thumb
+    ? `<img class="plant-icon-circle plant-icon-photo" src="data:${p.thumbType || 'image/jpeg'};base64,${p.thumb}" alt="${esc(p.common)}" style="object-fit:cover;border:2px solid ${bg}60;">`
+    : `<div class="plant-icon-circle" style="background:${bg}20;border:2px solid ${bg}60;">${p.emoji||'🌿'}</div>`;
+  // Bulk-mode checkbox prefix
+  const bulkCheckbox = plantBulkMode
+    ? `<input type="checkbox" ${plantBulkSelected.has(p.id)?'checked':''} onclick="event.stopPropagation();toggleBulkSelect('${escAttr(p.id)}')" style="margin-right:8px;flex-shrink:0;transform:scale(1.2);">`
+    : '';
+  // Card-level click = bulk-toggle when in bulk mode (so the whole row is the target)
+  const cardClick = plantBulkMode
+    ? ` onclick="toggleBulkSelect('${escAttr(p.id)}')" style="cursor:pointer;"`
+    : '';
+  return`<div class="${cardCls}" data-pid="${escAttr(p.id)}"${cardClick}>
+    <div class="plant-header" style="${plantBulkMode?'align-items:center;':''}">
+      ${bulkCheckbox}
+      ${iconHtml}
       <div style="flex:1;min-width:0;">
         <div class="plant-common">${esc(p.common)}${isBloomingNow?' <span title="Blooming now" style="font-size:.85rem;">🌸</span>':''}</div>
         ${p.latin?`<div class="plant-latin">${esc(p.latin)}</div>`:''}
         ${locationLine}
       </div>
       <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-end;flex-shrink:0;margin-left:6px;">
-        <button onclick="editPlant('${escAttr(p.id)}')" style="background:none;border:1px solid var(--rule);border-radius:4px;font-size:.68rem;padding:2px 8px;cursor:pointer;color:var(--muted);white-space:nowrap;">Edit</button>
-        <button onclick="deletePlant('${escAttr(p.id)}')" style="background:none;border:none;font-size:1rem;cursor:pointer;color:#ccc;padding:1px 4px;line-height:1;" title="Remove">×</button>
+        <button onclick="event.stopPropagation();editPlant('${escAttr(p.id)}')" style="background:none;border:1px solid var(--rule);border-radius:4px;font-size:.68rem;padding:2px 8px;cursor:pointer;color:var(--muted);white-space:nowrap;">Edit</button>
+        <button onclick="event.stopPropagation();deletePlant('${escAttr(p.id)}')" style="background:none;border:none;font-size:1rem;cursor:pointer;color:#ccc;padding:1px 4px;line-height:1;" title="Remove">×</button>
       </div>
     </div>
     <div class="plant-meta">
@@ -6246,8 +6284,66 @@ function plantCard(p){
       ${seedPill}
       <span class="plant-pill pill-ink">${addedLabel}</span>
       ${notesHtml}
+      <button onclick="event.stopPropagation();togglePlantWhere('${escAttr(p.id)}')" class="plant-pill pill-sage" style="cursor:pointer;border:none;font-family:inherit;">📍 Where is it?</button>
     </div>
+    <div id="pw-${escAttr(p.id)}" style="display:none;margin-top:8px;padding:9px 11px;background:var(--surface);border:1px solid var(--rule);border-radius:6px;font-size:.78rem;line-height:1.55;"></div>
   </div>`;
+}
+
+// Inline "where is it?" expand — shows the plant's zone notes, any bed-design
+// placements (with grid cell counts), and linked seed-inventory items.
+function togglePlantWhere(id) {
+  const el = document.getElementById('pw-' + id);
+  if (!el) return;
+  const isOpen = el.style.display !== 'none';
+  if (isOpen) { el.style.display = 'none'; return; }
+  const p = db.plants.find(x => x.id === id);
+  if (!p) return;
+  // 1. Zones containing this plant
+  const zoneHits = [];
+  Object.entries(db.bedZones || {}).forEach(([bedKey, zones]) => {
+    (zones || []).forEach(z => {
+      if (z.type === 'landmark') return;
+      const entries = (z.plants || []).filter(e => e.plantId === id || (e.name && p.common && e.name.toLowerCase() === p.common.toLowerCase()));
+      if (entries.length) zoneHits.push({zoneName: z.name, count: entries.length, notes: z.notes});
+    });
+  });
+  // 2. Bed-design grid cells matching by lib id (only if the plant name maps to one)
+  const libId = seedToLibId({name: p.common, variety: ''});
+  const designHits = [];
+  if (libId) {
+    Object.entries(db.bedDesigns || {}).forEach(([bedKey, design]) => {
+      const count = Object.values(design || {}).filter(v => v === libId).length;
+      if (count) {
+        const bed = db.beds.find(b => b.key === bedKey);
+        designHits.push({bedKey, bedName: bed?.name || bedKey, count});
+      }
+    });
+  }
+  // 3. Linked seed-inventory items by common name
+  const seedHits = (db.seeds || []).filter(s => !s.skipYear && s.name && p.common && (
+    s.name.toLowerCase() === p.common.toLowerCase()
+    || s.name.toLowerCase().includes(p.common.toLowerCase())
+    || p.common.toLowerCase().includes(s.name.toLowerCase())
+  ));
+  const parts = [];
+  if (zoneHits.length) {
+    parts.push(`<div><strong>🌳 In zones:</strong></div>` + zoneHits.map(z =>
+      `<div style="margin-top:3px;">• ${esc(z.zoneName)} ×${z.count}${z.notes ? ` <span style="color:var(--muted);">— ${esc(z.notes.slice(0,80))}</span>` : ''}</div>`
+    ).join(''));
+  }
+  if (designHits.length) {
+    parts.push(`<div style="margin-top:6px;"><strong>🌱 In bed designs:</strong></div>` + designHits.map(d =>
+      `<div style="margin-top:3px;">• ${esc(d.bedName)} — ${d.count} cell${d.count===1?'':'s'}</div>`
+    ).join(''));
+  }
+  if (seedHits.length) {
+    parts.push(`<div style="margin-top:6px;"><strong>🌾 Seed inventory:</strong></div>` + seedHits.map(s =>
+      `<div style="margin-top:3px;">• ${esc(s.name)}${s.variety ? ' — ' + esc(s.variety) : ''}${s.bed && s.bed !== 'any' ? ' → ' + esc((BED_INFO[s.bed]||{}).label || s.bed) : ' (unassigned)'}</div>`
+    ).join(''));
+  }
+  el.innerHTML = parts.length ? parts.join('') : `<span style="color:var(--muted);">Not assigned to any zone, bed design, or seed inventory yet.</span>`;
+  el.style.display = 'block';
 }
 
 // Set plant status directly (replaces cycling togglePlantStatus). The old
@@ -6260,7 +6356,31 @@ function setPlantStatus(id, newStatus) {
   renderPlants();
 }
 let plantViewMode='list', plantLocFilter='all', plantSortMode='added', plantSearchQuery='';
+let plantQuickFilters = new Set(); // 'blooming', 'native', 'pollinator', 'edible'
+let plantGroupBy = 'category';     // 'category' | 'status' | 'bloom' | 'zone' | 'sun' | 'water'
+let plantBulkMode = false;
+let plantBulkSelected = new Set();
 const _plantNotesCache={};
+
+function togglePlantQuickFilter(name) {
+  if (plantQuickFilters.has(name)) plantQuickFilters.delete(name);
+  else plantQuickFilters.add(name);
+  renderPlants();
+}
+function renderPlantQuickFilters() {
+  const el = document.getElementById('plant-quick-filters');
+  if (!el) return;
+  const chips = [
+    {k:'blooming', label:'🌸 Blooming now'},
+    {k:'native',   label:'🌾 Native'},
+    {k:'pollinator', label:'🐝 Pollinator'},
+    {k:'edible',   label:'🍓 Edible'},
+  ];
+  el.innerHTML = chips.map(c => {
+    const on = plantQuickFilters.has(c.k);
+    return `<button onclick="togglePlantQuickFilter('${c.k}')" style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.05em;padding:4px 10px;border-radius:14px;border:1px solid ${on?'var(--moss)':'var(--rule)'};background:${on?'#dfead7':'white'};color:${on?'var(--moss)':'var(--muted)'};cursor:pointer;font-weight:${on?700:400};">${c.label}</button>`;
+  }).join('');
+}
 function setPlantView(mode,btn){
   plantViewMode=mode;
   document.querySelectorAll('#view-plants .pvt-btn').forEach(b=>b.classList.remove('active'));
@@ -6322,6 +6442,18 @@ function editPlant(id){
   document.getElementById('ap-wildlife').value=p.wildlife||'';
   document.getElementById('ap-prune-month').value=p.pruneMonth||'';
   document.getElementById('ap-divide-yrs').value=p.divideYears||'';
+  // Reset and (if needed) restore the photo preview
+  _plantPhotoStaged = null;
+  const preview = document.getElementById('ap-photo-preview');
+  const photoInput = document.getElementById('ap-photo-input');
+  if (photoInput) photoInput.value = '';
+  if (p.thumb) {
+    const img = document.getElementById('ap-photo-img');
+    if (img) img.src = `data:${p.thumbType || 'image/jpeg'};base64,${p.thumb}`;
+    if (preview) preview.style.display = 'inline-flex';
+  } else if (preview) {
+    preview.style.display = 'none';
+  }
   openModal('add-plant-modal');
 }
 function deletePlant(id){
@@ -6333,6 +6465,7 @@ function deletePlant(id){
   showToast({msg:`Removed "${removed.common||removed.name||'plant'}"`,action:()=>{db.plants.splice(idx,0,removed);saveDB(db);renderPlants();}});
 }
 function renderPlants(){
+  renderPlantQuickFilters();
   const zoneNames=new Set(Object.values(db.bedZones||{}).flatMap(zones=>(zones||[]).filter(z=>z.type!=='landmark').map(z=>z.name)));
   const locs=['All',...new Set([
     ...db.plants.flatMap(p=>(p.location||'').split('+').map(s=>s.trim())).filter(Boolean),
@@ -6364,6 +6497,22 @@ function renderPlants(){
   const q=plantSearchQuery.toLowerCase();
   const byLoc=p=>plantLocFilter==='all'||(p.location||'').includes(plantLocFilter)||findPlantZones(p.id).includes(plantLocFilter);
   const byQ=p=>!q||(p.common||'').toLowerCase().includes(q)||(p.latin||'').toLowerCase().includes(q)||(p.notes||'').toLowerCase().includes(q);
+  const BLOOM_IDX_FILT = {March:0,April:1,May:2,June:3,July:4,August:5,September:6,October:7};
+  const curMonFilt = new Date().toLocaleString('en-US',{month:'long'});
+  const curMonIdxFilt = BLOOM_IDX_FILT[curMonFilt] ?? -1;
+  const isBloomingNowP = p => {
+    const start = BLOOM_IDX_FILT[p.bloom] ?? -1;
+    const end = p.bloomEnd ? (BLOOM_IDX_FILT[p.bloomEnd] ?? start) : start;
+    return start >= 0 && curMonIdxFilt >= 0 && curMonIdxFilt >= start && curMonIdxFilt <= end;
+  };
+  const byQuickFilters = p => {
+    if (!plantQuickFilters.size) return true;
+    if (plantQuickFilters.has('blooming') && !isBloomingNowP(p)) return false;
+    if (plantQuickFilters.has('native') && !(p.category||'').includes('native')) return false;
+    if (plantQuickFilters.has('edible') && !(p.category||'').includes('edible')) return false;
+    if (plantQuickFilters.has('pollinator') && !p.pollinator) return false;
+    return true;
+  };
   function sortList(list){
     if(plantSortMode==='alpha')return list.slice().sort((a,b)=>(a.common||'').localeCompare(b.common||''));
     if(plantSortMode==='bloom')return list.slice().sort((a,b)=>(BLOOM_IDX[a.bloom]??99)-(BLOOM_IDX[b.bloom]??99));
@@ -6379,18 +6528,150 @@ function renderPlants(){
     if(planned.length)html+=`<div class="section-label" style="margin-top:16px;">Planned <span style="font-weight:400;opacity:.6;">(${planned.length})</span></div>`+planned.map(plantCard).join('');
     return html;
   }
-  const all=db.plants.filter(p=>byLoc(p)&&byQ(p));
-  const n=all.filter(p=>(p.category||'').includes('native'));
-  const e=all.filter(p=>(p.category||'').includes('edible')&&!(p.category||'').includes('native'));
-  const emptyMsg=q?'No plants match your search.':`None in this location.`;
-  // Show/hide section headers based on content and active filters
-  const nativeHeader=document.querySelector('#plant-list-mode .section-label:first-of-type');
-  const edibleHeader=document.querySelector('#plant-list-mode .section-label:last-of-type');
-  const isFiltered=plantLocFilter!=='all'||q;
-  if(nativeHeader)nativeHeader.style.display=(isFiltered&&!n.length)?'none':'';
-  if(edibleHeader)edibleHeader.style.display=(isFiltered&&!e.length)?'none':'';
-  document.getElementById('native-plant-list').innerHTML=statusGroups(n,plantLocFilter==='all'&&!q?'No native plants logged yet.':emptyMsg);
-  document.getElementById('edible-plant-list').innerHTML=statusGroups(e,plantLocFilter==='all'&&!q?'No perennial edibles logged yet.':emptyMsg);
+  const all=db.plants.filter(p=>byLoc(p)&&byQ(p)&&byQuickFilters(p));
+
+  // Compute groups based on plantGroupBy
+  const groupKeyFor = p => {
+    if (plantGroupBy === 'category') {
+      if ((p.category||'').includes('native')) return 'Native yard plants';
+      if ((p.category||'').includes('edible')) return 'Perennial edibles';
+      return 'Other';
+    }
+    if (plantGroupBy === 'status') {
+      const s = p.status || 'established';
+      return s === 'established' ? 'Established' : s === 'planned' ? 'Planned' : 'Noted in yard';
+    }
+    if (plantGroupBy === 'bloom') {
+      return p.bloom || 'No bloom info';
+    }
+    if (plantGroupBy === 'zone') {
+      const zones = findPlantZones(p.id);
+      return zones[0] || p.location || 'Unassigned';
+    }
+    if (plantGroupBy === 'sun') {
+      return p.sun ? ({full:'Full sun',partial:'Partial shade',shade:'Full shade'}[p.sun] || p.sun) : 'Unknown sun';
+    }
+    if (plantGroupBy === 'water') {
+      return p.water ? ({dry:'Dry / xeric',medium:'Medium water',moist:'Moist'}[p.water] || p.water) : 'Unknown water';
+    }
+    return 'All';
+  };
+  const groups = {};
+  all.forEach(p => {
+    const k = groupKeyFor(p);
+    (groups[k] = groups[k] || []).push(p);
+  });
+  // Stable group ordering: category natural order first, otherwise alpha
+  const CATEGORY_ORDER = ['Native yard plants','Perennial edibles','Other'];
+  const STATUS_ORDER = ['Established','Planned','Noted in yard'];
+  const BLOOM_LIST = ['March','April','May','June','July','August','September','October','No bloom info'];
+  let orderedKeys;
+  if (plantGroupBy === 'category') orderedKeys = CATEGORY_ORDER.filter(k => groups[k]);
+  else if (plantGroupBy === 'status') orderedKeys = STATUS_ORDER.filter(k => groups[k]);
+  else if (plantGroupBy === 'bloom') orderedKeys = BLOOM_LIST.filter(k => groups[k]);
+  else orderedKeys = Object.keys(groups).sort();
+
+  // Render into a single container; bulk-mode toolbar precedes the list
+  const container = document.getElementById('native-plant-list');
+  const edibleContainer = document.getElementById('edible-plant-list');
+  // Hide the static section labels — we render our own per group
+  const staticLabels = document.querySelectorAll('#plant-list-mode .section-label');
+  staticLabels.forEach(l => l.style.display = 'none');
+  if (edibleContainer) edibleContainer.innerHTML = '';
+
+  const bulkToolbar = plantBulkMode ? `
+    <div style="background:var(--ink);color:var(--paper);border-radius:6px;padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.82rem;">
+      <span>${plantBulkSelected.size} selected</span>
+      <button onclick="bulkSelectAll(true)" style="background:rgba(255,255,255,.15);color:white;border:1px solid rgba(255,255,255,.3);border-radius:4px;font-size:.7rem;padding:3px 9px;cursor:pointer;">All visible</button>
+      <button onclick="bulkSelectAll(false)" style="background:rgba(255,255,255,.15);color:white;border:1px solid rgba(255,255,255,.3);border-radius:4px;font-size:.7rem;padding:3px 9px;cursor:pointer;">Clear</button>
+      <span style="flex:1;"></span>
+      <select onchange="bulkApplyStatus(this.value);this.value=''" style="font-size:.76rem;padding:3px 7px;border-radius:4px;background:white;color:var(--ink);border:none;">
+        <option value="">Set status…</option>
+        <option value="established">Established</option>
+        <option value="planned">Planned</option>
+        <option value="noted">Noted in yard</option>
+      </select>
+      <button onclick="bulkDelete()" style="background:#7a1a1a;color:white;border:none;border-radius:4px;font-size:.76rem;padding:4px 10px;cursor:pointer;">Delete</button>
+    </div>` : '';
+
+  if (!all.length) {
+    container.innerHTML = bulkToolbar + `<div style="color:var(--muted);font-size:.85rem;padding:10px 0;">${q || plantLocFilter !== 'all' || plantQuickFilters.size ? 'No plants match your filters.' : 'No plants logged yet.'}</div>`;
+    return;
+  }
+
+  // For category/status grouping, also sub-group by status inside the group
+  // for readability (mimics the old layout). For other groups, just sort.
+  function renderGroupList(list) {
+    if (plantGroupBy === 'category') {
+      // Keep status sub-grouping inside category for parity with old UI
+      const est=sortList(list.filter(p=>!p.status||p.status==='established'));
+      const noted=sortList(list.filter(p=>p.status==='noted'));
+      const planned=sortList(list.filter(p=>p.status==='planned'));
+      let html=est.map(plantCard).join('');
+      if(noted.length)html+=`<div class="section-label" style="margin-top:14px;">Observed in yard <span style="font-weight:400;opacity:.6;">(${noted.length})</span></div>`+noted.map(plantCard).join('');
+      if(planned.length)html+=`<div class="section-label" style="margin-top:14px;">Planned <span style="font-weight:400;opacity:.6;">(${planned.length})</span></div>`+planned.map(plantCard).join('');
+      return html;
+    }
+    return sortList(list).map(plantCard).join('');
+  }
+  const html = bulkToolbar + orderedKeys.map(k => `
+    <div class="section-label" style="margin-top:14px;display:flex;">${esc(k)} <span style="font-weight:400;opacity:.6;margin-left:5px;">(${groups[k].length})</span></div>
+    ${renderGroupList(groups[k])}`).join('');
+  container.innerHTML = html;
+}
+
+// Bulk mode helpers
+function togglePlantBulkMode() {
+  plantBulkMode = !plantBulkMode;
+  plantBulkSelected.clear();
+  const btn = document.getElementById('plant-bulk-btn');
+  if (btn) btn.style.background = plantBulkMode ? 'var(--moss)' : 'white';
+  if (btn) btn.style.color = plantBulkMode ? 'white' : 'var(--muted)';
+  renderPlants();
+}
+function toggleBulkSelect(id) {
+  if (plantBulkSelected.has(id)) plantBulkSelected.delete(id);
+  else plantBulkSelected.add(id);
+  renderPlants();
+}
+function bulkSelectAll(on) {
+  if (!on) { plantBulkSelected.clear(); renderPlants(); return; }
+  document.querySelectorAll('#plant-list-mode .plant-card[data-pid]').forEach(el => {
+    plantBulkSelected.add(el.dataset.pid);
+  });
+  renderPlants();
+}
+function bulkApplyStatus(status) {
+  if (!status || !plantBulkSelected.size) return;
+  plantBulkSelected.forEach(id => {
+    const p = db.plants.find(x => x.id === id);
+    if (p) p.status = status;
+  });
+  saveDB(db);
+  showToast({msg:`Set ${plantBulkSelected.size} plant${plantBulkSelected.size===1?'':'s'} to ${status}`});
+  plantBulkSelected.clear();
+  renderPlants();
+}
+function bulkDelete() {
+  if (!plantBulkSelected.size) return;
+  if (!confirm(`Delete ${plantBulkSelected.size} plant${plantBulkSelected.size===1?'':'s'} from inventory?`)) return;
+  const removed = [];
+  plantBulkSelected.forEach(id => {
+    const idx = db.plants.findIndex(p => p.id === id);
+    if (idx >= 0) removed.push({idx, plant: db.plants.splice(idx, 1)[0]});
+  });
+  saveDB(db);
+  showToast({
+    msg: `Deleted ${removed.length} plant${removed.length===1?'':'s'}`,
+    action: () => {
+      // Reinsert in reverse order so original indices line up
+      removed.sort((a,b) => a.idx - b.idx).forEach(r => db.plants.splice(r.idx, 0, r.plant));
+      saveDB(db); renderPlants();
+    },
+    duration: 12000,
+  });
+  plantBulkSelected.clear();
+  renderPlants();
 }
 
 // ════════════════════════════════════════
