@@ -1212,6 +1212,13 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px;">
         <button class="btn-primary" onclick="confirmSq('planned')" style="padding:10px;">✓ Confirm as planned</button>
         <button class="btn-primary" onclick="confirmSq('planted')" style="padding:10px;background:var(--moss);">🌱 Mark as planted</button>
+        <div style="display:flex;gap:5px;align-items:center;background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:7px 9px;">
+          <span style="font-size:.78rem;color:var(--muted);flex-shrink:0;">Move to:</span>
+          <select id="sqm-move-bed" style="flex:1;min-width:0;font-size:.85rem;padding:5px 6px;border:1px solid var(--rule);border-radius:4px;background:white;">
+            <option value="">Pick a bed…</option>
+          </select>
+          <button class="btn-sm" style="padding:5px 12px;font-size:.78rem;flex-shrink:0;" onclick="moveSqToBed(document.getElementById('sqm-move-bed').value)">Move</button>
+        </div>
         <button class="btn-sm" style="width:100%;padding:10px;" onclick="changeSqPlant()">Change plant…</button>
         <button class="btn-sm" style="width:100%;padding:10px;" onclick="removeSq()">Remove from bed</button>
       </div>
@@ -4538,7 +4545,117 @@ function openSqModal(sqIdx) {
       seedLink.style.display = 'none';
     }
   }
+  // Populate the "Move to" dropdown with every bed (★-marked recommendations
+  // first as hints) plus an Unassigned option. Skip the current bed.
+  const moveSelect = document.getElementById('sqm-move-bed');
+  if (moveSelect) {
+    const bestBedKeys = new Set(plant?.bestBeds || []);
+    const opts = (db.beds || [])
+      .filter(b => b.key !== activeBedKey)
+      .sort((a, b) => (bestBedKeys.has(a.key) ? 0 : 1) - (bestBedKeys.has(b.key) ? 0 : 1))
+      .map(b => `<option value="${escAttr(b.key)}">${bestBedKeys.has(b.key) ? '★ ' : ''}${esc(b.name)}${bestBedKeys.has(b.key) ? ' (recommended)' : ''}</option>`)
+      .join('');
+    moveSelect.innerHTML = '<option value="">Pick a bed…</option>' + opts + '<option value="any">📦 Unassigned</option>';
+  }
   openModal('sq-status-modal');
+}
+
+// Move the clicked plant (whole connected block) to a different bed. If the
+// plant came from a seed in inventory, update seed.bed and let sync re-place.
+// Otherwise (manual placement or recommendation), move the cells directly,
+// preferring contiguous block placement in the target bed and falling back
+// to scatter if it doesn't fit cleanly.
+function moveSqToBed(newBedKey) {
+  if (selectedSqIdx === null || !newBedKey) return;
+  const libId = activeBedDesign[selectedSqIdx];
+  if (!libId) return;
+  const fromBedKey = activeBedKey;
+  if (newBedKey === fromBedKey) { closeModal('sq-status-modal'); return; }
+  const plant = PLANT_IDX[libId];
+  const status = activeBedStatuses[selectedSqIdx] || 'planned';
+
+  // Path 1: a seed in inventory drove this placement — update its assignment
+  // and re-run the sync so all matching live-start blocks shift together.
+  const matchingSeeds = (db.seeds || []).filter(s => seedToLibId(s) === libId && s.bed === fromBedKey);
+  if (matchingSeeds.length) {
+    matchingSeeds.forEach(s => { s.bed = newBedKey; s._userModified = true; });
+    saveDB(db);
+    closeModal('sq-status-modal');
+    syncInventoryToBeds();
+    const toLabel = newBedKey === 'any' ? 'Unassigned' : (db.beds.find(b=>b.key===newBedKey)||{}).name || newBedKey;
+    showToast({msg:`Moved ${plant?.name || 'plant'} → ${toLabel}`});
+    renderSeeds();
+    return;
+  }
+
+  // Path 2: no backing seed (manual placement or Pass 4 recommendation).
+  // Move the connected block directly. Don't run sync — that would undo it.
+  const cells = getConnectedBlockCells(selectedSqIdx);
+  cells.forEach(i => { delete activeBedDesign[i]; delete activeBedStatuses[i]; });
+  db.bedDesigns = db.bedDesigns || {};
+  db.bedDesigns[fromBedKey] = {...activeBedDesign};
+  db.bedStatuses = db.bedStatuses || {};
+  db.bedStatuses[fromBedKey] = {...activeBedStatuses};
+
+  if (newBedKey === 'any') {
+    saveDB(db); closeModal('sq-status-modal'); renderDesign();
+    showToast({msg:`Removed ${plant?.name||'plant'} from bed`});
+    return;
+  }
+
+  const targetBed = db.beds.find(b => b.key === newBedKey);
+  if (!targetBed) { saveDB(db); closeModal('sq-status-modal'); renderDesign(); return; }
+  const tDesign = {...(db.bedDesigns[newBedKey] || {})};
+  const tStatuses = {...(db.bedStatuses[newBedKey] || {})};
+  const cols = targetBed.cols, rows = targetBed.rows;
+  let placed = 0;
+  // Block placement first for sqFt ≥ 1
+  if (plant && plant.sqFt >= 1) {
+    const [bw, bh] = plantBlockDims(plant);
+    const blockArea = bw * bh;
+    const maxBlocks = Math.floor(cells.length / blockArea);
+    const tryDims = bw === bh ? [[bw, bh]] : [[bw, bh], [bh, bw]];
+    for (let b = 0; b < maxBlocks; b++) {
+      let blockPlaced = false;
+      for (const [w, h] of tryDims) {
+        if (w > cols || h > rows) continue;
+        for (let r = 0; r <= rows - h && !blockPlaced; r++) {
+          for (let c = 0; c <= cols - w && !blockPlaced; c++) {
+            let ok = true;
+            for (let dr = 0; dr < h && ok; dr++)
+              for (let dc = 0; dc < w && ok; dc++)
+                if (tDesign[(r+dr)*cols + (c+dc)]) ok = false;
+            if (ok) {
+              for (let dr = 0; dr < h; dr++)
+                for (let dc = 0; dc < w; dc++) {
+                  const idx = (r+dr)*cols + (c+dc);
+                  tDesign[idx] = libId;
+                  tStatuses[idx] = status;
+                }
+              placed += blockArea;
+              blockPlaced = true;
+            }
+          }
+        }
+        if (blockPlaced) break;
+      }
+      if (!blockPlaced) break;
+    }
+  }
+  // Scatter remaining cells into any empty slot
+  let toScatter = cells.length - placed;
+  for (let i = 0; i < cols * rows && toScatter > 0; i++) {
+    if (!tDesign[i]) { tDesign[i] = libId; tStatuses[i] = status; placed++; toScatter--; }
+  }
+  db.bedDesigns[newBedKey] = tDesign;
+  db.bedStatuses[newBedKey] = tStatuses;
+  saveDB(db);
+  closeModal('sq-status-modal');
+  const unfit = cells.length - placed;
+  const toName = targetBed.name || newBedKey;
+  if (unfit > 0) showToast({msg:`⚠️ Moved ${plant?.name||'plant'} → ${toName} (${unfit} cells didn't fit)`, variant:'warn'});
+  else showToast({msg:`Moved ${plant?.name||'plant'} → ${toName}`});
+  renderDesign();
 }
 
 function confirmSq(status) {
