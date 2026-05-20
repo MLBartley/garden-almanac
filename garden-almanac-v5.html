@@ -449,6 +449,12 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 .sq{width:44px;height:44px;border-radius:4px;border:1.5px solid rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;font-size:1.3rem;cursor:pointer;background:white;position:relative;transition:transform .1s;}
 .sq.block{width:auto;height:auto;min-width:44px;min-height:44px;font-size:1.7rem;}
 .sq:active{transform:scale(.92);}
+/* Drag-and-drop in bed designs */
+.sq.dragging{opacity:.35;}
+.sq.drop-target{outline:2px dashed var(--moss);outline-offset:-2px;background:#e2f5e4!important;}
+.sq.drop-invalid{outline:2px dashed #c47a7a;outline-offset:-2px;background:#fde8e8!important;}
+.sq-drag-ghost{position:fixed;pointer-events:none;z-index:500;opacity:.85;box-shadow:0 6px 18px rgba(0,0,0,.25);border-radius:6px;background:white;border:2px solid var(--moss);display:flex;align-items:center;justify-content:center;font-size:1.5rem;transition:none;}
+.bed-grid{touch-action:none;} /* prevent scroll-on-drag while inside the grid */
 /* Hover tooltip for bed squares (desktop only; mobile uses tap → modal). */
 #sq-tooltip{position:fixed;z-index:300;background:var(--ink);color:var(--paper);padding:9px 12px;border-radius:6px;font-size:.78rem;line-height:1.5;max-width:260px;box-shadow:0 6px 18px rgba(0,0,0,.28);pointer-events:none;opacity:0;transition:opacity .15s;display:none;}
 #sq-tooltip.shown{opacity:1;}
@@ -2938,22 +2944,32 @@ function renderDesign() {
       sq.className = cls;
       sq.style.gridColumn = `${c + 1} / span ${w}`;
       sq.style.gridRow = `${r + 1} / span ${h}`;
+      // Data attrs power drag-and-drop (cell coords + block size)
+      sq.dataset.r = r;
+      sq.dataset.c = c;
+      sq.dataset.w = w;
+      sq.dataset.h = h;
+      sq.dataset.idx = i;
       if (hasBadNeighbor) sq.title = `⚠️ Conflict: bad companions in this bed — ${conflicts.map(id=>PLANT_IDX[id]?.name||id).join(', ')}`;
       if (plant) {
         const badge = status === 'suggested' ? '<div class="sq-status-badge">?</div>'
                     : status === 'recommended' ? '<div class="sq-status-badge" style="color:#c4922a;">★</div>'
                     : status === 'planted' ? '<div class="sq-status-badge">✓</div>' : '';
         sq.innerHTML = `${plant.emoji}<div class="sq-label">${esc(plant.name.split(' ')[0])}</div>${badge}`;
-        sq.onclick = () => openSqModal(i);
+        sq.onclick = () => { if (_recentDrag && Date.now() - _recentDrag < 250) return; openSqModal(i); };
         // Hover tooltip on desktop. Wired with mouseenter/leave + focus so
         // keyboard users get the same info; mobile users still use tap → modal.
         sq.addEventListener('mouseenter', e => showSqTooltip(plantId, status, e.currentTarget));
         sq.addEventListener('mouseleave', hideSqTooltip);
         sq.addEventListener('focus', e => showSqTooltip(plantId, status, e.currentTarget));
         sq.addEventListener('blur', hideSqTooltip);
+        // Drag handle (skip recommended cells — they're transient suggestions)
+        if (status !== 'recommended') {
+          sq.addEventListener('pointerdown', e => startBedDrag(e, sq, plantId, i, w, h));
+        }
       } else {
         sq.innerHTML = `<span style="color:#ccc;font-size:.9rem">+</span>`;
-        sq.onclick = () => openPlantPicker(i);
+        sq.onclick = () => { if (_recentDrag && Date.now() - _recentDrag < 250) return; openPlantPicker(i); };
       }
       grid.appendChild(sq);
 
@@ -4999,6 +5015,155 @@ function hideSqTooltip() {
   setTimeout(() => { if (!tt.classList.contains('shown')) tt.style.display = 'none'; }, 160);
 }
 
+// ── Bed-design drag-and-drop ─────────────────────────────────────────
+// Pointer-event based so it works for mouse + touch alike. A plant block
+// can be picked up and dropped onto any compatible position within the
+// same bed (with capacity + overlap checks). Recommendation cells aren't
+// draggable since they're transient.
+let _bedDrag = null;
+let _recentDrag = 0;   // timestamp; click handlers suppress when within 250ms
+
+function startBedDrag(e, sourceEl, plantId, sourceIdx, w, h) {
+  if (e.button !== undefined && e.button !== 0) return; // primary only
+  const bed = db.beds.find(b => b.key === activeBedKey);
+  if (!bed) return;
+  const cells = getConnectedBlockCells(sourceIdx);
+  _bedDrag = {
+    startX: e.clientX, startY: e.clientY,
+    plantId,
+    cells,
+    w, h,
+    sourceEl,
+    bedKey: activeBedKey,
+    bedCols: bed.cols,
+    bedRows: bed.rows,
+    isDragging: false,
+    ghost: null,
+    pointerId: e.pointerId,
+  };
+  try { sourceEl.setPointerCapture(e.pointerId); } catch (_) {}
+  sourceEl.addEventListener('pointermove', _onBedDragMove);
+  sourceEl.addEventListener('pointerup', _onBedDragEnd);
+  sourceEl.addEventListener('pointercancel', _onBedDragEnd);
+}
+
+function _onBedDragMove(e) {
+  if (!_bedDrag) return;
+  const dx = e.clientX - _bedDrag.startX;
+  const dy = e.clientY - _bedDrag.startY;
+  if (!_bedDrag.isDragging) {
+    if (Math.hypot(dx, dy) < 7) return;
+    // Begin drag — create ghost
+    _bedDrag.isDragging = true;
+    _bedDrag.sourceEl.classList.add('dragging');
+    hideSqTooltip();
+    const plant = PLANT_IDX[_bedDrag.plantId];
+    const ghost = document.createElement('div');
+    ghost.className = 'sq-drag-ghost';
+    const cellSize = 44;
+    ghost.style.width = (_bedDrag.w * cellSize + (_bedDrag.w - 1) * 3) + 'px';
+    ghost.style.height = (_bedDrag.h * cellSize + (_bedDrag.h - 1) * 3) + 'px';
+    ghost.textContent = plant?.emoji || '🌱';
+    document.body.appendChild(ghost);
+    _bedDrag.ghost = ghost;
+  }
+  if (_bedDrag.ghost) {
+    _bedDrag.ghost.style.left = (e.clientX - 22 * _bedDrag.w) + 'px';
+    _bedDrag.ghost.style.top  = (e.clientY - 22 * _bedDrag.h) + 'px';
+  }
+  // Highlight current drop target under the pointer
+  document.querySelectorAll('.sq.drop-target, .sq.drop-invalid').forEach(el => {
+    el.classList.remove('drop-target'); el.classList.remove('drop-invalid');
+  });
+  const target = _targetCellAt(e.clientX, e.clientY);
+  if (!target) return;
+  const valid = _isValidDrop(target);
+  target.classList.add(valid ? 'drop-target' : 'drop-invalid');
+}
+
+function _targetCellAt(x, y) {
+  // Find a .sq under the pointer that belongs to the current bed grid
+  const el = document.elementFromPoint(x, y);
+  if (!el) return null;
+  const sq = el.closest?.('.sq');
+  if (!sq || !sq.parentElement || sq.parentElement.id !== 'bed-grid') return null;
+  return sq;
+}
+
+function _isValidDrop(target) {
+  if (!_bedDrag || !target || !target.dataset || target.dataset.r === undefined) return false;
+  const r = +target.dataset.r;
+  const c = +target.dataset.c;
+  if (r + _bedDrag.h > _bedDrag.bedRows) return false;
+  if (c + _bedDrag.w > _bedDrag.bedCols) return false;
+  const sourceSet = new Set(_bedDrag.cells);
+  for (let dr = 0; dr < _bedDrag.h; dr++) {
+    for (let dc = 0; dc < _bedDrag.w; dc++) {
+      const idx = (r + dr) * _bedDrag.bedCols + (c + dc);
+      if (activeBedDesign[idx] && !sourceSet.has(idx)) return false;
+    }
+  }
+  return true;
+}
+
+function _onBedDragEnd(e) {
+  if (!_bedDrag) return;
+  const wasDragging = _bedDrag.isDragging;
+  const dragInfo = _bedDrag;
+  try { dragInfo.sourceEl.releasePointerCapture(dragInfo.pointerId); } catch (_) {}
+  dragInfo.sourceEl.removeEventListener('pointermove', _onBedDragMove);
+  dragInfo.sourceEl.removeEventListener('pointerup', _onBedDragEnd);
+  dragInfo.sourceEl.removeEventListener('pointercancel', _onBedDragEnd);
+  document.querySelectorAll('.sq.dragging').forEach(el => el.classList.remove('dragging'));
+  document.querySelectorAll('.sq.drop-target, .sq.drop-invalid').forEach(el => {
+    el.classList.remove('drop-target'); el.classList.remove('drop-invalid');
+  });
+  if (dragInfo.ghost) dragInfo.ghost.remove();
+  _bedDrag = null;
+  if (wasDragging) {
+    const target = _targetCellAt(e.clientX, e.clientY);
+    if (target && target.dataset.r !== undefined) {
+      // Restore _bedDrag temporarily for isValidDrop check (uses it for state)
+      _bedDrag = dragInfo;
+      if (_isValidDrop(target)) {
+        const r = +target.dataset.r, c = +target.dataset.c;
+        _bedDrag = null;
+        moveBlockTo(dragInfo.cells, dragInfo.plantId, dragInfo.w, dragInfo.h, r, c);
+      } else {
+        _bedDrag = null;
+      }
+    }
+    _recentDrag = Date.now();
+    e.preventDefault?.();
+  }
+}
+
+function moveBlockTo(sourceCells, plantId, w, h, r, c) {
+  const bed = db.beds.find(b => b.key === activeBedKey);
+  if (!bed) return;
+  const sourceSet = new Set(sourceCells);
+  const status = activeBedStatuses[sourceCells[0]] || 'planned';
+  // Clear source cells first
+  sourceCells.forEach(idx => {
+    delete activeBedDesign[idx];
+    delete activeBedStatuses[idx];
+  });
+  // Place block at the new position (status preserved across the move)
+  for (let dr = 0; dr < h; dr++) {
+    for (let dc = 0; dc < w; dc++) {
+      const idx = (r + dr) * bed.cols + (c + dc);
+      activeBedDesign[idx] = plantId;
+      activeBedStatuses[idx] = status;
+    }
+  }
+  db.bedDesigns = db.bedDesigns || {};
+  db.bedDesigns[activeBedKey] = {...activeBedDesign};
+  db.bedStatuses = db.bedStatuses || {};
+  db.bedStatuses[activeBedKey] = {...activeBedStatuses};
+  saveDB(db);
+  renderDesign();
+}
+
 // Flood-fill from the clicked cell to find all connected same-plant cells —
 // so editing or removing a 2×2 tomatillo block operates on all 4 cells at once.
 function getConnectedBlockCells(startIdx) {
@@ -5028,20 +5193,116 @@ function getConnectedBlockCells(startIdx) {
 
 function placePlant(plantId) {
   if (selectedSqIdx === null) return;
-  // If user picked from inside a block, replace the whole block.
-  const cells = getConnectedBlockCells(selectedSqIdx);
-  cells.forEach(i => {
+  const plant = PLANT_IDX[plantId];
+  if (!plant) { closeModal('plant-picker-modal'); return; }
+  closeModal('plant-picker-modal');
+
+  // How many of this plant are in inventory? Live starts: sum of qty.
+  // Packets: each packet is a separate block in placement terms.
+  const matchingSeeds = (db.seeds || []).filter(s => !s.skipYear && seedToLibId(s) === plantId);
+  const liveStarts = matchingSeeds.filter(s => s.storage === 'live');
+  const packets = matchingSeeds.filter(s => s.storage !== 'live');
+  const startsCount = liveStarts.reduce((a, s) => a + (s.qty || 1), 0);
+  const packetsCount = packets.length;
+  const inventoryCount = startsCount + packetsCount;
+
+  // Ask "one here or all from inventory?" only when there's actually a choice
+  let count = 1;
+  if (inventoryCount > 1) {
+    const labelParts = [];
+    if (startsCount) labelParts.push(`${startsCount} live start${startsCount===1?'':'s'}`);
+    if (packetsCount) labelParts.push(`${packetsCount} packet${packetsCount===1?'':'s'}`);
+    const label = labelParts.join(' + ');
+    if (confirm(
+      `You have ${inventoryCount} ${plant.name} in inventory (${label}).\n\n`
+      + `OK   = Place ALL ${inventoryCount} (one in this square, the rest auto-arranged)\n`
+      + `Cancel = Place just 1 here`
+    )) {
+      count = inventoryCount;
+    }
+  }
+
+  // Apply to the clicked square (replacing the connected block if any).
+  // Block placement happens here — for an empty cell, getConnectedBlockCells
+  // returns just [selectedSqIdx]; for an existing block, all its cells get
+  // overwritten with the new plant.
+  const sourceCells = getConnectedBlockCells(selectedSqIdx);
+  sourceCells.forEach(i => {
     activeBedDesign[i] = plantId;
     activeBedStatuses[i] = 'planned';
   });
-  closeModal('plant-picker-modal');
+  let remaining = count - 1; // we already placed the first instance
+
+  // For sqFt ≥ 1, each remaining instance gets its own w×h block via
+  // scored slot picking. For sqFt < 1, scatter into empty cells row-major.
+  const bed = db.beds.find(b => b.key === activeBedKey);
+  if (bed && remaining > 0) {
+    if (plant.sqFt >= 1) {
+      const [bw, bh] = plantBlockDims(plant);
+      const tryDims = bw === bh ? [[bw, bh]] : [[bw, bh], [bh, bw]];
+      while (remaining > 0) {
+        const candidates = [];
+        for (const [w, h] of tryDims) {
+          if (w > bed.cols || h > bed.rows) continue;
+          for (let r = 0; r <= bed.rows - h; r++) {
+            for (let c = 0; c <= bed.cols - w; c++) {
+              let ok = true;
+              for (let dr = 0; dr < h && ok; dr++)
+                for (let dc = 0; dc < w && ok; dc++)
+                  if (activeBedDesign[(r+dr) * bed.cols + (c+dc)]) ok = false;
+              if (ok) candidates.push({ r, c, w, h,
+                score: blockSlotScore(r, c, w, h, bed, plant, activeBedDesign) });
+            }
+          }
+        }
+        if (!candidates.length) break;
+        candidates.sort((a, b) => a.score - b.score);
+        const slot = candidates[0];
+        for (let dr = 0; dr < slot.h; dr++)
+          for (let dc = 0; dc < slot.w; dc++) {
+            const idx = (slot.r + dr) * bed.cols + (slot.c + dc);
+            activeBedDesign[idx] = plantId;
+            activeBedStatuses[idx] = 'planned';
+          }
+        remaining--;
+      }
+    } else {
+      // Dense plant — scatter into empty cells
+      const cap = bed.cols * bed.rows;
+      for (let i = 0; i < cap && remaining > 0; i++) {
+        if (!activeBedDesign[i]) {
+          activeBedDesign[i] = plantId;
+          activeBedStatuses[i] = 'planned';
+          remaining--;
+        }
+      }
+    }
+  }
+
+  // Persist to db so renderDesign (which rehydrates from db) keeps the change
+  db.bedDesigns = db.bedDesigns || {};
+  db.bedDesigns[activeBedKey] = {...activeBedDesign};
+  db.bedStatuses = db.bedStatuses || {};
+  db.bedStatuses[activeBedKey] = {...activeBedStatuses};
+  saveDB(db);
   renderDesign();
+  if (remaining > 0) {
+    showToast({msg:`Placed ${count - remaining} of ${count} ${plant.name} — ${remaining} didn't fit`, variant:'warn'});
+  } else if (count > 1) {
+    showToast({msg:`Placed ${count} ${plant.name}`});
+  }
 }
 
 function clearSquare() {
   if (selectedSqIdx === null) return;
   const cells = getConnectedBlockCells(selectedSqIdx);
   cells.forEach(i => { delete activeBedDesign[i]; delete activeBedStatuses[i]; });
+  // Persist so renderDesign doesn't restore the cleared cells from db
+  db.bedDesigns = db.bedDesigns || {};
+  db.bedDesigns[activeBedKey] = {...activeBedDesign};
+  db.bedStatuses = db.bedStatuses || {};
+  db.bedStatuses[activeBedKey] = {...activeBedStatuses};
+  saveDB(db);
   closeModal('plant-picker-modal');
   renderDesign();
 }
