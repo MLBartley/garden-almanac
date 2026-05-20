@@ -754,6 +754,10 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
               <input type="checkbox" id="opt-include-recs" checked style="width:15px;height:15px;flex-shrink:0;accent-color:var(--moss);">
               <span>💡 <strong>Recommendations</strong> — fill empty squares from library</span>
             </label>
+            <label style="display:flex;align-items:center;gap:9px;font-size:.83rem;cursor:pointer;margin-bottom:4px;">
+              <input type="checkbox" id="opt-dense-planting" checked style="width:15px;height:15px;flex-shrink:0;accent-color:var(--moss);">
+              <span>🥬 <strong>Dense planting</strong> — pack fillers into every empty cell</span>
+            </label>
             <label style="display:flex;align-items:center;gap:9px;font-size:.83rem;cursor:pointer;margin-bottom:8px;">
               <input type="checkbox" id="opt-three-sisters" style="width:15px;height:15px;flex-shrink:0;accent-color:var(--moss);">
               <span>🌽🫘🎃 <strong>Three Sisters</strong> — corn + beans + squash together</span>
@@ -1786,9 +1790,77 @@ const PLANT_LIB = [
    bestBeds:['A','B','C'],spacing:'broadcast',notes:'Sow Aug 1–Sept 1. Winter-kills naturally in Zone 5b, leaving a straw mulch mat that suppresses weeds and is easy to till in spring. No spring termination needed. Pairs well with field peas for nitrogen + biomass combo.'},
 ];
 
-// Index by id
+// Plant-design metadata. Merged into PLANT_LIB after load so the placement
+// algorithm can prefer center cells for tall plants and edges for short/ground
+// ones, and so a "Dense planting" mode can use known fillers to pack gaps.
+//   height:  'tall' (≥3 ft) | 'med' (1–3 ft) | 'short' (≤1 ft) | 'ground' (sprawls)
+//   filler:  true if the plant thrives packed into single-cell gaps
+const PLANT_DESIGN_META = {
+  // Tall — anchor the bed center
+  'tomato-ind': {height:'tall'},
+  'tomatillo':  {height:'tall'},
+  'corn':       {height:'tall'},
+  'sunflower':  {height:'tall'},
+  'okra':       {height:'tall'},
+  'quinoa':     {height:'tall'},
+  // Med — typical bed-height crops
+  'tomato-det':       {height:'med'},
+  'pepper':           {height:'med'},
+  'eggplant':         {height:'med'},
+  'brassica-broc':    {height:'med'},
+  'brassica-kale':    {height:'med'},
+  'cabbage':          {height:'med'},
+  'cauliflower':      {height:'med'},
+  'chard':            {height:'med'},
+  'zucchini':         {height:'med'},
+  'squash-winter':    {height:'med'},
+  'cucumber':         {height:'med'},
+  'bean-bush':        {height:'med'},
+  'pea':              {height:'med'},
+  'fennel':           {height:'med'},
+  'dill':             {height:'med'},
+  'basil':            {height:'med'},
+  'borage':           {height:'med'},
+  'celery':           {height:'med'},
+  'rosemary':         {height:'med'},
+  'sage':             {height:'med'},
+  'mint':             {height:'med'},
+  // Short — prefer edges
+  'lettuce':          {height:'short', filler:true},
+  'spinach':          {height:'short', filler:true},
+  'arugula':          {height:'short', filler:true},
+  'carrot':           {height:'short'},
+  'beet':             {height:'short'},
+  'radish':           {height:'short', filler:true},
+  'kohlrabi':         {height:'short'},
+  'turnip':           {height:'short'},
+  'parsnip':          {height:'short'},
+  'onion':            {height:'short'},
+  'garlic':           {height:'short'},
+  'leek':             {height:'short'},
+  'parsley':          {height:'short', filler:true},
+  'cilantro':         {height:'short', filler:true},
+  'chives':           {height:'short', filler:true},
+  'sorrel':           {height:'short'},
+  'barley':           {height:'short'},
+  'marigold':         {height:'short', filler:true},
+  'calendula':        {height:'short', filler:true},
+  'sweet-pea':        {height:'short'},
+  // Ground — sprawls / corner fillers
+  'thyme':            {height:'ground'},
+  'oregano':          {height:'ground'},
+  'nasturtium':       {height:'ground', filler:true},
+};
+
+// Index by id, merging in design metadata
 const PLANT_IDX = {};
-PLANT_LIB.forEach(p => PLANT_IDX[p.id] = p);
+PLANT_LIB.forEach(p => {
+  const meta = PLANT_DESIGN_META[p.id] || {};
+  if (meta.height && !p.height) p.height = meta.height;
+  if (meta.filler && p.filler === undefined) p.filler = true;
+  if (!p.height) p.height = 'med'; // sensible default
+  PLANT_IDX[p.id] = p;
+});
 
 // Bozeman frost dates
 const LAST_FROST_MONTH = 4; // May (0-indexed)
@@ -3859,6 +3931,7 @@ function computeAutoPopulate(db, opts = {}) {
     noSeeds = false,
     noRecommendations = false,
     threeSistersOn = false,
+    dense = false,
   } = opts;
 
   const designs = {}, statuses = {}, capacities = {};
@@ -4198,7 +4271,7 @@ function computeAutoPopulate(db, opts = {}) {
       const d = designs[b.key] || {}, s = statuses[b.key] || {};
       Object.keys(d).forEach(i => { if (s[i] !== 'recommended') allocatedSq[d[i]] = (allocatedSq[d[i]] || 0) + 1; });
     });
-    fillRecommendedPass(designs, statuses, capacities, inventorySq, allocatedSq);
+    fillRecommendedPass(designs, statuses, capacities, inventorySq, allocatedSq, { dense, db });
   }
 
   // ── Companion conflict scan (always runs so sync mode can warn) ───────
@@ -4241,7 +4314,8 @@ function computeAutoPopulate(db, opts = {}) {
 // reflects the full inventory.
 function runAutoPopulate(noRecommendations = false) {
   const threeSistersOn = document.getElementById('opt-three-sisters')?.checked;
-  const opts = { noRecommendations, threeSistersOn };
+  const denseOn = document.getElementById('opt-dense-planting')?.checked !== false;
+  const opts = { noRecommendations, threeSistersOn, dense: denseOn };
   if (!noRecommendations) {
     // Manual run respects the three include checkboxes.
     const startsOn = document.getElementById('opt-include-starts')?.checked !== false;
@@ -4418,8 +4492,19 @@ function placeThreeSisters(designs, statuses, capacities, remainingSqFn) {
   }
 }
 
-function fillRecommendedPass(designs, statuses, capacities, inventorySq={}, allocatedSq={}) {
-  db.beds.forEach(bed => {
+// Distance from cell to nearest bed edge. Lower = more on the perimeter.
+// Used to steer short/ground plants toward the bed's outer ring.
+function distToEdge(idx, bed) {
+  const r = Math.floor(idx / bed.cols), c = idx % bed.cols;
+  return Math.min(r, c, bed.rows - 1 - r, bed.cols - 1 - c);
+}
+
+function fillRecommendedPass(designs, statuses, capacities, inventorySq={}, allocatedSq={}, opts={}) {
+  const { dense = false, db: dbArg = null } = opts;
+  // Use the db passed by computeAutoPopulate (test mode), falling back to
+  // the module-level global db for live UI calls.
+  const dbRef = dbArg || db;
+  dbRef.beds.forEach(bed => {
     const key = bed.key;
     // Perennial and herb beds are user-managed — never auto-fill with recommendations
     if (bed.type === 'perennial' || bed.type === 'herb') return;
@@ -4573,12 +4658,63 @@ function fillRecommendedPass(designs, statuses, capacities, inventorySq={}, allo
         }
       }
 
-      // Scatter any remaining cells into empty slots (small plants always
-      // land here; big-plant leftovers from block placement failure too).
-      for (let i = 0; i < bed.cols * bed.rows && remaining > 0; i++) {
-        if (!d[i]) { d[i] = chunk.id; s[i] = 'recommended'; remaining--; }
+      // Scatter any remaining cells into empty slots. Short/ground plants
+      // prefer the bed's outer ring (lower distToEdge); medium/tall stay
+      // row-major (no center bias in this tier).
+      const emptyCells = [];
+      for (let i = 0; i < bed.cols * bed.rows; i++) if (!d[i]) emptyCells.push(i);
+      const ph = p?.height;
+      if (ph === 'short' || ph === 'ground') {
+        emptyCells.sort((a, b) => distToEdge(a, bed) - distToEdge(b, bed));
+      }
+      for (const i of emptyCells) {
+        if (remaining <= 0) break;
+        d[i] = chunk.id; s[i] = 'recommended'; remaining--;
       }
     });
+
+    // ── Dense planting pass ───────────────────────────────────────────
+    // If dense mode is on, fill every still-empty cell in this bed with a
+    // filler plant. Picks from PLANT_LIB entries flagged filler:true,
+    // skipping anything that conflicts with current bed neighbors. Edges
+    // get short/ground fillers first.
+    if (dense) {
+      const stockNames = new Set((dbRef.seeds||[]).map(x => x.name.toLowerCase()));
+      const placedSet = new Set(Object.values(d).filter(Boolean));
+      const badIdsNow = new Set();
+      placedSet.forEach(id => (PLANT_IDX[id]?.companions?.bad || []).forEach(b => badIdsNow.add(b)));
+      PLANT_LIB.forEach(p => {
+        if ((p.companions?.bad || []).some(bid => placedSet.has(bid))) badIdsNow.add(p.id);
+      });
+
+      const fillers = PLANT_LIB
+        .filter(p => p.filler && !badIdsNow.has(p.id) && p.cat !== 'cover')
+        .sort((a, b) => {
+          // Edge-suited (short/ground) first, then in-stock, then bestBed fit, then name
+          const aEdge = (a.height === 'short' || a.height === 'ground') ? 0 : 1;
+          const bEdge = (b.height === 'short' || b.height === 'ground') ? 0 : 1;
+          if (aEdge !== bEdge) return aEdge - bEdge;
+          const aStock = stockNames.has(a.name.toLowerCase()) ? 0 : 1;
+          const bStock = stockNames.has(b.name.toLowerCase()) ? 0 : 1;
+          if (aStock !== bStock) return aStock - bStock;
+          const aFit = a.bestBeds.includes(key) ? 0 : 1;
+          const bFit = b.bestBeds.includes(key) ? 0 : 1;
+          if (aFit !== bFit) return aFit - bFit;
+          return a.name.localeCompare(b.name);
+        });
+      if (fillers.length) {
+        // Remaining empties, sorted edge-out so the perimeter packs first
+        const stillEmpty = [];
+        for (let i = 0; i < cap; i++) if (!d[i]) stillEmpty.push(i);
+        stillEmpty.sort((a, b) => distToEdge(a, bed) - distToEdge(b, bed));
+        // Cycle fillers across cells so multiple species fill in alternation
+        stillEmpty.forEach((idx, n) => {
+          const f = fillers[n % fillers.length];
+          d[idx] = f.id;
+          s[idx] = 'recommended';
+        });
+      }
+    }
   });
 }
 
