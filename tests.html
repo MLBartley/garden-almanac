@@ -100,7 +100,8 @@ function runTests(win) {
     return finish();
   }
   const { computeAutoPopulate, seedToLibId, PLANT_IDX,
-          defaultSeedPlantCount, seedPacketPlantCount, seedPacketSquares } = T;
+          defaultSeedPlantCount, seedPacketPlantCount, seedPacketSquares,
+          liveStartSquares, plantBlockDims } = T;
   record('Harness loads', true);
 
   // ── seedToLibId mapping tests ───────────────────────────────────────
@@ -293,6 +294,76 @@ function runTests(win) {
     const r = computeAutoPopulate(db, {noStarts: true, noSeeds: true, noRecommendations: true});
     const totalSquares = Object.values(r.designs).reduce((a, d) => a + Object.keys(d).length, 0);
     assertEq('Scenario 13: all-skip yields zero placements', totalSquares, 0);
+  }
+
+  // ── Scenario 13b: live starts use footprint × qty (each plant = a block) ─
+  // For sqFt≥1: each individual plant occupies a w×h block (rendered as one
+  // visual block in the grid). For sqFt<1 (densely planted): qty × sqFt cells.
+  {
+    const tomatillo = PLANT_IDX['tomatillo'] || {sqFt:4};
+    assertEq('Scenario 13b: 5 tomatillo starts = 20 cells (5 plants × 4 sqft footprint)',
+      liveStartSquares({qty:5}, tomatillo), 20);
+    assertEq('Scenario 13b: 2 squash starts (sqFt=6) = 12 cells',
+      liveStartSquares({qty:2}, {sqFt:6}), 12);
+    assertEq('Scenario 13b: 4 tomato starts = 4 cells (sqFt=1)',
+      liveStartSquares({qty:4}, {sqFt:1}), 4);
+    // densely-planted: 16 lettuce starts × 0.25 = 4 cells
+    assertEq('Scenario 13b: 16 lettuce starts pack into 4 cells (sqFt<1)',
+      liveStartSquares({qty:16}, {sqFt:0.25}), 4);
+
+    // End-to-end: 5 tomatillo starts in an 8×4 bed = 20 cells used
+    const db = emptyDB({seeds:[makeSeed('Tomatillo', {storage:'live', bed:'C', qty:5})],
+      beds:[makeBed('A',4,4), makeBed('B',4,4), makeBed('C',8,4)]});
+    const r = computeAutoPopulate(db, {noRecommendations: true});
+    const inC = bedSquares(r.designs, 'C');
+    assertEq('Scenario 13b: 5 tomatillo starts in 8×4 Bed C → 20 cells', inC['tomatillo'] || 0, 20);
+  }
+
+  // ── Scenario 15: plantBlockDims gives most-square-like rectangle ────
+  assertEq('Scenario 15: sqFt=1 → 1×1', plantBlockDims({sqFt:1}), [1,1]);
+  assertEq('Scenario 15: sqFt=4 (tomatillo) → 2×2', plantBlockDims({sqFt:4}), [2,2]);
+  assertEq('Scenario 15: sqFt=6 (squash) → 2×3', plantBlockDims({sqFt:6}), [2,3]);
+  assertEq('Scenario 15: sqFt=9 → 3×3', plantBlockDims({sqFt:9}), [3,3]);
+  assertEq('Scenario 15: sqFt=0.25 (lettuce) → 1×1 (sub-cell)', plantBlockDims({sqFt:0.25}), [1,1]);
+
+  // ── Scenario 16: tomatillo starts land as contiguous 2×2 blocks ─────
+  {
+    // 2 tomatillos in a 4×4 bed should produce two 2×2 blocks.
+    // Detection: scan the grid; every tomatillo cell should have either
+    // a tomatillo neighbor or be at a bed edge — i.e. no isolated cells.
+    const beds = [makeBed('A', 4, 4)];
+    const db = emptyDB({beds, seeds:[makeSeed('Tomatillo', {storage:'live', bed:'A', qty:2})]});
+    const r = computeAutoPopulate(db, {noRecommendations: true});
+    const d = r.designs.A;
+    const cols = 4, rows = 4;
+    let isolatedCount = 0;
+    for (let i = 0; i < cols * rows; i++) {
+      if (d[i] !== 'tomatillo') continue;
+      const r0 = Math.floor(i / cols), c0 = i % cols;
+      let hasNeighbor = false;
+      [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dr,dc]) => {
+        const nr=r0+dr, nc=c0+dc;
+        if (nr<0||nr>=rows||nc<0||nc>=cols) return;
+        if (d[nr*cols+nc] === 'tomatillo') hasNeighbor = true;
+      });
+      if (!hasNeighbor) isolatedCount++;
+    }
+    assertEq('Scenario 16: no isolated tomatillo cells (blocks stay contiguous)', isolatedCount, 0);
+
+    // Count tomatillo cells: 2 plants × 4 sqft = 8 cells
+    const total = Object.values(d).filter(id => id === 'tomatillo').length;
+    assertEq('Scenario 16: 2 tomatillos = 8 cells total (2 blocks of 4)', total, 8);
+  }
+
+  // ── Scenario 17: rotation — 2×3 squash fits in 6×2 bed by rotating ──
+  {
+    const beds = [makeBed('A', 6, 2)];
+    const db = emptyDB({beds, seeds:[makeSeed('Winter Squash', {storage:'live', bed:'A', qty:1})]});
+    const r = computeAutoPopulate(db, {noRecommendations: true});
+    const total = Object.values(r.designs.A || {}).filter(id => id === 'squash-winter').length;
+    // sqFt=6 → block would be 2×3 or 3×2. Bed is 6×2, only 3×2 fits.
+    // Algorithm must rotate to place it.
+    assertEq('Scenario 17: squash fits in 6×2 bed via 3×2 rotation', total, 6);
   }
 
   // ── Scenario 14: plantCount overrides patch size ────────────────────

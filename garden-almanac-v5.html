@@ -447,6 +447,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 .grid-wrap::-webkit-scrollbar{display:none;}
 .bed-grid{display:inline-grid;gap:3px;padding:3px;background:var(--surface);border:2px solid var(--rule);border-radius:6px;}
 .sq{width:44px;height:44px;border-radius:4px;border:1.5px solid rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;font-size:1.3rem;cursor:pointer;background:white;position:relative;transition:transform .1s;}
+.sq.block{width:auto;height:auto;min-width:44px;min-height:44px;font-size:1.7rem;}
 .sq:active{transform:scale(.92);}
 .sq.occupied{background:#f0f8f0;}
 .sq.warn{border-color:#e8a060!important;background:#fff8f0;}
@@ -2740,6 +2741,7 @@ function renderDesign() {
   // Grid
   const grid = document.getElementById('bed-grid');
   grid.style.gridTemplateColumns = `repeat(${bed.cols}, 44px)`;
+  grid.style.gridTemplateRows = `repeat(${bed.rows}, 44px)`;
   grid.innerHTML = '';
 
   // Build companion warning map (bidirectional)
@@ -2759,33 +2761,67 @@ function renderDesign() {
     });
   });
 
-  for (let i = 0; i < totalSq; i++) {
-    const plantId = activeBedDesign[i];
-    const plant = plantId ? PLANT_IDX[plantId] : null;
-    const status = activeBedStatuses[i];
-    const conflicts = plantId ? (conflictFor[plantId] || []) : [];
-    const hasBadNeighbor = conflicts.length > 0;
-    const sq = document.createElement('div');
-    let cls = 'sq';
-    if (!plant) cls += ' empty-sq';
-    else if (status === 'recommended') cls += ' recommended';
-    else if (status === 'suggested') cls += ' suggested';
-    else if (status === 'planted') cls += ' planted';
-    else cls += ' occupied';
-    if (hasBadNeighbor) cls += ' warn';
-    sq.className = cls;
-    if (hasBadNeighbor) sq.title = `⚠️ Conflict: bad companions in this bed — ${conflicts.map(id=>PLANT_IDX[id]?.name||id).join(', ')}`;
-    if (plant) {
-      const badge = status === 'suggested' ? '<div class="sq-status-badge">?</div>'
-                  : status === 'recommended' ? '<div class="sq-status-badge" style="color:#c4922a;">★</div>'
-                  : status === 'planted' ? '<div class="sq-status-badge">✓</div>' : '';
-      sq.innerHTML = `${plant.emoji}<div class="sq-label">${plant.name.split(' ')[0]}</div>${badge}`;
-      sq.onclick = () => openSqModal(i);
-    } else {
-      sq.innerHTML = `<span style="color:#ccc;font-size:.9rem">+</span>`;
-      sq.onclick = () => openPlantPicker(i);
+  // Render row-major, grouping contiguous same-plant cells into one spanning
+  // block div so multi-cell plants (tomatillo 2×2, squash 2×3) show as a
+  // single outlined rectangle with no internal grid lines.
+  const cols = bed.cols, rows = bed.rows;
+  const handled = new Array(totalSq).fill(false);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const i = r * cols + c;
+      if (handled[i]) continue;
+      const plantId = activeBedDesign[i];
+      const plant = plantId ? PLANT_IDX[plantId] : null;
+      const status = activeBedStatuses[i];
+
+      // Find rectangular extent of this block (same plant, same status, unhandled)
+      let w = 1, h = 1;
+      if (plant) {
+        while (c + w < cols && activeBedDesign[r*cols+(c+w)] === plantId &&
+               activeBedStatuses[r*cols+(c+w)] === status && !handled[r*cols+(c+w)]) w++;
+        outer: while (r + h < rows) {
+          for (let dc = 0; dc < w; dc++) {
+            const idx = (r+h)*cols + (c+dc);
+            if (activeBedDesign[idx] !== plantId || activeBedStatuses[idx] !== status || handled[idx]) break outer;
+          }
+          h++;
+        }
+      }
+
+      const conflicts = plantId ? (conflictFor[plantId] || []) : [];
+      const hasBadNeighbor = conflicts.length > 0;
+      const sq = document.createElement('div');
+      let cls = 'sq';
+      if (!plant) cls += ' empty-sq';
+      else if (status === 'recommended') cls += ' recommended';
+      else if (status === 'suggested') cls += ' suggested';
+      else if (status === 'planted') cls += ' planted';
+      else cls += ' occupied';
+      if (hasBadNeighbor) cls += ' warn';
+      if (w > 1 || h > 1) cls += ' block';
+      sq.className = cls;
+      sq.style.gridColumn = `${c + 1} / span ${w}`;
+      sq.style.gridRow = `${r + 1} / span ${h}`;
+      if (hasBadNeighbor) sq.title = `⚠️ Conflict: bad companions in this bed — ${conflicts.map(id=>PLANT_IDX[id]?.name||id).join(', ')}`;
+      if (plant) {
+        const badge = status === 'suggested' ? '<div class="sq-status-badge">?</div>'
+                    : status === 'recommended' ? '<div class="sq-status-badge" style="color:#c4922a;">★</div>'
+                    : status === 'planted' ? '<div class="sq-status-badge">✓</div>' : '';
+        sq.innerHTML = `${plant.emoji}<div class="sq-label">${esc(plant.name.split(' ')[0])}</div>${badge}`;
+        sq.onclick = () => openSqModal(i);
+      } else {
+        sq.innerHTML = `<span style="color:#ccc;font-size:.9rem">+</span>`;
+        sq.onclick = () => openPlantPicker(i);
+      }
+      grid.appendChild(sq);
+
+      // Mark all cells of this block as handled
+      for (let dr = 0; dr < h; dr++) {
+        for (let dc = 0; dc < w; dc++) {
+          handled[(r + dr) * cols + (c + dc)] = true;
+        }
+      }
     }
-    grid.appendChild(sq);
   }
 
   // Companion panel
@@ -3436,8 +3472,7 @@ function renderBedInventoryPanel(){
     const plant=PLANT_IDX[libId];
     if(!plant)return;
     const isStart=s.storage==='live';
-    totalClaimed+=isStart?Math.max(1,Math.round(plant.sqFt*(s.qty||1))):
-      (plant.sqFt>=4?Math.ceil(plant.sqFt):plant.sqFt>=1?Math.max(4,Math.ceil(plant.sqFt*4)):8);
+    totalClaimed+=isStart?liveStartSquares(s,plant):seedPacketSquares(s,plant);
   });
   let capBarHtml='';
   if(cap){
@@ -3457,7 +3492,7 @@ function renderBedInventoryPanel(){
     const inDesign=libId&&Object.values(design).includes(libId);
     const isStart=s.storage==='live';
     const plant=PLANT_IDX[libId];
-    const sqEst=plant?(isStart?Math.max(1,Math.round(plant.sqFt*(s.qty||1))):(plant.sqFt>=4?Math.ceil(plant.sqFt):plant.sqFt>=1?Math.max(4,Math.ceil(plant.sqFt*4)):8)):null;
+    const sqEst=plant?(isStart?liveStartSquares(s,plant):seedPacketSquares(s,plant)):null;
     const statusDot=inDesign
       ?`<span style="color:var(--moss);font-size:.75rem;">✓ In design</span>`
       :`<span style="color:var(--muted);font-size:.75rem;">Not placed</span>`;
@@ -3488,10 +3523,41 @@ function seedPacketPlantCount(seed, plant) {
   }
   return defaultSeedPlantCount(plant);
 }
+// For plants needing more than 1 sq ft each (tomatillo=4, squash=6, etc.),
+// return [width, height] of the most square-like rectangle whose area covers
+// the plant's footprint. Used so a tomatillo renders as a 2×2 block, not 4
+// scattered cells.
+function plantBlockDims(plant) {
+  const sqFt = plant && plant.sqFt;
+  if (!sqFt || sqFt <= 1) return [1, 1];
+  const area = Math.ceil(sqFt);
+  let best = [1, area], bestRatio = Infinity;
+  for (let w = 1; w <= area; w++) {
+    const h = Math.ceil(area / w);
+    if (w * h < area) continue;
+    const ratio = Math.max(w, h) / Math.min(w, h);
+    if (ratio < bestRatio) { bestRatio = ratio; best = [w, h]; }
+  }
+  return best;
+}
 function seedPacketSquares(seed, plant) {
   if (!plant) return 4;
   const n = seedPacketPlantCount(seed, plant);
-  return Math.max(1, Math.ceil(n * (plant.sqFt || 0.25)));
+  if (plant.sqFt < 1) return Math.max(1, Math.ceil(n * plant.sqFt));
+  const [w, h] = plantBlockDims(plant);
+  return n * w * h;
+}
+// Live starts: qty is the count of individual plants the user has.
+// For sqFt >= 1: each plant occupies a w×h block (e.g., 2×2 for tomatillo),
+//   so 5 tomatillo starts use 20 grid cells but render as 5 visible blocks.
+// For sqFt < 1 (densely planted): multiple individuals fit per cell,
+//   so total cells = ceil(qty × sqFt).
+function liveStartSquares(seed, plant) {
+  const qty = Math.max(1, seed && seed.qty || 1);
+  if (!plant) return qty;
+  if (plant.sqFt < 1) return Math.max(1, Math.round(qty * plant.sqFt));
+  const [w, h] = plantBlockDims(plant);
+  return qty * w * h;
 }
 
 function seedToLibId(seed) {
@@ -3584,7 +3650,7 @@ function autoPopulateAllBeds() {
   liveStartsCheck.forEach(seed => {
     const libId = seedToLibId(seed);
     const plant = PLANT_IDX[libId]; if (!plant) return;
-    const sq = Math.max(1, Math.round(plant.sqFt * (seed.qty || 1)));
+    const sq = liveStartSquares(seed, plant);
     const targetBed = seed.bed !== 'any' ? seed.bed : (plant.bestBeds || [])[0] || 'A';
     tally(targetBed, esc(`${seed.name}${seed.variety ? ' ('+seed.variety+')' : ''} ×${seed.qty||1} (start)`), sq);
   });
@@ -3697,6 +3763,65 @@ function computeAutoPopulate(db, opts = {}) {
     return sqNeeded; // leftover not placed
   }
 
+  // Try to place `blocksNeeded` contiguous w×h rectangles of libId in bedKey.
+  // Returns the number of blocks that did NOT fit. Each block is one plant unit
+  // (e.g., one tomatillo → one 2×2 block of 4 cells).
+  function fillBlocksInto(bedKey, libId, blocksNeeded, w, h) {
+    const bed = db.beds.find(bb => bb.key === bedKey);
+    if (!bed) return blocksNeeded;
+    const d = designs[bedKey]; if (!d) return blocksNeeded;
+    const s = statuses[bedKey];
+    const cols = bed.cols, rows = bed.rows;
+    const tryDims = (w === h) ? [[w, h]] : [[w, h], [h, w]];
+    let placed = 0;
+    while (placed < blocksNeeded) {
+      let slot = null;
+      for (const [bw, bh] of tryDims) {
+        if (bw > cols || bh > rows) continue;
+        for (let r = 0; r <= rows - bh && !slot; r++) {
+          for (let c = 0; c <= cols - bw && !slot; c++) {
+            let ok = true;
+            for (let dr = 0; dr < bh && ok; dr++) {
+              for (let dc = 0; dc < bw && ok; dc++) {
+                if (d[(r + dr) * cols + (c + dc)]) ok = false;
+              }
+            }
+            if (ok) slot = { r, c, bw, bh };
+          }
+        }
+        if (slot) break;
+      }
+      if (!slot) break;
+      for (let dr = 0; dr < slot.bh; dr++) {
+        for (let dc = 0; dc < slot.bw; dc++) {
+          const idx = (slot.r + dr) * cols + (slot.c + dc);
+          d[idx] = libId;
+          s[idx] = 'suggested';
+        }
+      }
+      placed++;
+    }
+    return blocksNeeded - placed;
+  }
+
+  // Combined placement: for plants with sqFt ≥ 1, place as `count` blocks of
+  // plantBlockDims(plant); for sqFt < 1, fall back to per-cell fillInto. If
+  // block placement can't fit all blocks, the remaining blocks scatter via
+  // fillInto so live starts never silently disappear.
+  // Returns leftover squares (not plants/blocks).
+  function placeUnits(bedKey, libId, plant, units) {
+    if (!plant || plant.sqFt < 1) {
+      const cells = plant ? Math.max(1, Math.round(units * plant.sqFt)) : units;
+      return fillInto(bedKey, libId, cells);
+    }
+    const [w, h] = plantBlockDims(plant);
+    const blockArea = w * h;
+    const leftoverBlocks = fillBlocksInto(bedKey, libId, units, w, h);
+    if (leftoverBlocks <= 0) return 0;
+    // Scatter the leftovers across remaining empty cells in this bed.
+    return fillInto(bedKey, libId, leftoverBlocks * blockArea);
+  }
+
   // Returns true if placing libId into bedKey would create a companion conflict
   function bedConflicts(bedKey, libId) {
     const d = designs[bedKey]; if (!d) return false;
@@ -3721,24 +3846,31 @@ function computeAutoPopulate(db, opts = {}) {
     if (a.bed === 'any' && b.bed !== 'any') return 1;
     // Larger allocations first within the same category
     const pA = PLANT_IDX[seedToLibId(a)], pB = PLANT_IDX[seedToLibId(b)];
-    const sqA = pA ? Math.max(1, Math.round(pA.sqFt * (a.qty || 1))) : 0;
-    const sqB = pB ? Math.max(1, Math.round(pB.sqFt * (b.qty || 1))) : 0;
-    return sqB - sqA;
+    return liveStartSquares(b, pB) - liveStartSquares(a, pA);
   });
   liveStarts.forEach(seed => {
     const libId = seedToLibId(seed);
     if (!libId) return;
     if (threeSistersOn && threeSistersIds.has(libId)) return;
     const plant = PLANT_IDX[libId]; if (!plant) return;
-    const qty = seed.qty || 1;
-    let sqNeeded = Math.max(1, Math.round(plant.sqFt * qty));
+    // Units = individuals for sqFt>=1 (each = a w×h block), else total cells
+    let unitsLeft;
+    if (plant.sqFt >= 1) {
+      unitsLeft = Math.max(1, seed.qty || 1);
+    } else {
+      unitsLeft = Math.max(1, Math.round((seed.qty || 1) * plant.sqFt));
+    }
 
     if (seed.bed !== 'any') {
-      sqNeeded = fillInto(seed.bed, libId, sqNeeded);
+      const leftover = placeUnits(seed.bed, libId, plant, unitsLeft);
+      // placeUnits returns leftover cells; for sqFt>=1 the scatter fallback
+      // means anything ≥1 cell over is unplaced (already counted in cells).
+      unitsLeft = (plant.sqFt >= 1)
+        ? Math.ceil(leftover / (plantBlockDims(plant)[0] * plantBlockDims(plant)[1]))
+        : leftover;
     }
-    // Overflow: if live start still has unplaced squares, spill to non-perennial/non-herb beds
-    // Prefer plant.bestBeds first, then conflict-free beds, then by remaining space
-    if (sqNeeded > 0) {
+    // Overflow: spill remaining units to non-perennial/non-herb beds
+    if (unitsLeft > 0) {
       const nonPerennial = db.beds.filter(b => b.type !== 'perennial' && b.type !== 'herb').map(b => b.key);
       const candidates = nonPerennial.filter(k => seed.bed === 'any' || k !== seed.bed);
       const bestBedKeys = new Set(plant.bestBeds || []);
@@ -3752,8 +3884,11 @@ function computeAutoPopulate(db, opts = {}) {
         return remainingSq(b) - remainingSq(a);
       });
       for (const bk of overflow) {
-        if (sqNeeded <= 0) break;
-        sqNeeded = fillInto(bk, libId, sqNeeded);
+        if (unitsLeft <= 0) break;
+        const leftover = placeUnits(bk, libId, plant, unitsLeft);
+        unitsLeft = (plant.sqFt >= 1)
+          ? Math.ceil(leftover / (plantBlockDims(plant)[0] * plantBlockDims(plant)[1]))
+          : leftover;
       }
     }
   });
@@ -3785,15 +3920,18 @@ function computeAutoPopulate(db, opts = {}) {
     if (!libId) return;
     if (threeSistersOn && threeSistersIds.has(libId)) return;
     const plant = PLANT_IDX[libId]; if (!plant) return;
-    // Allocate squares based on how many seeds the user wants to plant
-    // (seed.plantCount), falling back to a sensible default per plant size.
-    const sqNeeded0 = seedPacketSquares(seed, plant);
-    let sqNeeded = sqNeeded0;
+    // Units of placement: for sqFt≥1 each individual plant is a block; for sqFt<1
+    // pack densely. seed.plantCount drives the unit count (with default per size).
+    const n = seedPacketPlantCount(seed, plant);
+    const blockArea = plant.sqFt >= 1
+      ? plantBlockDims(plant)[0] * plantBlockDims(plant)[1] : 1;
+    let unitsLeft = plant.sqFt >= 1 ? n : Math.max(1, Math.ceil(n * plant.sqFt));
 
     if (seed.bed !== 'any') {
-      let leftover = fillInto(seed.bed, libId, sqNeeded);
+      const leftoverCells = placeUnits(seed.bed, libId, plant, unitsLeft);
+      unitsLeft = plant.sqFt >= 1 ? Math.ceil(leftoverCells / blockArea) : leftoverCells;
       // Overflow: if assigned bed is full, spill into bestBeds then any non-perennial/non-herb bed
-      if (leftover > 0) {
+      if (unitsLeft > 0) {
         const nonPerennial = db.beds.filter(b => b.type !== 'perennial' && b.type !== 'herb').map(b => b.key);
         const bestBedKeys = new Set(plant.bestBeds || []);
         const overflow = nonPerennial
@@ -3808,10 +3946,11 @@ function computeAutoPopulate(db, opts = {}) {
             return remainingSq(b) - remainingSq(a);
           });
         for (const bk of overflow) {
-          if (leftover <= 0) break;
-          const before = leftover;
-          leftover = fillInto(bk, libId, leftover);
-          if (leftover < before && !reroutedSeeds.some(r => r.libId === libId && r.fromBed === seed.bed)) {
+          if (unitsLeft <= 0) break;
+          const before = unitsLeft;
+          const leftoverCells2 = placeUnits(bk, libId, plant, unitsLeft);
+          unitsLeft = plant.sqFt >= 1 ? Math.ceil(leftoverCells2 / blockArea) : leftoverCells2;
+          if (unitsLeft < before && !reroutedSeeds.some(r => r.libId === libId && r.fromBed === seed.bed)) {
             reroutedSeeds.push({name: seed.name, libId, fromBed: seed.bed, toBed: bk});
           }
         }
@@ -3831,7 +3970,7 @@ function computeAutoPopulate(db, opts = {}) {
         if (aConf !== bConf) return aConf - bConf;
         return remainingSq(b) - remainingSq(a);
       })[0];
-      fillInto(target, libId, sqNeeded);
+      placeUnits(target, libId, plant, unitsLeft);
     }
   });
 
@@ -3843,7 +3982,7 @@ function computeAutoPopulate(db, opts = {}) {
     (db.seeds || []).filter(s => !s.skipYear && s.storage === 'live').forEach(seed => {
       const libId = seedToLibId(seed); if (!libId) return;
       const plant = PLANT_IDX[libId]; if (!plant) return;
-      inventorySq[libId] = (inventorySq[libId] || 0) + Math.max(1, Math.round(plant.sqFt * (seed.qty || 1)));
+      inventorySq[libId] = (inventorySq[libId] || 0) + liveStartSquares(seed, plant);
     });
     seedItems.forEach(seed => {
       const libId = seedToLibId(seed); if (!libId) return;
@@ -4168,11 +4307,61 @@ function fillRecommendedPass(designs, statuses, capacities, inventorySq={}, allo
       }
     }
 
-    // Apply
-    empty.forEach((sqIdx, j) => {
-      if (!plan[j]) return;
-      d[sqIdx] = plan[j];
-      s[sqIdx] = 'recommended';
+    // Apply — group consecutive same-plant entries in plan into chunks, then
+    // place big-footprint chunks as contiguous w×h blocks (so a 4-cell
+    // tomatillo serving lands as one 2×2 block, not 4 scattered cells).
+    const chunks = [];
+    let curId = null, curCount = 0;
+    plan.forEach(id => {
+      if (id === curId) curCount++;
+      else { if (curId) chunks.push({id: curId, count: curCount}); curId = id; curCount = 1; }
+    });
+    if (curId) chunks.push({id: curId, count: curCount});
+
+    chunks.forEach(chunk => {
+      const p = PLANT_IDX[chunk.id];
+      const useBlocks = p && p.sqFt >= 1;
+      let remaining = chunk.count;
+
+      if (useBlocks) {
+        const [bw, bh] = plantBlockDims(p);
+        const blockArea = bw * bh;
+        const blocks = Math.floor(remaining / blockArea);
+        const tryDims = bw === bh ? [[bw, bh]] : [[bw, bh], [bh, bw]];
+
+        for (let b = 0; b < blocks; b++) {
+          let placed = false;
+          for (const [w, h] of tryDims) {
+            if (w > bed.cols || h > bed.rows) continue;
+            for (let r = 0; r <= bed.rows - h && !placed; r++) {
+              for (let c = 0; c <= bed.cols - w && !placed; c++) {
+                let ok = true;
+                for (let dr = 0; dr < h && ok; dr++)
+                  for (let dc = 0; dc < w && ok; dc++)
+                    if (d[(r+dr)*bed.cols + (c+dc)]) ok = false;
+                if (ok) {
+                  for (let dr = 0; dr < h; dr++)
+                    for (let dc = 0; dc < w; dc++) {
+                      const idx = (r+dr)*bed.cols + (c+dc);
+                      d[idx] = chunk.id;
+                      s[idx] = 'recommended';
+                    }
+                  remaining -= blockArea;
+                  placed = true;
+                }
+              }
+            }
+            if (placed) break;
+          }
+          if (!placed) break;
+        }
+      }
+
+      // Scatter any remaining cells into empty slots (small plants always
+      // land here; big-plant leftovers from block placement failure too).
+      for (let i = 0; i < bed.cols * bed.rows && remaining > 0; i++) {
+        if (!d[i]) { d[i] = chunk.id; s[i] = 'recommended'; remaining--; }
+      }
     });
   });
 }
@@ -4245,17 +4434,49 @@ function renderPlantLib() {
   ].join('');
 }
 
+// Flood-fill from the clicked cell to find all connected same-plant cells —
+// so editing or removing a 2×2 tomatillo block operates on all 4 cells at once.
+function getConnectedBlockCells(startIdx) {
+  const bed = db.beds.find(b => b.key === activeBedKey);
+  if (!bed) return [startIdx];
+  const cols = bed.cols, rows = bed.rows;
+  const plantId = activeBedDesign[startIdx];
+  if (!plantId) return [startIdx];
+  const visited = new Set([startIdx]);
+  const stack = [startIdx];
+  while (stack.length) {
+    const i = stack.pop();
+    const r = Math.floor(i / cols), c = i % cols;
+    [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dr, dc]) => {
+      const nr = r + dr, nc = c + dc;
+      if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) return;
+      const ni = nr * cols + nc;
+      if (visited.has(ni)) return;
+      if (activeBedDesign[ni] === plantId) {
+        visited.add(ni);
+        stack.push(ni);
+      }
+    });
+  }
+  return [...visited];
+}
+
 function placePlant(plantId) {
   if (selectedSqIdx === null) return;
-  activeBedDesign[selectedSqIdx] = plantId;
-  activeBedStatuses[selectedSqIdx] = 'planned';
+  // If user picked from inside a block, replace the whole block.
+  const cells = getConnectedBlockCells(selectedSqIdx);
+  cells.forEach(i => {
+    activeBedDesign[i] = plantId;
+    activeBedStatuses[i] = 'planned';
+  });
   closeModal('plant-picker-modal');
   renderDesign();
 }
 
 function clearSquare() {
   if (selectedSqIdx === null) return;
-  delete activeBedDesign[selectedSqIdx];
+  const cells = getConnectedBlockCells(selectedSqIdx);
+  cells.forEach(i => { delete activeBedDesign[i]; delete activeBedStatuses[i]; });
   closeModal('plant-picker-modal');
   renderDesign();
 }
@@ -4311,7 +4532,10 @@ function openSqModal(sqIdx) {
 function confirmSq(status) {
   if (selectedSqIdx === null) return;
   const prevStatus = activeBedStatuses[selectedSqIdx];
-  activeBedStatuses[selectedSqIdx] = status;
+  // Apply status change to all cells of this block (e.g., all 4 cells of a
+  // tomatillo 2×2 transition from suggested → planned → planted together).
+  const cells = getConnectedBlockCells(selectedSqIdx);
+  cells.forEach(i => activeBedStatuses[i] = status);
   db.bedStatuses = db.bedStatuses || {};
   db.bedStatuses[activeBedKey] = {...activeBedStatuses};
   saveDB(db);
@@ -4346,8 +4570,8 @@ function changeSqPlant() {
 
 function removeSq() {
   if (selectedSqIdx === null) return;
-  delete activeBedDesign[selectedSqIdx];
-  delete activeBedStatuses[selectedSqIdx];
+  const cells = getConnectedBlockCells(selectedSqIdx);
+  cells.forEach(i => { delete activeBedDesign[i]; delete activeBedStatuses[i]; });
   db.bedDesigns = db.bedDesigns || {};
   db.bedDesigns[activeBedKey] = {...activeBedDesign};
   db.bedStatuses = db.bedStatuses || {};
@@ -6173,7 +6397,7 @@ function renderReadyToPlant() {
       const libId=seedToLibId(s); const plant=PLANT_IDX[libId];
       const bed=BED_INFO[s.bed]||BED_INFO.any;
       const emoji=plant?.emoji||'🌱';
-      const sqFt=plant?Math.max(1,Math.round(plant.sqFt*(s.qty||1)))+' sq ft':'';
+      const sqFt=plant?liveStartSquares(s,plant)+' sq ft':'';
       const isHardening=activeHardenNames.has(s.name.toLowerCase());
       const hardenBtn=isHardening
         ?`<span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--moss);">🌿 Hardening in progress</span>`
@@ -6204,7 +6428,7 @@ function logStartAsTransplanted(seedId) {
   if (libId && seed.bed && seed.bed!=='any') {
     db.bedDesigns=db.bedDesigns||{}; db.bedStatuses=db.bedStatuses||{};
     const design=db.bedDesigns[seed.bed]||{}, statuses={...(db.bedStatuses[seed.bed]||{})};
-    const sqNeeded=plant?Math.max(1,Math.round(plant.sqFt*(seed.qty||1))):1;
+    const sqNeeded=plant?liveStartSquares(seed,plant):1;
     let marked=0;
     Object.entries(design).forEach(([i,id])=>{
       if(id===libId&&statuses[i]!=='planted'&&marked<sqNeeded){statuses[i]='planted';marked++;}
@@ -7217,7 +7441,8 @@ if (!TEST_MODE) {
   // then signal readiness to parent harness.
   window.GA_TEST = {
     computeAutoPopulate, seedToLibId, fillRecommendedPass, placeThreeSisters,
-    defaultSeedPlantCount, seedPacketPlantCount, seedPacketSquares,
+    defaultSeedPlantCount, seedPacketPlantCount, seedPacketSquares, liveStartSquares,
+    plantBlockDims,
     PLANT_IDX, PLANT_LIB, BED_INFO, FAMILY_MAP,
     defaultDB, defaultBeds, defaultSeeds, defaultPlants,
     esc, escAttr,
