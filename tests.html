@@ -99,7 +99,8 @@ function runTests(win) {
     record('Harness loads', false, 'GA_TEST.computeAutoPopulate not exported on iframe window');
     return finish();
   }
-  const { computeAutoPopulate, seedToLibId, PLANT_IDX } = T;
+  const { computeAutoPopulate, seedToLibId, PLANT_IDX,
+          defaultSeedPlantCount, seedPacketPlantCount, seedPacketSquares } = T;
   record('Harness loads', true);
 
   // ── seedToLibId mapping tests ───────────────────────────────────────
@@ -235,6 +236,75 @@ function runTests(win) {
     assert('Scenario 8: Pass 4 adds more squares than sync-only mode',
       r2Total > r1Total,
       `sync-only: ${r1Total} sq, full: ${r2Total} sq`);
+  }
+
+  // ── Scenario 9: defaultSeedPlantCount tiers ─────────────────────────
+  assertEq('Scenario 9: default count for big plant (squash sqFt=6)', defaultSeedPlantCount({sqFt:6}), 1);
+  assertEq('Scenario 9: default count for medium (tomato sqFt=1)', defaultSeedPlantCount({sqFt:1}), 4);
+  assertEq('Scenario 9: default count for small (lettuce sqFt=0.25)', defaultSeedPlantCount({sqFt:0.25}), 16);
+  assertEq('Scenario 9: default count for tiny (carrot sqFt=0.06)', defaultSeedPlantCount({sqFt:0.06}), 64);
+
+  // ── Scenario 10: seedPacketSquares scales linearly with plantCount ──
+  {
+    const carrot = PLANT_IDX['carrot'] || {sqFt:0.25};
+    const sqFt = carrot.sqFt;
+    const sq32 = seedPacketSquares({plantCount: 32}, carrot);
+    const sq64 = seedPacketSquares({plantCount: 64}, carrot);
+    assertEq('Scenario 10: 32 carrots @ ' + sqFt + ' sqFt = ceil(32×sqFt)', sq32, Math.max(1, Math.ceil(32 * sqFt)));
+    assertEq('Scenario 10: 64 carrots @ ' + sqFt + ' sqFt = ceil(64×sqFt)', sq64, Math.max(1, Math.ceil(64 * sqFt)));
+    assert('Scenario 10: doubling plantCount roughly doubles squares',
+      sq64 >= sq32 * 1.5, `32→${sq32}, 64→${sq64}`);
+  }
+
+  // ── Scenario 11: noStarts skips Pass 1 ──────────────────────────────
+  {
+    const db = emptyDB({seeds:[
+      makeSeed('Tomato', {storage:'live', bed:'A', qty:2}),  // live start
+      makeSeed('Kale', {storage:'cool', bed:'B'}),          // packet
+    ]});
+    const r = computeAutoPopulate(db, {noRecommendations: true, noStarts: true});
+    const total = countSquares(r.designs);
+    assert('Scenario 11: live tomato NOT placed when noStarts=true',
+      !total['tomato-ind'], `Found: ${JSON.stringify(total)}`);
+    assert('Scenario 11: kale packet still placed when noStarts=true',
+      total['brassica-kale'] > 0, `Kale squares: ${total['brassica-kale']||0}`);
+  }
+
+  // ── Scenario 12: noSeeds skips Pass 3 ───────────────────────────────
+  {
+    const db = emptyDB({seeds:[
+      makeSeed('Tomato', {storage:'live', bed:'A', qty:2}),
+      makeSeed('Kale', {storage:'cool', bed:'B'}),
+    ]});
+    const r = computeAutoPopulate(db, {noRecommendations: true, noSeeds: true});
+    const total = countSquares(r.designs);
+    assert('Scenario 12: live tomato still placed when noSeeds=true',
+      total['tomato-ind'] > 0, `Tomato squares: ${total['tomato-ind']||0}`);
+    assert('Scenario 12: kale packet NOT placed when noSeeds=true',
+      !total['brassica-kale'], `Found: ${JSON.stringify(total)}`);
+  }
+
+  // ── Scenario 13: noStarts + noSeeds + noRecommendations = empty ─────
+  {
+    const db = emptyDB({seeds:[
+      makeSeed('Tomato', {storage:'live', bed:'A', qty:2}),
+      makeSeed('Kale', {storage:'cool', bed:'B'}),
+    ]});
+    const r = computeAutoPopulate(db, {noStarts: true, noSeeds: true, noRecommendations: true});
+    const totalSquares = Object.values(r.designs).reduce((a, d) => a + Object.keys(d).length, 0);
+    assertEq('Scenario 13: all-skip yields zero placements', totalSquares, 0);
+  }
+
+  // ── Scenario 14: plantCount overrides patch size ────────────────────
+  {
+    // 12 lettuce seeds × 0.25 sqFt = 3 sq; without override, default 16 × 0.25 = 4 sq
+    const db = emptyDB({seeds:[makeSeed('Lettuce', {storage:'cool', bed:'A', plantCount: 12})]});
+    const r = computeAutoPopulate(db, {noRecommendations: true});
+    const inA = bedSquares(r.designs, 'A');
+    const lettuceSqs = inA['lettuce'] || 0;
+    assert('Scenario 14: 12 lettuce seeds occupies ≤ 4 sq (≤ default of 16)',
+      lettuceSqs > 0 && lettuceSqs <= 4,
+      `Lettuce in A: ${lettuceSqs} sq (expected 1..4)`);
   }
 
   finish();

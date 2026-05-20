@@ -728,11 +728,24 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
           <div class="grid-wrap"><div class="bed-grid" id="bed-grid"></div></div>
           <!-- Auto-suggest controls grouped below grid -->
           <div style="background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:10px;margin:10px 0;">
+            <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:var(--muted);margin-bottom:7px;">AUTO-SUGGEST — choose what to include</div>
+            <label style="display:flex;align-items:center;gap:9px;font-size:.83rem;cursor:pointer;margin-bottom:4px;">
+              <input type="checkbox" id="opt-include-starts" checked style="width:15px;height:15px;flex-shrink:0;accent-color:var(--moss);">
+              <span>🌱 <strong>Plant starts</strong> — live seedlings from inventory</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:9px;font-size:.83rem;cursor:pointer;margin-bottom:4px;">
+              <input type="checkbox" id="opt-include-seeds" checked style="width:15px;height:15px;flex-shrink:0;accent-color:var(--moss);">
+              <span>🌾 <strong>Seed packets</strong> — assigned packets from inventory</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:9px;font-size:.83rem;cursor:pointer;margin-bottom:4px;">
+              <input type="checkbox" id="opt-include-recs" checked style="width:15px;height:15px;flex-shrink:0;accent-color:var(--moss);">
+              <span>💡 <strong>Recommendations</strong> — fill empty squares from library</span>
+            </label>
             <label style="display:flex;align-items:center;gap:9px;font-size:.83rem;cursor:pointer;margin-bottom:8px;">
               <input type="checkbox" id="opt-three-sisters" style="width:15px;height:15px;flex-shrink:0;accent-color:var(--moss);">
               <span>🌽🫘🎃 <strong>Three Sisters</strong> — corn + beans + squash together</span>
             </label>
-            <button class="btn-primary" style="width:100%;padding:9px;font-size:.82rem;margin-bottom:6px;" onclick="autoPopulateAllBeds()">✨ Fill empty squares with recommendations</button>
+            <button class="btn-primary" style="width:100%;padding:9px;font-size:.82rem;margin-bottom:6px;" onclick="autoPopulateAllBeds()">✨ Run auto-suggest</button>
             <button class="btn-sm" style="width:100%;padding:6px;font-size:.78rem;color:var(--muted);border-color:var(--rule);" onclick="clearAllSuggestions()">✕ Clear suggestions</button>
           </div>
           <div id="companion-panel-wrap"></div>
@@ -793,6 +806,9 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
           <input id="seed-search" type="search" placeholder="Search seeds…" oninput="searchSeeds(this.value)"
             style="width:100%;box-sizing:border-box;padding:7px 32px 7px 10px;border:1px solid var(--rule);border-radius:var(--radius);font-size:.85rem;background:white;color:var(--ink);">
           <span id="seed-search-clear" onclick="clearSeedSearch()" style="display:none;position:absolute;right:9px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--muted);font-size:1rem;line-height:1;">✕</span>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin:0 0 4px;">
+          <button class="btn-sm" style="padding:4px 9px;font-size:.72rem;color:var(--muted);" onclick="unassignAllSeeds()" title="Move every assigned seed back to 'Unassigned'">↩ Unassign all</button>
         </div>
         <div id="seed-list"></div>
       </div><!-- end #garden-seeds -->
@@ -3457,6 +3473,27 @@ function renderBedInventoryPanel(){
 }
 
 // ── Auto-populate from inventory ──
+// How many seeds to plant from a packet by default — sized so each band
+// yields roughly the same patch (~4 sq ft) regardless of plant size.
+function defaultSeedPlantCount(plant) {
+  if (!plant) return 4;
+  if (plant.sqFt >= 4) return 1;       // squash, melon, pumpkin
+  if (plant.sqFt >= 1) return 4;       // tomato, pepper, corn, bean
+  if (plant.sqFt >= 0.25) return 16;   // lettuce, beet, bok choy, kale
+  return 64;                            // carrot, radish, arugula, herbs
+}
+function seedPacketPlantCount(seed, plant) {
+  if (seed && Number.isFinite(seed.plantCount) && seed.plantCount > 0) {
+    return Math.floor(seed.plantCount);
+  }
+  return defaultSeedPlantCount(plant);
+}
+function seedPacketSquares(seed, plant) {
+  if (!plant) return 4;
+  const n = seedPacketPlantCount(seed, plant);
+  return Math.max(1, Math.ceil(n * (plant.sqFt || 0.25)));
+}
+
 function seedToLibId(seed) {
   const n = seed.name.toLowerCase().trim();
   const v = (seed.variety || '').toLowerCase();
@@ -3561,9 +3598,9 @@ function autoPopulateAllBeds() {
     const key = libId + '|' + seed.bed;
     if (seenCapKey.has(key)) return;
     seenCapKey.add(key);
-    const sq = plant.sqFt >= 4 ? Math.ceil(plant.sqFt)
-             : plant.sqFt >= 1 ? Math.max(4, Math.ceil(plant.sqFt * 4)) : 8;
-    tally(seed.bed, esc(`${seed.name}${seed.variety ? ' ('+seed.variety+')' : ''} (packet)`), sq);
+    const sq = seedPacketSquares(seed, plant);
+    const n = seedPacketPlantCount(seed, plant);
+    tally(seed.bed, esc(`${seed.name}${seed.variety ? ' ('+seed.variety+')' : ''} (packet · ${n} seeds)`), sq);
   });
 
   const hasWarning = Object.keys(bedSqNeeded).some(k => {
@@ -3606,8 +3643,18 @@ function autoPopulateAllBeds() {
 
 // Pure compute step: returns { designs, statuses, capacities, reroutedSeeds, conflictWarnings }
 // without touching DOM or saveDB. Use runAutoPopulate() to apply to live UI.
+// Options:
+//   noStarts          — skip Pass 1 (live starts from inventory)
+//   noSeeds           — skip Pass 3 (seed packets from inventory)
+//   noRecommendations — skip Pass 4 (fill empty squares with library suggestions)
+//   threeSistersOn    — bundle corn/bean/squash into a Three Sisters trio
 function computeAutoPopulate(db, opts = {}) {
-  const { noRecommendations = false, threeSistersOn = false } = opts;
+  const {
+    noStarts = false,
+    noSeeds = false,
+    noRecommendations = false,
+    threeSistersOn = false,
+  } = opts;
 
   const designs = {}, statuses = {}, capacities = {};
   db.beds.forEach(b => {
@@ -3668,7 +3715,7 @@ function computeAutoPopulate(db, opts = {}) {
   // Live starts MUST all get placed. If their assigned bed is full, overflow to
   // whatever full-sun bed has the most remaining space.
   // Sort: largest direct-bed allocations first so they get first pick of their bed.
-  const liveStarts = (db.seeds || []).filter(s => s.storage === 'live' && !s.skipYear).sort((a, b) => {
+  const liveStarts = noStarts ? [] : (db.seeds || []).filter(s => s.storage === 'live' && !s.skipYear).sort((a, b) => {
     // Direct-bed before 'any'
     if (a.bed !== 'any' && b.bed === 'any') return -1;
     if (a.bed === 'any' && b.bed !== 'any') return 1;
@@ -3721,7 +3768,7 @@ function computeAutoPopulate(db, opts = {}) {
   // then 'any' seeds can route around the resulting conflicts.
   // Deduplicate by (libId, bed): multiple packets of the same plant in the same
   // bed count as one planting — extra packets mean seed abundance, not extra space.
-  const rawSeedItems = (db.seeds || []).filter(s => s.storage !== 'live' && !s.skipYear)
+  const rawSeedItems = noSeeds ? [] : (db.seeds || []).filter(s => s.storage !== 'live' && !s.skipYear)
     .sort((a, b) => (a.bed !== 'any' ? 0 : 1) - (b.bed !== 'any' ? 0 : 1));
   const seenBedPlant = new Set();
   const seedItems = rawSeedItems.filter(seed => {
@@ -3738,11 +3785,10 @@ function computeAutoPopulate(db, opts = {}) {
     if (!libId) return;
     if (threeSistersOn && threeSistersIds.has(libId)) return;
     const plant = PLANT_IDX[libId]; if (!plant) return;
-    // Allocate a practical patch per seed packet
-    let sqNeeded;
-    if (plant.sqFt >= 4) sqNeeded = Math.ceil(plant.sqFt);
-    else if (plant.sqFt >= 1) sqNeeded = Math.max(4, Math.ceil(plant.sqFt * 4));
-    else sqNeeded = 8;
+    // Allocate squares based on how many seeds the user wants to plant
+    // (seed.plantCount), falling back to a sensible default per plant size.
+    const sqNeeded0 = seedPacketSquares(seed, plant);
+    let sqNeeded = sqNeeded0;
 
     if (seed.bed !== 'any') {
       let leftover = fillInto(seed.bed, libId, sqNeeded);
@@ -3802,8 +3848,7 @@ function computeAutoPopulate(db, opts = {}) {
     seedItems.forEach(seed => {
       const libId = seedToLibId(seed); if (!libId) return;
       const plant = PLANT_IDX[libId]; if (!plant) return;
-      const sq = plant.sqFt >= 4 ? Math.ceil(plant.sqFt) : plant.sqFt >= 1 ? Math.max(4, Math.ceil(plant.sqFt * 4)) : 8;
-      inventorySq[libId] = (inventorySq[libId] || 0) + sq;
+      inventorySq[libId] = (inventorySq[libId] || 0) + seedPacketSquares(seed, plant);
     });
     const allocatedSq = {};
     db.beds.forEach(b => {
@@ -3848,10 +3893,22 @@ function computeAutoPopulate(db, opts = {}) {
 }
 
 // Side-effectful wrapper: runs computeAutoPopulate, applies result to live db,
-// renders, and opens the summary/warning modal.
+// renders, and opens the summary/warning modal. When called from sync mode
+// (noRecommendations=true), the user's UI toggles are ignored — sync always
+// reflects the full inventory.
 function runAutoPopulate(noRecommendations = false) {
   const threeSistersOn = document.getElementById('opt-three-sisters')?.checked;
-  const result = computeAutoPopulate(db, { noRecommendations, threeSistersOn });
+  const opts = { noRecommendations, threeSistersOn };
+  if (!noRecommendations) {
+    // Manual run respects the three include checkboxes.
+    const startsOn = document.getElementById('opt-include-starts')?.checked !== false;
+    const seedsOn = document.getElementById('opt-include-seeds')?.checked !== false;
+    const recsOn = document.getElementById('opt-include-recs')?.checked !== false;
+    opts.noStarts = !startsOn;
+    opts.noSeeds = !seedsOn;
+    opts.noRecommendations = !recsOn;
+  }
+  const result = computeAutoPopulate(db, opts);
   const { designs, statuses, reroutedSeeds, conflictWarnings } = result;
 
   db.bedDesigns = db.bedDesigns || {};
@@ -3926,7 +3983,7 @@ function runAutoPopulate(noRecommendations = false) {
     return `<div style="padding:5px 0;border-top:1px solid var(--rule);"><strong>${b.name}</strong> <span style="opacity:.5;">${b.dims}</span><br><span style="font-size:.75rem;">${parts.join(' · ')}</span></div>`;
   }).join('');
 
-  document.getElementById('suggest-summary-title').textContent = 'Fill Empty Squares — Done';
+  document.getElementById('suggest-summary-title').textContent = 'Auto-suggest — Done';
   document.getElementById('suggest-summary-body').innerHTML = (summaryRows || '<p>No beds updated.</p>') + reroutedHtml + conflictHtml;
   openModal('suggest-summary-modal');
 }
@@ -4500,6 +4557,27 @@ function removeSeedSplit(id){
   const s=(db.seeds||[]).find(s=>s.id===id);if(!s)return;
   delete s.bed2;delete s.qty2;saveDB(db);renderSeeds();syncInventoryToBeds();
 }
+// Update how many seeds to plant from a packet. Pass empty/0 to revert to default.
+function changeSeedPlantCount(id,val){
+  const s=(db.seeds||[]).find(s=>s.id===id);if(!s)return;
+  const n=parseInt(val,10);
+  if(!Number.isFinite(n)||n<=0)delete s.plantCount;
+  else s.plantCount=Math.max(1,Math.min(999,n));
+  s._userModified=true;saveDB(db);renderSeeds();syncInventoryToBeds();
+}
+// Clear the bed assignment for every seed in the inventory.
+function unassignAllSeeds(){
+  const seeds=(db.seeds||[]).filter(s=>!s.skipYear&&s.bed&&s.bed!=='any');
+  if(!seeds.length){showToast({msg:'Nothing to unassign — all seeds are already in "Unassigned".'});return;}
+  if(!confirm(`Unassign all ${seeds.length} seed${seeds.length===1?'':'s'} from their beds?`))return;
+  const prev=seeds.map(s=>({id:s.id,bed:s.bed,bed2:s.bed2,qty2:s.qty2}));
+  seeds.forEach(s=>{s.bed='any';delete s.bed2;delete s.qty2;s._userModified=true;});
+  saveDB(db);renderSeeds();syncInventoryToBeds();
+  showToast({msg:`Unassigned ${seeds.length} seed${seeds.length===1?'':'s'}`,action:()=>{
+    prev.forEach(p=>{const s=(db.seeds||[]).find(x=>x.id===p.id);if(s){s.bed=p.bed;if(p.bed2)s.bed2=p.bed2;if(p.qty2)s.qty2=p.qty2;}});
+    saveDB(db);renderSeeds();syncInventoryToBeds();
+  }});
+}
 function skipSeed(id){const seed=(db.seeds||[]).find(s=>s.id===id);if(!seed)return;seed.skipYear=new Date().getFullYear();seed.nextReminder=calcNextReminder(seed);saveDB(db);renderSeeds();syncInventoryToBeds();}
 function unskipSeed(id){const seed=(db.seeds||[]).find(s=>s.id===id);if(!seed)return;delete seed.skipYear;delete seed.nextReminder;saveDB(db);renderSeeds();syncInventoryToBeds();}
 function renderSeeds(){
@@ -4579,11 +4657,23 @@ function renderSeeds(){
             <button onclick="removeSeedSplit('${escAttr(s.id)}')" style="background:none;border:none;color:var(--muted);font-size:.95rem;cursor:pointer;padding:2px 5px;line-height:1;" title="Remove split">×</button>
           </div>`
         :(s.qty||1)>=2?`<button class="seed-skip-btn" style="margin-top:5px;" onclick="addSeedSplit('${escAttr(s.id)}')">+ Split to second location</button>`:'';
+      // Plant-count input — controls how many seeds Pass 3 plants from this packet.
+      // Default value is derived from plant size (e.g., 4 tomato, 16 lettuce, 64 carrot).
+      const _libIdN = seedToLibId(s);
+      const _plantN = _libIdN ? PLANT_IDX[_libIdN] : null;
+      const _defaultN = defaultSeedPlantCount(_plantN);
+      const _curN = Number.isFinite(s.plantCount)&&s.plantCount>0 ? s.plantCount : _defaultN;
+      const _isDefault = !(Number.isFinite(s.plantCount)&&s.plantCount>0);
+      const plantCountRow = `<div style="display:flex;align-items:center;gap:5px;margin-top:5px;">
+        <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">PLANT</span>
+        <input type="number" min="1" max="999" value="${_curN}" style="width:54px;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;font-size:.78rem;text-align:center;${_isDefault?'color:var(--muted);':''}" onchange="changeSeedPlantCount('${escAttr(s.id)}',this.value)" title="Number of seeds to plant from this packet">
+        <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">SEEDS${_isDefault?` <span style="opacity:.7;">(default)</span>`:''}</span>
+      </div>`;
       const assignHtmlN=`<div style="margin-top:7px;">
         <div style="display:flex;align-items:center;gap:5px;">
           <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">ASSIGN TO</span>
           <select style="font-size:.78rem;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;background:white;" onchange="changeSeedBed('${escAttr(s.id)}',this.value)">${bedOptsN}</select>
-        </div>${splitRow}</div>`;
+        </div>${plantCountRow}${splitRow}</div>`;
       bodyContent=`<div class="seed-meta-row"><span class="storage-badge ${store.cls}">${store.icon} ${store.label}</span>${s.source?`<span class="plant-pill pill-sage">${esc(s.source)}</span>`:''}</div>${s.notes?`<div class="seed-detail">${esc(s.notes)}</div>`:''}${assignHtmlN}<div style="margin-top:8px;"><button class="seed-skip-btn" onclick="skipSeed('${escAttr(s.id)}')">💤 Not this year</button></div>`;
     }
     const bed2tag=s.bed2&&s.bed2!=='any'?`<span class="seed-bed-tag ${(BED_INFO[s.bed2]||{}).cls||''}">${(BED_INFO[s.bed2]||{}).label||s.bed2}</span>`:'';
@@ -7127,6 +7217,7 @@ if (!TEST_MODE) {
   // then signal readiness to parent harness.
   window.GA_TEST = {
     computeAutoPopulate, seedToLibId, fillRecommendedPass, placeThreeSisters,
+    defaultSeedPlantCount, seedPacketPlantCount, seedPacketSquares,
     PLANT_IDX, PLANT_LIB, BED_INFO, FAMILY_MAP,
     defaultDB, defaultBeds, defaultSeeds, defaultPlants,
     esc, escAttr,
