@@ -878,40 +878,72 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       <!-- ── SEASON TAB ── -->
       <div id="track-season">
 
+      <!-- In-page section index -->
+      <div id="track-section-index" style="display:flex;gap:5px;flex-wrap:wrap;margin:8px 0 14px;font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.05em;"></div>
+
       <!-- Germination tracker -->
-      <div class="section-label" style="margin-top:0;">Germination tracker</div>
-      <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:8px;" onclick="openModal('log-sow-modal')">+ Log sow / transplant</button>
-      <div id="germ-list"></div>
+      <div class="track-section" id="sec-germination">
+        <div class="section-label" style="margin-top:0;display:flex;align-items:center;gap:8px;">
+          <span>Germination tracker</span>
+          <span id="sec-germination-count" style="font-weight:400;opacity:.6;font-family:'Crimson Pro',serif;font-size:.85rem;text-transform:none;letter-spacing:0;"></span>
+        </div>
+        <div id="germ-filters" style="display:none;gap:5px;flex-wrap:wrap;margin-bottom:7px;"></div>
+        <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:8px;" onclick="openModal('log-sow-modal')">+ Log sow / transplant</button>
+        <div id="germ-list"></div>
+      </div>
 
       <!-- Hardening off -->
-      <div class="section-label">Hardening off</div>
-      <div style="display:flex;gap:6px;margin-bottom:8px;">
-        <button class="btn-sm" style="flex:1;padding:9px;" onclick="openHardenAllModal()">🌿 Harden all starts</button>
-        <button class="btn-sm" style="flex:1;padding:9px;" onclick="openModal('log-harden-modal')">+ One plant</button>
+      <div class="track-section" id="sec-hardening">
+        <div class="section-label" style="display:flex;align-items:center;gap:8px;">
+          <span>Hardening off</span>
+          <span id="sec-hardening-count" style="font-weight:400;opacity:.6;font-family:'Crimson Pro',serif;font-size:.85rem;text-transform:none;letter-spacing:0;"></span>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <button class="btn-sm" style="flex:1;padding:9px;" onclick="openHardenAllModal()">🌿 Harden all starts</button>
+          <button class="btn-sm" style="flex:1;padding:9px;" onclick="openModal('log-harden-modal')">+ One plant</button>
+        </div>
+        <div id="harden-list"></div>
+        <div id="harden-archive-wrap"></div>
       </div>
-      <div id="harden-list"></div>
-
-      <!-- Harvest log -->
-      <div class="section-label">Harvest log</div>
-      <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:8px;" onclick="openModal('log-harvest-modal')">+ Log harvest</button>
-      <div id="harvest-list"></div>
-
-      <!-- Transplant log -->
-      <div class="section-label">Transplant &amp; sow log</div>
-      <div id="tlog-list"></div>
 
       <!-- Oya refill — shown only in growing season (May–Sep) -->
-      <div id="oya-section">
-        <div class="section-label">Oya pots — refill log</div>
-        <div style="font-size:.8rem;color:var(--muted);margin-bottom:10px;">Tap a pot to log it filled today</div>
+      <div class="track-section" id="oya-section">
+        <div class="section-label" style="display:flex;align-items:center;gap:8px;">
+          <span>Oya pots — refill log</span>
+        </div>
+        <div style="font-size:.8rem;color:var(--muted);margin-bottom:10px;">Tap a pot to log it filled today · long-press to pick a different date</div>
         <div class="oya-grid" id="oya-grid"></div>
       </div>
 
       <!-- Succession sow — shown only in growing season (May–Aug) -->
-      <div id="succ-section">
-        <div class="section-label">Succession sowing</div>
+      <div class="track-section" id="succ-section">
+        <div class="section-label" style="display:flex;align-items:center;gap:8px;">
+          <span>Succession sowing</span>
+        </div>
         <div style="font-size:.8rem;color:var(--muted);margin-bottom:10px;">Crops that need re-sowing every 2–3 weeks</div>
         <div id="succ-list"></div>
+      </div>
+
+      <!-- Harvest log -->
+      <div class="track-section" id="sec-harvest">
+        <div class="section-label" style="display:flex;align-items:center;gap:8px;">
+          <span>Harvest log</span>
+          <span id="sec-harvest-count" style="font-weight:400;opacity:.6;font-family:'Crimson Pro',serif;font-size:.85rem;text-transform:none;letter-spacing:0;"></span>
+          <select id="harvest-year-select" style="margin-left:auto;font-family:'Space Mono',monospace;font-size:9px;border:1px solid var(--rule);border-radius:14px;padding:3px 8px;background:white;cursor:pointer;"></select>
+        </div>
+        <div id="harvest-totals"></div>
+        <button class="btn-sm" style="width:100%;padding:9px;margin-bottom:8px;" onclick="openModal('log-harvest-modal')">+ Log harvest</button>
+        <div id="harvest-list"></div>
+      </div>
+
+      <!-- Transplant log -->
+      <div class="track-section" id="sec-transplant">
+        <div class="section-label" style="display:flex;align-items:center;gap:8px;">
+          <span>Transplant &amp; sow log</span>
+          <span id="sec-transplant-count" style="font-weight:400;opacity:.6;font-family:'Crimson Pro',serif;font-size:.85rem;text-transform:none;letter-spacing:0;"></span>
+        </div>
+        <div id="tlog-filters" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px;"></div>
+        <div id="tlog-list"></div>
       </div>
 
       </div><!-- end #track-season -->
@@ -7186,11 +7218,41 @@ function deleteSowLog(id) {
   showToast({msg:`Removed sow log: ${removed.name||'entry'}`,action:()=>{arr.splice(idx,0,removed);saveDB(db);renderSpring();}});
 }
 
+// Bed color palette shared across Track tab views
+const TRACK_BED_COLORS = {A:'#c0392b',B:'#27ae60',C:'#2980b9',D:'#9b59b6',A1:'#c0392b',B1:'#27ae60',C1:'#2980b9',H:'#8a6010',P:'#5a3e1a',indoor:'#7f8c8d'};
+
 function renderGermination() {
-  const logs = (db.sowLogs||[]).filter(e=>e.status!=='failed'||((Date.now()-new Date(e.statusDate||e.date))/86400000)<7);
+  const allLogs = (db.sowLogs||[]);
+  // Apply user filter (default 'active' = waiting + sprouted, no failed)
+  const baseLogs = allLogs.filter(e=>e.status!=='failed'||((Date.now()-new Date(e.statusDate||e.date))/86400000)<7);
+  let logs = baseLogs;
+  if (_germFilter === 'active') logs = baseLogs.filter(e => e.status === 'waiting');
+  else if (_germFilter === 'sprouted') logs = baseLogs.filter(e => e.status === 'sprouted');
+  else if (_germFilter === 'failed') logs = baseLogs.filter(e => e.status === 'failed');
+  // Update section header count + filter chips
+  const counts = {
+    active: baseLogs.filter(e => e.status === 'waiting').length,
+    sprouted: baseLogs.filter(e => e.status === 'sprouted').length,
+    failed: baseLogs.filter(e => e.status === 'failed').length,
+  };
+  const countEl = document.getElementById('sec-germination-count');
+  if (countEl) countEl.textContent = baseLogs.length ? `${counts.active} active · ${counts.sprouted} sprouted` : '';
+  // Filter chips (only show when there's anything logged)
+  const filtEl = document.getElementById('germ-filters');
+  if (filtEl) {
+    filtEl.style.display = baseLogs.length ? 'flex' : 'none';
+    filtEl.innerHTML = ['active','sprouted','failed','all'].map(k => {
+      const on = _germFilter === k;
+      const label = {active:`Active (${counts.active})`, sprouted:`Sprouted (${counts.sprouted})`, failed:`Failed (${counts.failed})`, all:`All`}[k];
+      return `<button onclick="setGermFilter('${k}')" style="padding:3px 9px;border:1px solid ${on?'var(--moss)':'var(--rule)'};border-radius:12px;background:${on?'#dfead7':'white'};color:${on?'var(--moss)':'var(--muted)'};cursor:pointer;font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.04em;font-weight:${on?700:400};">${label}</button>`;
+    }).join('');
+  }
   const el = document.getElementById('germ-list');
   if (!logs.length) {
-    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🌱</div><div class="empty-text">No sows logged yet.<br>Tap "Log sow / transplant" to start tracking.</div></div>`;
+    const compact = baseLogs.length
+      ? `<div style="font-size:.78rem;color:var(--muted);padding:8px 0;">No ${_germFilter==='active'?'active':_germFilter} logs.</div>`
+      : `<div class="empty-state"><div class="empty-icon">🌱</div><div class="empty-text">No sows logged yet.<br>Tap "Log sow / transplant" to start tracking.</div></div>`;
+    el.innerHTML = compact;
     return;
   }
   const now = Date.now();
@@ -7200,10 +7262,11 @@ function renderGermination() {
     const expectedDay = e.germDays;
     const daysLeft = expectedDay - daysSinceSow;
     const pct = Math.min(100, Math.round(daysSinceSow / expectedDay * 100));
-    const BED_COLORS = {A:'#c0392b',B:'#27ae60',C:'#2980b9',D:'#9b59b6',indoor:'#7f8c8d'};
-    const color = BED_COLORS[e.bed]||'#7f8c8d';
-    const bedLabel = {A:'Bed A',B:'Bed B',C:'Bed C',D:'Bed D',indoor:'Indoors'}[e.bed]||e.bed;
-    const plant = PLANT_LIB.find(p=>p.name.toLowerCase().includes(e.name.toLowerCase()));
+    const color = TRACK_BED_COLORS[e.bed]||'#7f8c8d';
+    const bedLabel = (BED_INFO[e.bed]?.label) || ({indoor:'Indoors'}[e.bed]) || e.bed;
+    // Use seedToLibId for a reliable lookup instead of partial-match
+    const libId = seedToLibId({name: e.name, variety: ''});
+    const plant = libId ? PLANT_IDX[libId] : null;
     const emoji = plant?.emoji || '🌱';
 
     let statusCls, statusText, detail, showActions = false;
@@ -7334,15 +7397,48 @@ function advanceAllHarden() {
 }
 
 function renderHardening() {
-  const logs = (db.hardenLogs||[]).filter(e=>!e.done||((Date.now()-new Date(e.startDate))/86400000)<14);
+  const all = (db.hardenLogs||[]);
+  const today = new Date().toISOString().slice(0,10);
+  const todayMs = Date.now();
+  const ARCHIVE_DAYS = 14;
+  const active = all.filter(e => !e.done);
+  // Use lastAdvancedDate when available (closer to 'completion date'), else startDate
+  const recentDone = all.filter(e => e.done && ((todayMs - new Date(e.lastAdvancedDate || e.startDate)) / 86400000) < ARCHIVE_DAYS);
+  const olderDone = all.filter(e => e.done && ((todayMs - new Date(e.lastAdvancedDate || e.startDate)) / 86400000) >= ARCHIVE_DAYS);
+  const logs = [...active, ...recentDone];
+
+  // Section header count
+  const countEl = document.getElementById('sec-hardening-count');
+  if (countEl) countEl.textContent = active.length ? `${active.length} active` : (all.length ? 'none active' : '');
+
+  // Archive footer (older done entries)
+  const archWrap = document.getElementById('harden-archive-wrap');
+  if (archWrap) {
+    if (olderDone.length) {
+      const archList = _hardenArchiveOpen ? olderDone.map(e => `<div style="padding:6px 10px;font-size:.8rem;color:var(--muted);border-top:1px solid var(--rule);display:flex;justify-content:space-between;align-items:center;">
+        <span>✓ ${esc(e.name)} <span style="opacity:.7;">— hardened ${esc(e.lastAdvancedDate || e.startDate)}</span></span>
+        <button onclick="deleteHarden('${escAttr(e.id)}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.85rem;">✕</button>
+      </div>`).join('') : '';
+      archWrap.innerHTML = `<div style="margin-top:10px;background:var(--surface);border:1px solid var(--rule);border-radius:6px;overflow:hidden;">
+        <button onclick="toggleHardenArchive()" style="width:100%;padding:8px 12px;background:none;border:none;cursor:pointer;text-align:left;font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.05em;color:var(--muted);display:flex;justify-content:space-between;align-items:center;">
+          <span>↩ ARCHIVE — ${olderDone.length} HARDENED ${ARCHIVE_DAYS}+ DAYS AGO</span><span>${_hardenArchiveOpen?'▴':'▾'}</span>
+        </button>
+        ${archList}
+      </div>`;
+    } else {
+      archWrap.innerHTML = '';
+    }
+  }
+
   const el = document.getElementById('harden-list');
   if (!logs.length) {
-    el.innerHTML=`<div class="empty-state"><div class="empty-icon">🌿</div><div class="empty-text">No hardening schedules active.<br>Tap "+ Start hardening schedule" when starts are ready to go outside.</div></div>`;
+    el.innerHTML = all.length
+      ? `<div style="font-size:.78rem;color:var(--muted);padding:8px 0;">No active hardening schedules.</div>`
+      : `<div class="empty-state"><div class="empty-icon">🌿</div><div class="empty-text">No hardening schedules active.<br>Tap "+ One plant" or "Harden all starts" when seedlings are ready to go outside.</div></div>`;
     return;
   }
-  const today = new Date().toISOString().slice(0,10);
-  const activeCount = logs.filter(e=>!e.done).length;
-  const pendingCount = logs.filter(e=>!e.done && e.lastAdvancedDate !== today).length;
+  const activeCount = active.length;
+  const pendingCount = active.filter(e => e.lastAdvancedDate !== today).length;
   const allDoneBtn = activeCount > 1
     ? pendingCount > 0
       ? `<button class="btn-sm" style="width:100%;padding:9px;margin-bottom:8px;color:var(--moss);border-color:var(--moss);" onclick="advanceAllHarden()">✓ All done today's step (${pendingCount})</button>`
@@ -7354,7 +7450,8 @@ function renderHardening() {
   el.innerHTML = allDoneBtn + resetBtn + logs.map(e => {
     const completed = e.completedDays.length;
     const currentStep = HARDEN_STEPS[completed] || HARDEN_STEPS[HARDEN_STEPS.length-1];
-    const plant = PLANT_LIB.find(p=>p.name.toLowerCase().includes(e.name.toLowerCase()));
+    const hLibId = seedToLibId({name: e.name, variety: ''});
+    const plant = hLibId ? PLANT_IDX[hLibId] : null;
     const emoji = plant?.emoji || '🌿';
     const doneToday = !e.done && e.lastAdvancedDate === today;
     let stageCls, stageText;
@@ -7392,10 +7489,30 @@ function renderHardening() {
 }
 
 // ── OYA REFILL LOG ──
-function logOya(potId) {
+function logOya(potId, dateStr) {
   db.oyaLogs = db.oyaLogs || {};
-  db.oyaLogs[potId] = new Date().toISOString().slice(0,10);
-  saveDB(db); renderOya();
+  const prev = db.oyaLogs[potId] || null;
+  const newDate = dateStr || new Date().toISOString().slice(0,10);
+  db.oyaLogs[potId] = newDate;
+  saveDB(db); renderOya(); renderSectionIndex();
+  const pot = OYA_POTS.find(p => p.id === potId);
+  showToast({
+    msg: `${pot?.label || 'Oya pot'} → filled ${newDate}`,
+    action: () => {
+      if (prev) db.oyaLogs[potId] = prev;
+      else delete db.oyaLogs[potId];
+      saveDB(db); renderOya(); renderSectionIndex();
+    },
+    duration: 8000,
+  });
+}
+// Long-press a pot → open a date picker so the user can record yesterday's fill
+function oyaPickDate(potId) {
+  const cur = (db.oyaLogs && db.oyaLogs[potId]) || new Date().toISOString().slice(0,10);
+  const next = prompt(`Set fill date for ${OYA_POTS.find(p=>p.id===potId)?.label || potId}\n(YYYY-MM-DD)`, cur);
+  if (!next) return;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(next)) { alert('Use YYYY-MM-DD'); return; }
+  logOya(potId, next);
 }
 
 function renderOya() {
@@ -7414,7 +7531,7 @@ function renderOya() {
     const cls = !lastFilled ? 'urgent' : isUrgent ? 'urgent' : isWarn ? 'warn' : 'filled';
     const daysText = !lastFilled ? 'never' : daysSince === 0 ? 'today' : `${daysSince}d ago`;
     const daysCls = !lastFilled || isUrgent ? 'urgent' : isWarn ? 'warn' : 'ok';
-    return `<div class="oya-pot ${cls}" onclick="logOya('${pot.id}')">
+    return `<div class="oya-pot ${cls}" onclick="logOya('${pot.id}')" oncontextmenu="event.preventDefault();oyaPickDate('${pot.id}')" title="Tap to fill now · right-click / long-press to pick a date">
       <div class="oya-icon">🏺</div>
       <div class="oya-label">${pot.label}</div>
       <div class="oya-days ${daysCls}">${daysText}</div>
@@ -7467,16 +7584,39 @@ function renderSuccession() {
 
 // ── TRANSPLANT LOG ──
 function renderTransplantLog() {
-  const logs = db.sowLogs || [];
+  const all = db.sowLogs || [];
+  const yrNow = new Date().getFullYear();
+  const ms30 = 30 * 86400000;
+  let logs = all;
+  if (_tlogFilter === 'recent') logs = all.filter(e => Date.now() - new Date(e.date) < ms30);
+  else if (_tlogFilter === 'year') logs = all.filter(e => new Date(e.date).getFullYear() === yrNow);
+  // Update header count + filter chips
+  const countEl = document.getElementById('sec-transplant-count');
+  if (countEl) countEl.textContent = all.length ? `${all.length} total` : '';
+  const filtEl = document.getElementById('tlog-filters');
+  if (filtEl) {
+    filtEl.style.display = all.length ? 'flex' : 'none';
+    const counts = {
+      recent: all.filter(e => Date.now() - new Date(e.date) < ms30).length,
+      year: all.filter(e => new Date(e.date).getFullYear() === yrNow).length,
+      all: all.length,
+    };
+    filtEl.innerHTML = ['recent','year','all'].map(k => {
+      const on = _tlogFilter === k;
+      const label = {recent:`Last 30d (${counts.recent})`, year:`${yrNow} (${counts.year})`, all:`All (${counts.all})`}[k];
+      return `<button onclick="setTlogFilter('${k}')" style="padding:3px 9px;border:1px solid ${on?'var(--moss)':'var(--rule)'};border-radius:12px;background:${on?'#dfead7':'white'};color:${on?'var(--moss)':'var(--muted)'};cursor:pointer;font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.04em;font-weight:${on?700:400};">${label}</button>`;
+    }).join('');
+  }
   const el = document.getElementById('tlog-list');
   if (!logs.length) {
-    el.innerHTML=`<div style="color:var(--muted);font-size:.83rem;padding:8px 0;">No sows or transplants logged yet.</div>`;
+    el.innerHTML = all.length
+      ? `<div style="color:var(--muted);font-size:.78rem;padding:8px 0;">No logs in this range.</div>`
+      : `<div style="color:var(--muted);font-size:.83rem;padding:8px 0;">No sows or transplants logged yet.</div>`;
     return;
   }
-  const BED_COLORS={A:'#c0392b',B:'#27ae60',C:'#2980b9',D:'#9b59b6',indoor:'#7f8c8d'};
   el.innerHTML = logs.map(e => {
-    const color = BED_COLORS[e.bed]||'#7f8c8d';
-    const bedLabel={A:'Bed A',B:'Bed B',C:'Bed C',D:'Bed D',indoor:'Indoors'}[e.bed]||e.bed;
+    const color = TRACK_BED_COLORS[e.bed]||'#7f8c8d';
+    const bedLabel = (BED_INFO[e.bed]?.label) || ({indoor:'Indoors'}[e.bed]) || e.bed;
     const methodLabel={direct:'Direct sow',transplant:'Transplant',indoor:'Started indoors'}[e.method]||e.method;
     const statusLabel={waiting:'⏳ Waiting',sprouted:'✓ Sprouted',failed:'✗ Failed'}[e.status]||'';
     return `<div class="tlog-card">
@@ -7563,8 +7703,57 @@ function switchViewByName(name){
   if(btn){switchView(name,btn);}
 }
 
+// Track Season filter / view state
+let _germFilter = 'active';   // 'active' (waiting+sprouted) | 'all' | 'failed'
+let _tlogFilter = 'recent';   // 'recent' (30d) | 'year' | 'all'
+let _harvestYear = null;      // null = current year
+let _hardenArchiveOpen = false;
+function setGermFilter(k) { _germFilter = k; renderGermination(); renderSectionIndex(); }
+function setTlogFilter(k) { _tlogFilter = k; renderTransplantLog(); }
+function setHarvestYear(y) { _harvestYear = parseInt(y, 10) || null; renderHarvestLog(); }
+function toggleHardenArchive() { _hardenArchiveOpen = !_hardenArchiveOpen; renderHardening(); }
+
+// Render the in-page section index for the Season tab. Tap a chip → scroll
+// to that section. Sections that are seasonal (oya/succession) are hidden
+// outside their months; empty sections render a compact "0 active" chip.
+function renderSectionIndex() {
+  const el = document.getElementById('track-section-index');
+  if (!el) return;
+  const mo = new Date().getMonth() + 1;
+  const oyaUrgent = OYA_POTS.filter(pot => {
+    const last = db.oyaLogs?.[pot.id];
+    if (!last) return true;
+    const hi = wxData ? Math.round(wxData.daily.temperature_2m_max[0]) : 70;
+    const maxDays = hi >= 85 ? 2 : hi >= 75 ? 3 : 4;
+    return Math.round((Date.now() - new Date(last)) / 86400000) >= maxDays;
+  }).length;
+  const succDue = SUCCESSION_CROPS.filter(crop => {
+    const key = 'succ_' + crop.name.toLowerCase().replace(/\s+/g,'_');
+    const last = db.oyaLogs?.[key];
+    if (!last) return false;
+    return Math.round((Date.now() - new Date(last)) / 86400000) >= crop.intervalDays;
+  }).length;
+  const sections = [
+    {id:'sec-germination', label:'🌱 Germ',     count:(db.sowLogs||[]).filter(e=>e.status==='waiting').length, show:true},
+    {id:'sec-hardening',   label:'🌿 Hardening',count:(db.hardenLogs||[]).filter(e=>!e.done).length, show:true},
+    {id:'oya-section',     label:'🏺 Oya',      count:oyaUrgent, show: mo >= 5 && mo <= 9},
+    {id:'succ-section',    label:'🔄 Succession',count:succDue, show: mo >= 5 && mo <= 8},
+    {id:'sec-harvest',     label:'🧺 Harvest',  count:(db.harvestLog||[]).filter(h=>new Date(h.date).getFullYear()===(new Date().getFullYear())).length, show:true},
+    {id:'sec-transplant',  label:'📋 Log',      count:(db.sowLogs||[]).length, show:true},
+  ];
+  el.innerHTML = sections.filter(s => s.show).map(s =>
+    `<button onclick="scrollToTrackSection('${s.id}')" style="padding:5px 9px;border:1px solid var(--rule);border-radius:14px;background:white;color:var(--muted);cursor:pointer;font-family:inherit;font-size:8px;letter-spacing:.05em;${s.count?'border-color:var(--moss);color:var(--moss);font-weight:700;':''}">${s.label}${s.count?` <span style="opacity:.7;">${s.count}</span>`:''}</button>`
+  ).join('');
+}
+function scrollToTrackSection(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
 // Master spring render
 function renderSpring(){
+  renderSectionIndex();
   renderGermination();
   renderHardening();
   renderOya();
@@ -7965,8 +8154,63 @@ function deleteHarvest(id){
 }
 function renderHarvestLog(){
   const el=document.getElementById('harvest-list');if(!el)return;
-  const logs=db.harvestLog||[];
-  if(!logs.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🧺</div><div class="empty-text">No harvests logged yet.</div></div>`;return;}
+  const allLogs=db.harvestLog||[];
+  const yrNow=new Date().getFullYear();
+  const targetYear = _harvestYear == null ? yrNow : _harvestYear;
+  // Year dropdown — pull every year we have harvests in plus current
+  const yearsWithData = [...new Set(allLogs.map(h => new Date(h.date).getFullYear()))].sort((a,b)=>b-a);
+  if (!yearsWithData.includes(yrNow)) yearsWithData.unshift(yrNow);
+  const yearSelect = document.getElementById('harvest-year-select');
+  if (yearSelect) {
+    yearSelect.innerHTML = yearsWithData.map(y => `<option value="${y}"${y===targetYear?' selected':''}>${y}</option>`).join('');
+    yearSelect.onchange = (e) => setHarvestYear(e.target.value);
+  }
+  const logs = allLogs.filter(h => new Date(h.date).getFullYear() === targetYear);
+  // Section count
+  const countEl = document.getElementById('sec-harvest-count');
+  if (countEl) countEl.textContent = logs.length ? `${logs.length} entries` : '';
+  // Totals — by crop, by unit (unit-aware: lb summed, ea summed separately, unitless as 'entries')
+  const totalsEl = document.getElementById('harvest-totals');
+  if (totalsEl) {
+    if (!logs.length) {
+      totalsEl.innerHTML = '';
+    } else {
+      const byCrop = {}; // crop → {entries: n, byUnit: {unit: total}}
+      logs.forEach(h => {
+        const crop = (h.crop || 'Unknown').trim();
+        const entry = byCrop[crop] = byCrop[crop] || { entries: 0, byUnit: {} };
+        entry.entries++;
+        const q = parseFloat(h.qty);
+        if (Number.isFinite(q) && q > 0) {
+          const u = (h.unit || '').trim() || '—';
+          entry.byUnit[u] = (entry.byUnit[u] || 0) + q;
+        }
+      });
+      const cropCount = Object.keys(byCrop).length;
+      const totalEntries = logs.length;
+      // Sort crops by total entries
+      const cropRows = Object.entries(byCrop)
+        .sort((a, b) => b[1].entries - a[1].entries)
+        .map(([crop, info]) => {
+          const unitStr = Object.entries(info.byUnit).map(([u, v]) =>
+            `${(+v.toFixed(2))} ${esc(u)}`).join(' + ');
+          return `<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:.78rem;border-top:1px solid var(--rule);">
+            <span>${esc(crop)} <span style="color:var(--muted);">×${info.entries}</span></span>
+            <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--moss);">${unitStr || '—'}</span>
+          </div>`;
+        }).join('');
+      totalsEl.innerHTML = `<div style="background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:9px 12px;margin-bottom:10px;">
+        <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.05em;color:var(--muted);margin-bottom:4px;">${targetYear} TOTAL — ${totalEntries} harvest${totalEntries===1?'':'s'} across ${cropCount} crop${cropCount===1?'':'s'}</div>
+        ${cropRows}
+      </div>`;
+    }
+  }
+  if(!logs.length){
+    el.innerHTML = allLogs.length
+      ? `<div style="color:var(--muted);font-size:.83rem;padding:8px 0;">No harvests in ${targetYear}.</div>`
+      : `<div class="empty-state"><div class="empty-icon">🧺</div><div class="empty-text">No harvests logged yet.</div></div>`;
+    return;
+  }
   el.innerHTML=logs.slice(0,50).map(h=>{
     const d=new Date(h.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
     const qty=h.qty?` · ${esc(h.qty)} ${esc(h.unit||'')}`:'';
@@ -8902,6 +9146,24 @@ function renderTumblerStatus(){
     const label=daysLeft===0?'Ready to harvest!':daysLeft<14?`~${daysLeft} days to ready`:`~${daysLeft} days to ready`;
     readyHtml=`<div class="tumbler-ready ${cls}">${label}</div>`;
   }
+  // Next-turn-due: active batches (additions since last harvest) want a turn
+  // every 3 days. Show overdue counter when it's been longer.
+  let turnHtml = '';
+  if (lastAdd) {
+    const TURN_INTERVAL_DAYS = 3;
+    const lastHarvestDate = lastHarvest ? new Date(lastHarvest.date) : new Date(0);
+    const refDate = lastTurn && new Date(lastTurn.date) > lastHarvestDate
+      ? new Date(lastTurn.date)
+      : new Date(lastAdd.date);
+    const daysSinceTurn = Math.floor((Date.now() - refDate) / (1000 * 60 * 60 * 24));
+    const turnDue = daysSinceTurn - TURN_INTERVAL_DAYS;
+    const turnCls = turnDue > 0 ? 'tr-yellow' : 'tr-gray';
+    const turnLabel = turnDue > 0
+      ? `↺ Turn overdue — ${turnDue}d past`
+      : turnDue === 0 ? '↺ Turn due today'
+      : `↺ Next turn in ${-turnDue}d`;
+    turnHtml = `<div class="tumbler-ready ${turnCls}" style="margin-top:6px;">${turnLabel}</div>`;
+  }
   // Estimate C:N from recent additions (since last harvest)
   const lastHarvestDate=lastHarvest?new Date(lastHarvest.date):new Date(0);
   const additions=log.filter(e=>e.type==='add'&&new Date(e.date)>lastHarvestDate&&e.material);
@@ -8922,7 +9184,7 @@ function renderTumblerStatus(){
       <div class="tumbler-stat"><div style="font-size:.7rem;opacity:.6;">Last addition</div><strong>${fmt(lastAdd?.date)}</strong></div>
       <div class="tumbler-stat"><div style="font-size:.7rem;opacity:.6;">Last harvest</div><strong>${fmt(lastHarvest?.date)}</strong></div>
     </div>
-    ${readyHtml}${cnHtml}
+    ${readyHtml}${turnHtml}${cnHtml}
   </div>`;
 }
 function renderTumblerLog(){
