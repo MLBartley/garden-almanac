@@ -462,6 +462,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 .sq.drop-target{outline:2px dashed var(--moss);outline-offset:-2px;background:#e2f5e4!important;}
 .sq.drop-invalid{outline:2px dashed #c47a7a;outline-offset:-2px;background:#fde8e8!important;}
 .sq-drag-ghost{position:fixed;pointer-events:none;z-index:500;opacity:.85;box-shadow:0 6px 18px rgba(0,0,0,.25);border-radius:6px;background:white;border:2px solid var(--moss);display:flex;align-items:center;justify-content:center;font-size:1.5rem;transition:none;}
+#bed-drag-remove-zone.hover{background:#fde8e8;border-color:#7a1a1a;color:#5a0e0e;}
 .bed-grid{touch-action:none;} /* prevent scroll-on-drag while inside the grid */
 /* Hover tooltip for bed squares (desktop only; mobile uses tap → modal). */
 #sq-tooltip{position:fixed;z-index:300;background:var(--ink);color:var(--paper);padding:9px 12px;border-radius:6px;font-size:.78rem;line-height:1.5;max-width:260px;box-shadow:0 6px 18px rgba(0,0,0,.28);pointer-events:none;opacity:0;transition:opacity .15s;display:none;}
@@ -751,6 +752,10 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
             <span style="display:flex;align-items:center;gap:3px;"><span style="border:2px solid #2a6a2a;background:#e2f0e2;border-radius:3px;padding:1px 6px;">✓</span> Planted</span>
           </div>
           <div class="grid-wrap"><div class="bed-grid" id="bed-grid"></div></div>
+          <!-- Drop-zone for dragging plants back to inventory (only visible during a drag) -->
+          <div id="bed-drag-remove-zone" style="display:none;margin-top:8px;padding:14px;border:2px dashed #c47a7a;border-radius:8px;background:#fff8f8;text-align:center;color:#7a1a1a;font-size:.85rem;font-weight:600;">
+            ↩ Drop here to remove from bed (returns to "Unassigned" in seed inventory)
+          </div>
           <!-- Inventory summary (all beds) -->
           <div id="design-inventory-summary"></div>
           <!-- Auto-suggest controls grouped below grid -->
@@ -1304,7 +1309,16 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <div class="form-field"><div class="form-label">Prune month</div><select class="form-select" id="ap-prune-month"><option value="">— none —</option><option value="1">January</option><option value="2">February</option><option value="3">March</option><option value="4">April</option><option value="5">May</option><option value="6">June</option><option value="7">July</option><option value="8">August</option><option value="9">September</option><option value="10">October</option><option value="11">November</option><option value="12">December</option></select></div>
         <div class="form-field"><div class="form-label">Divide every (years)</div><input class="form-input" id="ap-divide-yrs" placeholder="e.g. 3 (leave blank if not needed)" type="number" min="1" max="20"></div>
         <div class="form-field"><div class="form-label">Notes</div><input class="form-input" id="ap-notes" placeholder="optional" type="text"></div>
-        <div class="form-field" style="border-bottom:none;"><div class="form-label">Emoji</div><input class="form-input" id="ap-emoji" placeholder="🌸" maxlength="4" style="font-size:1.4rem;width:50px;"></div>
+        <div class="form-field"><div class="form-label">Photo (optional)</div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <input type="file" id="ap-photo-input" accept="image/*" style="font-size:.78rem;flex:1;min-width:0;" onchange="onPlantPhotoSelected(this)">
+            <span id="ap-photo-preview" style="display:none;align-items:center;gap:6px;">
+              <img id="ap-photo-img" style="width:42px;height:42px;border-radius:50%;object-fit:cover;border:2px solid var(--rule);">
+              <button class="btn-sm" style="font-size:.7rem;padding:3px 8px;" onclick="clearPlantPhoto()">✕</button>
+            </span>
+          </div>
+        </div>
+        <div class="form-field" style="border-bottom:none;"><div class="form-label">Emoji (used when no photo)</div><input class="form-input" id="ap-emoji" placeholder="🌸" maxlength="4" style="font-size:1.4rem;width:50px;"></div>
       </div>
       <div style="display:flex;gap:8px;">
         <button class="btn-sm" style="flex:1;padding:11px;" onclick="closeModal('add-plant-modal')">Cancel</button>
@@ -2980,7 +2994,7 @@ function renderDesign() {
         sq.addEventListener('blur', hideSqTooltip);
         // Drag handle (skip recommended cells — they're transient suggestions)
         if (status !== 'recommended') {
-          sq.addEventListener('pointerdown', e => startBedDrag(e, sq, plantId, i, w, h));
+          sq.addEventListener('pointerdown', e => startBedDrag(e, sq, plantId, i, r, c, w, h));
         }
       } else {
         sq.innerHTML = `<span style="color:#ccc;font-size:.9rem">+</span>`;
@@ -5038,11 +5052,37 @@ function hideSqTooltip() {
 let _bedDrag = null;
 let _recentDrag = 0;   // timestamp; click handlers suppress when within 250ms
 
-function startBedDrag(e, sourceEl, plantId, sourceIdx, w, h) {
+// Belt-and-suspenders cleanup: pointerup can be lost if the user navigates
+// away mid-drag (tab switch, view change, OS-level interruption). Clean up
+// any orphaned ghost / drop-target highlights on any of these signals.
+function _abortBedDrag() {
+  if (_bedDrag && _bedDrag.ghost) _bedDrag.ghost.remove();
+  document.querySelectorAll('.sq.dragging').forEach(el => el.classList.remove('dragging'));
+  document.querySelectorAll('.sq.drop-target, .sq.drop-invalid').forEach(el => {
+    el.classList.remove('drop-target'); el.classList.remove('drop-invalid');
+  });
+  const remove = document.getElementById('bed-drag-remove-zone');
+  if (remove) remove.style.display = 'none';
+  _bedDrag = null;
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) _abortBedDrag(); });
+window.addEventListener('blur', _abortBedDrag);
+window.addEventListener('pagehide', _abortBedDrag);
+
+function startBedDrag(e, sourceEl, plantId, sourceIdx, blockR, blockC, w, h) {
   if (e.button !== undefined && e.button !== 0) return; // primary only
   const bed = db.beds.find(b => b.key === activeBedKey);
   if (!bed) return;
-  const cells = getConnectedBlockCells(sourceIdx);
+  // Use the exact rendered block's cells (NOT flood-fill). Each rendered
+  // block is its own draggable unit, even if neighboring blocks of the same
+  // plant happen to touch — so a 2×2 tomatillo doesn't drag away every
+  // other tomatillo cell it's connected to.
+  const cells = [];
+  for (let dr = 0; dr < h; dr++) {
+    for (let dc = 0; dc < w; dc++) {
+      cells.push((blockR + dr) * bed.cols + (blockC + dc));
+    }
+  }
   _bedDrag = {
     startX: e.clientX, startY: e.clientY,
     plantId,
@@ -5081,6 +5121,9 @@ function _onBedDragMove(e) {
     ghost.textContent = plant?.emoji || '🌱';
     document.body.appendChild(ghost);
     _bedDrag.ghost = ghost;
+    // Reveal the drag-to-remove zone now that an active drag is in progress
+    const remove = document.getElementById('bed-drag-remove-zone');
+    if (remove) remove.style.display = 'block';
   }
   if (_bedDrag.ghost) {
     _bedDrag.ghost.style.left = (e.clientX - 22 * _bedDrag.w) + 'px';
@@ -5090,10 +5133,24 @@ function _onBedDragMove(e) {
   document.querySelectorAll('.sq.drop-target, .sq.drop-invalid').forEach(el => {
     el.classList.remove('drop-target'); el.classList.remove('drop-invalid');
   });
+  const remove = document.getElementById('bed-drag-remove-zone');
+  if (remove) remove.classList.remove('hover');
+  // First check the remove zone — if the pointer is over it, prioritize that
+  if (_pointerOverRemoveZone(e.clientX, e.clientY)) {
+    if (remove) remove.classList.add('hover');
+    return;
+  }
   const target = _targetCellAt(e.clientX, e.clientY);
   if (!target) return;
   const valid = _isValidDrop(target);
   target.classList.add(valid ? 'drop-target' : 'drop-invalid');
+}
+
+function _pointerOverRemoveZone(x, y) {
+  const z = document.getElementById('bed-drag-remove-zone');
+  if (!z || z.style.display === 'none') return false;
+  const r = z.getBoundingClientRect();
+  return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
 }
 
 function _targetCellAt(x, y) {
@@ -5134,23 +5191,69 @@ function _onBedDragEnd(e) {
     el.classList.remove('drop-target'); el.classList.remove('drop-invalid');
   });
   if (dragInfo.ghost) dragInfo.ghost.remove();
+  const removeZone = document.getElementById('bed-drag-remove-zone');
+  if (removeZone) { removeZone.style.display = 'none'; removeZone.classList.remove('hover'); }
   _bedDrag = null;
   if (wasDragging) {
-    const target = _targetCellAt(e.clientX, e.clientY);
-    if (target && target.dataset.r !== undefined) {
-      // Restore _bedDrag temporarily for isValidDrop check (uses it for state)
-      _bedDrag = dragInfo;
-      if (_isValidDrop(target)) {
-        const r = +target.dataset.r, c = +target.dataset.c;
-        _bedDrag = null;
-        moveBlockTo(dragInfo.cells, dragInfo.plantId, dragInfo.w, dragInfo.h, r, c);
-      } else {
-        _bedDrag = null;
+    // First: did the user drop on the remove zone?
+    if (_pointerOverRemoveZone(e.clientX, e.clientY)) {
+      removeBlockFromBed(dragInfo.cells, dragInfo.plantId);
+    } else {
+      const target = _targetCellAt(e.clientX, e.clientY);
+      if (target && target.dataset.r !== undefined) {
+        // Restore _bedDrag temporarily for isValidDrop check (uses it for state)
+        _bedDrag = dragInfo;
+        if (_isValidDrop(target)) {
+          const r = +target.dataset.r, c = +target.dataset.c;
+          _bedDrag = null;
+          moveBlockTo(dragInfo.cells, dragInfo.plantId, dragInfo.w, dragInfo.h, r, c);
+        } else {
+          _bedDrag = null;
+        }
       }
     }
     _recentDrag = Date.now();
     e.preventDefault?.();
   }
+}
+
+// Drag-to-remove: clear the block's cells in the current bed and, if the
+// plant has matching seeds assigned here, set them back to 'any' so the
+// inventory reflects the change. Toast offers Undo.
+function removeBlockFromBed(sourceCells, plantId) {
+  const plant = PLANT_IDX[plantId];
+  const prevStatuses = {};
+  sourceCells.forEach(idx => {
+    prevStatuses[idx] = activeBedStatuses[idx];
+    delete activeBedDesign[idx];
+    delete activeBedStatuses[idx];
+  });
+  // If a seed in inventory was assigned to this bed for this plant, move it to 'any'.
+  const seedsToUnassign = (db.seeds || []).filter(s =>
+    !s.skipYear && s.bed === activeBedKey && seedToLibId(s) === plantId);
+  const prevAssignments = seedsToUnassign.map(s => ({id:s.id, bed:s.bed, bed2:s.bed2, qty2:s.qty2}));
+  seedsToUnassign.forEach(s => { s.bed = 'any'; delete s.bed2; delete s.qty2; s._userModified = true; });
+  db.bedDesigns = db.bedDesigns || {};
+  db.bedDesigns[activeBedKey] = {...activeBedDesign};
+  db.bedStatuses = db.bedStatuses || {};
+  db.bedStatuses[activeBedKey] = {...activeBedStatuses};
+  saveDB(db);
+  renderDesign();
+  if ((db.seeds||[]).some(s => s.bed === 'any')) renderSeeds();
+  showToast({
+    msg: `Removed ${plant?.name || 'plant'} from bed${seedsToUnassign.length ? ' (returned to Unassigned)' : ''}`,
+    action: () => {
+      sourceCells.forEach(idx => { activeBedDesign[idx] = plantId; activeBedStatuses[idx] = prevStatuses[idx] || 'planned'; });
+      prevAssignments.forEach(p => {
+        const s = (db.seeds||[]).find(x => x.id === p.id);
+        if (s) { s.bed = p.bed; if (p.bed2) s.bed2 = p.bed2; if (p.qty2) s.qty2 = p.qty2; }
+      });
+      db.bedDesigns[activeBedKey] = {...activeBedDesign};
+      db.bedStatuses[activeBedKey] = {...activeBedStatuses};
+      saveDB(db); renderDesign(); renderSeeds();
+    },
+    duration: 12000,
+  });
 }
 
 function moveBlockTo(sourceCells, plantId, w, h, r, c) {
@@ -5998,6 +6101,31 @@ function deleteSeed(id){
 //  PLANTS
 // ════════════════════════════════════════
 const BLOOM_C={March:'#e0d4f0',April:'#f9a8d4',May:'#86efac',June:'#60a5fa',July:'#a78bfa',August:'#fb923c',September:'#fbbf24',October:'#d97706'};
+// Plant-photo workspace state for the add/edit modal
+let _plantPhotoStaged = null; // {thumb, thumbType} OR null
+
+function onPlantPhotoSelected(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  compressImage(file, 480).then(dataUrl => {
+    _plantPhotoStaged = {
+      thumb: dataUrl.replace(/^data:image\/\w+;base64,/, '').slice(0, 16000),
+      thumbType: 'image/jpeg',
+    };
+    const img = document.getElementById('ap-photo-img');
+    if (img) img.src = dataUrl;
+    const wrap = document.getElementById('ap-photo-preview');
+    if (wrap) wrap.style.display = 'inline-flex';
+  }).catch(() => alert('Could not read that image.'));
+}
+function clearPlantPhoto() {
+  _plantPhotoStaged = { thumb: '', thumbType: '' }; // explicit clear, persists on save
+  const wrap = document.getElementById('ap-photo-preview');
+  if (wrap) wrap.style.display = 'none';
+  const input = document.getElementById('ap-photo-input');
+  if (input) input.value = '';
+}
+
 function savePlant(){
   const common=document.getElementById('ap-common').value.trim();if(!common){alert('Enter a name.');return;}
   const editId=document.getElementById('ap-edit-id').value;
@@ -6019,6 +6147,11 @@ function savePlant(){
     pruneMonth:parseInt(document.getElementById('ap-prune-month').value,10)||null,
     divideYears:Number.isFinite(divideYrs)&&divideYrs>0?divideYrs:null,
   };
+  // Photo: only overwrite if the user touched the input this session
+  if (_plantPhotoStaged) {
+    data.thumb = _plantPhotoStaged.thumb;
+    data.thumbType = _plantPhotoStaged.thumbType;
+  }
   if(editId){
     const idx=db.plants.findIndex(p=>p.id===editId);
     if(idx>=0)Object.assign(db.plants[idx],data);
@@ -7456,6 +7589,9 @@ function checkSyncStatus(){
 //  UI HELPERS
 // ════════════════════════════════════════
 function switchView(id,btn){
+  // Cancel any orphaned bed-design drag before switching screens — ghosts
+  // left behind by a mid-drag navigation would otherwise persist.
+  if (typeof _abortBedDrag === 'function') _abortBedDrag();
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('view-'+id).classList.add('active');
