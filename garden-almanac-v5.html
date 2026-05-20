@@ -5148,6 +5148,17 @@ function removeSeedSplit(id){
   const s=(db.seeds||[]).find(s=>s.id===id);if(!s)return;
   delete s.bed2;delete s.qty2;saveDB(db);renderSeeds();syncInventoryToBeds();
 }
+// Update the number of individual plants for a live start (count of starts).
+// Clamps to 1..999 and re-syncs so the bed design reflects the new total.
+function changeSeedQty(id,val){
+  const s=(db.seeds||[]).find(s=>s.id===id);if(!s)return;
+  const n=parseInt(val,10);
+  if(!Number.isFinite(n)||n<=0){renderSeeds();return;}
+  s.qty=Math.max(1,Math.min(999,n));
+  // Keep qty2 (split count) sane: never exceed qty-1
+  if(s.qty2 && s.qty2 >= s.qty) delete s.qty2;
+  s._userModified=true;saveDB(db);renderSeeds();syncInventoryToBeds();
+}
 // Update how many seeds to plant from a packet. Pass empty/0 to revert to default.
 function changeSeedPlantCount(id,val){
   const s=(db.seeds||[]).find(s=>s.id===id);if(!s)return;
@@ -5229,7 +5240,12 @@ function renderSeeds(){
       }
       const ALL_BEDS=['A','B','C','D','A1','B1','C1','H','P','any'];
       const bedOpts=ALL_BEDS.map(k=>`<option value="${k}"${s.bed===k?' selected':''}>${BED_INFO[k]?.label||k}</option>`).join('');
-      const bedChangeHtml=`<div style="margin-top:6px;display:flex;align-items:center;gap:6px;"><span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">ASSIGN TO</span><select style="font-size:.78rem;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;background:white;" onchange="changeSeedBed('${s.id}',this.value)">${bedOpts}</select></div>`;
+      const qtyInputHtml=`<div style="margin-top:6px;display:flex;align-items:center;gap:6px;">
+        <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">PLANTS</span>
+        <input type="number" min="1" max="999" value="${s.qty||1}" style="width:58px;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;font-size:.78rem;text-align:center;background:white;" onchange="changeSeedQty('${escAttr(s.id)}',this.value)" title="Number of plant starts you have">
+        <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">INDIVIDUAL${(s.qty||1)===1?'':'S'}</span>
+      </div>`;
+      const bedChangeHtml=`<div style="margin-top:6px;display:flex;align-items:center;gap:6px;"><span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">ASSIGN TO</span><select style="font-size:.78rem;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;background:white;" onchange="changeSeedBed('${escAttr(s.id)}',this.value)">${bedOpts}</select></div>${qtyInputHtml}`;
       bodyContent=`<div class="seed-meta-row"><span class="storage-badge store-live">🌱 Live start</span>${s.source?`<span class="plant-pill pill-sage">${esc(s.source)}</span>`:''}</div>${rec?`<div class="seed-detail seed-planting-rec">📍 ${esc(rec)}</div>`:''} ${s.notes?`<div class="seed-detail" style="margin-top:4px;">${esc(s.notes)}</div>`:''} ${placementHtml}${mismatchHtml}${bedChangeHtml}<div style="margin-top:8px;">${hardenHtml}</div>`;
     }else if(isSkipped){
       const tip=storageTipForSeed(s);
