@@ -5091,39 +5091,33 @@ function renderPlantLib() {
   else if (ppCategory === 'cover') plants = plants.filter(p => p.cat === 'cover');
   else if (ppCategory === 'stock') plants = plants.filter(p => stockNames.has(p.name.toLowerCase()) || (db.seeds||[]).some(s => p.name.toLowerCase().includes(s.name.toLowerCase())));
   else if (ppCategory === 'recommended') {
-    // Inventory-driven: only suggest plants the user actually has seeds or
-    // starts for, AND that aren't already placed in any bed design. Excludes
-    // cover crops and plants that conflict with current bed neighbors. The
-    // user's question was 'why am I being recommended plants I don't have' —
-    // answer: now we only recommend from their inventory.
-    const inventoryLibIds = new Set();
+    // Inventory-driven: per-libId, compute total cells the inventory wants vs
+    // total cells already placed across all bed designs. Show only plants
+    // with remaining inventory (placed < inventory). Excludes cover crops
+    // and plants conflicting with current bed neighbors.
+    const inventoryCells = {};
     (db.seeds || []).forEach(s => {
       if (s.skipYear) return;
       const id = seedToLibId(s);
-      if (id) inventoryLibIds.add(id);
+      if (!id) return;
+      const p = PLANT_IDX[id];
+      if (!p) return;
+      const cells = s.storage === 'live'
+        ? liveStartSquares(s, p)
+        : seedPacketSquares(s, p);
+      inventoryCells[id] = (inventoryCells[id] || 0) + cells;
     });
-    // Lib ids already placed in any bed design (any status)
-    const placedLibIds = new Set();
+    const placedCells = {};
     Object.values(db.bedDesigns || {}).forEach(d => {
-      Object.values(d || {}).forEach(id => { if (id) placedLibIds.add(id); });
+      Object.values(d || {}).forEach(id => {
+        if (id) placedCells[id] = (placedCells[id] || 0) + 1;
+      });
     });
-    let pool = plants.filter(p =>
+    plants = plants.filter(p =>
       p.cat !== 'cover'
-      && inventoryLibIds.has(p.id)
-      && !placedLibIds.has(p.id)
+      && (inventoryCells[p.id] || 0) > (placedCells[p.id] || 0)
       && !badNeighborIds.has(p.id)
     );
-    // Fallback: if everything in inventory is already placed, drop the
-    // 'not placed' constraint so the user can still place more from
-    // remaining inventory (e.g., second tomatillo block).
-    if (!pool.length) {
-      pool = plants.filter(p =>
-        p.cat !== 'cover'
-        && inventoryLibIds.has(p.id)
-        && !badNeighborIds.has(p.id)
-      );
-    }
-    plants = pool;
   }
 
   // Sort:
@@ -5152,7 +5146,13 @@ function renderPlantLib() {
     ? `<div style="padding:8px 10px;background:#f0f8f0;border:1px solid #b8d9be;border-radius:6px;margin-bottom:10px;font-size:.78rem;color:var(--moss);">★ Showing plants from your seed inventory that aren't already placed in any bed${placedIds.length ? ', filtered to avoid conflicts here' : ''}. Switch to 'All plants' to see the full library.</div>`
     : '';
 
-  document.getElementById('plant-lib-list').innerHTML = recHint + [
+  // Empty-state message specific to Recommended mode
+  const recEmpty = (ppCategory === 'recommended' && !sorted.length && !current)
+    ? `<div style="padding:14px;background:white;border:1px dashed var(--rule);border-radius:6px;text-align:center;color:var(--muted);font-size:.85rem;line-height:1.5;">
+        Every plant in your seed inventory is already placed somewhere. Switch to <strong>All plants</strong> to browse the full library, or use <strong>↩ Drop here to remove</strong> on a bed block to free up inventory.
+      </div>`
+    : '';
+  document.getElementById('plant-lib-list').innerHTML = recHint + recEmpty + [
     current ? `<div class="lib-item" onclick="clearSquare()"><div class="lib-emoji">🗑</div><div class="lib-info"><div class="lib-name">Clear this square</div><div class="lib-detail">Remove ${PLANT_IDX[current]?.name||''}</div></div></div>` : '',
     ...sorted.map(p => {
       const t = getPlantingStatus(p, wxData);
