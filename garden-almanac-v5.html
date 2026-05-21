@@ -4792,6 +4792,11 @@ function fillRecommendedPass(designs, statuses, capacities, inventorySq={}, allo
   // Use the db passed by computeAutoPopulate (test mode), falling back to
   // the module-level global db for live UI calls.
   const dbRef = dbArg || db;
+  // GLOBAL across all beds. Caps how many cells of any single plant we
+  // recommend in this ENTIRE Pass 4 run — without this, a plant whose
+  // bestBeds list 2+ beds (e.g., oregano's ['D','H']) gets its per-bed cap
+  // duplicated, producing way more recommendations than expected.
+  const usedSqGlobal = {};
   dbRef.beds.forEach(bed => {
     const key = bed.key;
     // Perennial and herb beds are user-managed — never auto-fill with recommendations
@@ -4855,12 +4860,19 @@ function fillRecommendedPass(designs, statuses, capacities, inventorySq={}, allo
     // Each plant gets a "block" of squares matching its sqFt requirement,
     // capped so no single plant monopolizes the bed.
     const plan = [];        // ordered list of plant IDs to place
-    const usedSq = {};      // how many sq this plant has gotten so far
+    const usedSq = usedSqGlobal; // GLOBAL — accumulates across all beds
 
-    // Max squares to give any one plant (prevents e.g. all 32 sq going to radish)
+    // Max squares to give any one plant.
+    // Three caps, evaluated in order:
+    //   1. If plant has inventory and we've already placed enough cells
+    //      (non-recommended) to cover it → 0.
+    //   2. If plant has NO inventory but there are already placements
+    //      (likely previously-accepted recommendations) → 0. Forces the
+    //      user to add seeds before more recommendations can pile up.
+    //   3. Otherwise: size-tier default (small=16, med=2 instances, big=1).
     function maxForPlant(p) {
-      // Never add more recommended squares for plants already at inventory allocation
       if (inventorySq[p.id] && (allocatedSq[p.id] || 0) >= inventorySq[p.id]) return 0;
+      if (!inventorySq[p.id] && (allocatedSq[p.id] || 0) > 0) return 0;
       if (p.sqFt >= 4) return Math.ceil(p.sqFt);           // large: exactly what it needs
       if (p.sqFt >= 1) return Math.ceil(p.sqFt) * 2;       // medium: up to 2 instances
       return Math.min(Math.round(1 / p.sqFt) * 2, 16);     // small: up to 2 "rows"
