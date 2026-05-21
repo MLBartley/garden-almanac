@@ -871,7 +871,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
     <div class="view" id="view-track">
       <div class="plant-view-toggle" style="margin-top:4px;">
         <button class="pvt-btn active" id="spt-season" onclick="setTrackTab('season',this)">Season</button>
-        <button class="pvt-btn" id="spt-plan" onclick="setTrackTab('plan',this)">Planting plan</button>
+        <button class="pvt-btn" id="spt-plan" onclick="setTrackTab('plan',this)">🌱 Wishlist</button>
         <button class="pvt-btn" id="spt-compost" onclick="setTrackTab('compost',this)">Compost</button>
       </div>
 
@@ -936,6 +936,26 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <div id="harvest-list"></div>
       </div>
 
+      <!-- Garden events log (weather + watering + pest) -->
+      <div class="track-section" id="sec-events">
+        <div class="section-label" style="display:flex;align-items:center;gap:8px;">
+          <span>Garden events</span>
+          <span id="sec-events-count" style="font-weight:400;opacity:.6;font-family:'Crimson Pro',serif;font-size:.85rem;text-transform:none;letter-spacing:0;"></span>
+        </div>
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px;">Frost · hail · heat wave · watering · pest sightings · anything notable.</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;">
+          <button class="btn-sm" style="font-size:.74rem;padding:6px 10px;" onclick="quickAddEvent('frost')">🥶 Frost</button>
+          <button class="btn-sm" style="font-size:.74rem;padding:6px 10px;" onclick="quickAddEvent('hail')">🧊 Hail</button>
+          <button class="btn-sm" style="font-size:.74rem;padding:6px 10px;" onclick="quickAddEvent('heat')">☀️ Heat wave</button>
+          <button class="btn-sm" style="font-size:.74rem;padding:6px 10px;" onclick="quickAddEvent('rain')">🌧 Heavy rain</button>
+          <button class="btn-sm" style="font-size:.74rem;padding:6px 10px;" onclick="quickAddEvent('wind')">💨 Wind</button>
+          <button class="btn-sm" style="font-size:.74rem;padding:6px 10px;" onclick="quickAddEvent('watering')">💧 Watering</button>
+          <button class="btn-sm" style="font-size:.74rem;padding:6px 10px;" onclick="quickAddEvent('pest')">🐛 Pest</button>
+          <button class="btn-sm" style="font-size:.74rem;padding:6px 10px;" onclick="quickAddEvent('other')">📝 Other…</button>
+        </div>
+        <div id="events-list"></div>
+      </div>
+
       <!-- Transplant log -->
       <div class="track-section" id="sec-transplant">
         <div class="section-label" style="display:flex;align-items:center;gap:8px;">
@@ -948,23 +968,24 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 
       </div><!-- end #track-season -->
 
-      <!-- ── PLAN TAB ── -->
+      <!-- ── WISHLIST TAB ── -->
       <div id="track-plan" style="display:none;">
-        <div class="section-label" style="margin-top:0;">What I have this season</div>
-        <button class="btn-sm" style="width:100%;padding:7px;margin-bottom:8px;" onclick="importFromSeeds()">↓ Import from seed inventory</button>
-        <div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
-          <input list="veg-datalist" id="plan-crop-input" class="form-input" placeholder="Or add crop manually…" style="flex:1;min-width:120px;padding:7px 11px;" autocomplete="off">
-          <datalist id="veg-datalist"></datalist>
-          <select id="plan-type-sel" class="form-input" style="padding:7px 10px;width:auto;">
-            <option value="start">Start</option>
-            <option value="seed">Seed</option>
-          </select>
-          <input id="plan-qty-input" type="number" min="1" value="1" class="form-input" style="width:52px;padding:7px 10px;">
-          <button class="btn-primary" style="padding:7px 14px;" onclick="addToPlan()">+ Add</button>
+        <div class="section-label" style="margin-top:0;">🌱 Wishlist — plants, seeds, tools for next season</div>
+        <div style="font-size:.8rem;color:var(--muted);margin-bottom:10px;">Anything you want to remember to buy, try, or plant later. Shared with Year ▸ Next Season.</div>
+        <div style="background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-bottom:12px;">
+          <div style="display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap;">
+            <input id="wl-name-track" class="form-input" placeholder="e.g. Cherokee Purple tomato" style="flex:1;min-width:140px;padding:7px 11px;border:1px solid var(--rule);border-radius:6px;background:white;">
+            <select id="wl-type-track" class="form-select" style="padding:7px 10px;border:1px solid var(--rule);border-radius:6px;background:white;color:var(--ink);">
+              <option value="seed">🌾 Seed</option>
+              <option value="plant">🪴 Plant</option>
+              <option value="tool">🔧 Tool</option>
+              <option value="other">📌 Other</option>
+            </select>
+          </div>
+          <input id="wl-notes-track" class="form-input" placeholder="Where to buy, notes, source…" style="width:100%;padding:7px 11px;margin-top:6px;border:1px solid var(--rule);border-radius:6px;background:white;">
+          <button class="btn-primary" style="width:100%;padding:9px;margin-top:8px;" onclick="addWishlistFromTrack()">+ Add to wishlist</button>
         </div>
-        <div id="plan-list"></div>
-        <button class="btn-sm" style="width:100%;padding:9px;margin:4px 0 16px;" onclick="planPlacements()">Get planting recommendations →</button>
-        <div id="plan-recs"></div>
+        <div id="track-wishlist-content"></div>
       </div><!-- end #track-plan -->
 
       <!-- ── COMPOST TAB ── -->
@@ -2672,6 +2693,30 @@ function renderCare(d) {
       }
     }
   });
+
+  // Weekly review (Sundays only) — aggregates the past 7 days into a
+  // quick summary so the user has a "what happened this week?" moment.
+  if (now.getDay() === 0) {
+    const weekAgo = new Date(now.getTime() - 7 * 86400000);
+    const harvested = (db.harvestLog || []).filter(h => new Date(h.date) >= weekAgo).length;
+    const sowsLogged = (db.sowLogs || []).filter(s => new Date(s.date) >= weekAgo).length;
+    const sprouted = (db.sowLogs || []).filter(s => s.status === 'sprouted' && s.statusDate && new Date(s.statusDate) >= weekAgo).length;
+    const eventsLogged = (db.gardenEvents || []).filter(e => new Date(e.date) >= weekAgo).length;
+    const total = harvested + sowsLogged + sprouted + eventsLogged;
+    if (total > 0) {
+      const parts = [];
+      if (harvested) parts.push(`${harvested} harvest${harvested===1?'':'s'}`);
+      if (sowsLogged) parts.push(`${sowsLogged} new sow${sowsLogged===1?'':'s'}`);
+      if (sprouted) parts.push(`${sprouted} sprouted`);
+      if (eventsLogged) parts.push(`${eventsLogged} garden event${eventsLogged===1?'':'s'}`);
+      tasks.push({
+        cls:'info', icon:'📊',
+        title:'Weekly review',
+        desc:`Past 7 days: ${parts.join(' · ')}. Tap to jot a journal note about this week.`,
+        onclick:`toggleJournalCompose();switchViewByName('year');setYearTab('journal',document.querySelector('#view-year .pvt-btn[onclick*=journal]'))`,
+      });
+    }
+  }
 
   // Plants blooming right now — light reminder so you can stop and look
   const monNameNow = now.toLocaleString('en-US', {month:'long'});
@@ -7582,6 +7627,79 @@ function renderSuccession() {
   }).join('');
 }
 
+// ── GARDEN EVENTS LOG ─────────────────────────────────────────────
+// A lightweight catch-all for things that affect the garden but don't fit
+// the other trackers: frost / hail / heat / heavy rain / wind events, ad-hoc
+// watering events (sprinkler/drip beyond the oya pots), and pest sightings.
+// Stored on db.gardenEvents = [{id, type, date, notes}].
+const GARDEN_EVENT_META = {
+  frost:    {label:'Frost',     emoji:'🥶'},
+  hail:     {label:'Hail',      emoji:'🧊'},
+  heat:     {label:'Heat wave', emoji:'☀️'},
+  rain:     {label:'Heavy rain',emoji:'🌧'},
+  wind:     {label:'Wind',      emoji:'💨'},
+  watering: {label:'Watering',  emoji:'💧'},
+  pest:     {label:'Pest',      emoji:'🐛'},
+  other:    {label:'Note',      emoji:'📝'},
+};
+function quickAddEvent(type) {
+  const meta = GARDEN_EVENT_META[type] || GARDEN_EVENT_META.other;
+  const today = new Date().toISOString().slice(0, 10);
+  const promptMsg = type === 'other'
+    ? 'Describe the event'
+    : `${meta.emoji} ${meta.label} — add notes (optional, e.g. "low 28°F, covered tomatoes")`;
+  const notes = prompt(promptMsg, '') || '';
+  if (type === 'other' && !notes.trim()) return; // require notes for "other"
+  if (!db.gardenEvents) db.gardenEvents = [];
+  const id = 'ev-' + Date.now();
+  db.gardenEvents.unshift({ id, type, date: today, notes: notes.trim() });
+  saveDB(db); renderGardenEvents(); renderSectionIndex();
+  showToast({
+    msg: `Logged ${meta.emoji} ${meta.label}${notes ? ' — ' + notes.slice(0, 40) : ''}`,
+    action: () => {
+      db.gardenEvents = (db.gardenEvents || []).filter(e => e.id !== id);
+      saveDB(db); renderGardenEvents(); renderSectionIndex();
+    },
+    duration: 10000,
+  });
+}
+function deleteGardenEvent(id) {
+  const arr = db.gardenEvents || [];
+  const idx = arr.findIndex(e => e.id === id);
+  if (idx < 0) return;
+  const removed = arr.splice(idx, 1)[0];
+  saveDB(db); renderGardenEvents(); renderSectionIndex();
+  showToast({
+    msg: `Removed ${GARDEN_EVENT_META[removed.type]?.label || 'event'}`,
+    action: () => { arr.splice(idx, 0, removed); saveDB(db); renderGardenEvents(); renderSectionIndex(); },
+    duration: 8000,
+  });
+}
+function renderGardenEvents() {
+  const el = document.getElementById('events-list');
+  if (!el) return;
+  const events = (db.gardenEvents || []).slice(0, 30); // most recent 30
+  const countEl = document.getElementById('sec-events-count');
+  if (countEl) countEl.textContent = (db.gardenEvents || []).length
+    ? `${(db.gardenEvents||[]).length} logged` : '';
+  if (!events.length) {
+    el.innerHTML = `<div style="color:var(--muted);font-size:.83rem;padding:8px 0;">No events logged yet — tap a chip above to start.</div>`;
+    return;
+  }
+  el.innerHTML = events.map(e => {
+    const meta = GARDEN_EVENT_META[e.type] || GARDEN_EVENT_META.other;
+    const d = new Date(e.date + 'T12:00:00').toLocaleDateString('en-US', {month:'short',day:'numeric',year:new Date(e.date).getFullYear()!==new Date().getFullYear()?'numeric':undefined});
+    return `<div class="tlog-card">
+      <div style="font-size:1.3rem;flex-shrink:0;">${meta.emoji}</div>
+      <div class="tlog-body">
+        <div class="tlog-name">${esc(meta.label)}${e.notes?` <span style="color:var(--muted);font-weight:400;">— ${esc(e.notes)}</span>`:''}</div>
+        <div class="tlog-meta">${d}</div>
+      </div>
+      <button onclick="deleteGardenEvent('${escAttr(e.id)}')" style="background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;padding:4px;">×</button>
+    </div>`;
+  }).join('');
+}
+
 // ── TRANSPLANT LOG ──
 function renderTransplantLog() {
   const all = db.sowLogs || [];
@@ -7760,6 +7878,7 @@ function renderSpring(){
   renderSuccession();
   renderTransplantLog();
   renderHarvestLog();
+  renderGardenEvents();
   renderSpringWidget();
   // Show Oya and Succession sections only during growing season (May–Sep)
   const mo = new Date().getMonth() + 1; // 1-based
@@ -9309,18 +9428,38 @@ function deleteWishlistItem(id){
   showToast({msg:`Removed "${removed.name||'wishlist item'}"`,action:()=>{arr.splice(idx,0,removed);saveDB(db);renderWishlist();}});
 }
 function renderWishlist(){
-  const el=document.getElementById('wishlist-content');if(!el)return;
-  const list=db.wishlist||[];
-  if(!list.length){el.innerHTML='<div style="color:var(--muted);font-size:.85rem;padding:8px 0 4px;">Add plants, tools, or ideas for next season.</div>';return;}
-  const typeIcon={seed:'🌾',plant:'🪴',tool:'🔧',other:'📌'};
-  el.innerHTML=list.map(w=>`<div class="wish-item">
-    <span style="font-size:1rem;">${typeIcon[w.type]||'📌'}</span>
-    <div style="flex:1;min-width:0;">
-      <div style="font-size:.9rem;font-weight:600;">${esc(w.name)}</div>
-      ${w.notes?`<div style="font-size:.78rem;color:var(--muted);">${esc(w.notes)}</div>`:''}
-    </div>
-    <button onclick="deleteWishlistItem('${escAttr(w.id)}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:2px 6px;">✕</button>
-  </div>`).join('');
+  const list = db.wishlist || [];
+  const typeIcon = {seed:'🌾', plant:'🪴', tool:'🔧', other:'📌'};
+  const html = !list.length
+    ? '<div style="color:var(--muted);font-size:.85rem;padding:8px 0 4px;">Add plants, tools, or ideas for next season.</div>'
+    : list.map(w => `<div class="wish-item">
+        <span style="font-size:1rem;">${typeIcon[w.type]||'📌'}</span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:.9rem;font-weight:600;">${esc(w.name)}</div>
+          ${w.notes?`<div style="font-size:.78rem;color:var(--muted);">${esc(w.notes)}</div>`:''}
+        </div>
+        <button onclick="deleteWishlistItem('${escAttr(w.id)}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:2px 6px;">✕</button>
+      </div>`).join('');
+  // Render to both Year ▸ Next Season AND Track ▸ Wishlist (same data)
+  ['wishlist-content', 'track-wishlist-content'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = html;
+  });
+}
+
+// Track-tab wishlist add — same shape as the Year-page form
+function addWishlistFromTrack() {
+  const name = document.getElementById('wl-name-track')?.value.trim() || '';
+  const type = document.getElementById('wl-type-track')?.value || 'seed';
+  const notes = document.getElementById('wl-notes-track')?.value.trim() || '';
+  if (!name) return;
+  if (!db.wishlist) db.wishlist = [];
+  db.wishlist.unshift({id:'wl-'+Date.now(), name, type, notes, addedDate:new Date().toISOString()});
+  saveDB(db);
+  document.getElementById('wl-name-track').value = '';
+  document.getElementById('wl-notes-track').value = '';
+  renderWishlist();
+  showToast({msg:`Added "${name}" to wishlist`});
 }
 function saveSeedSave(){
   const name=document.getElementById('ss-name')?.value.trim()||'';
