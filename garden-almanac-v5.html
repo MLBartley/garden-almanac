@@ -1699,6 +1699,14 @@ const PLANT_LIB = [
    frostTol:'hardy',sowMethod:'both',daysMin:55,daysMax:70,
    companions:{good:['dill','sage','beet','nasturtium'],bad:['tomato-ind','tomato-det']},
    bestBeds:['A','B','C','D'],spacing:'12"',notes:'Harvest outer leaves. Flavor improves after frost. One of the best long-season crops for Bozeman.'},
+  {id:'bok-choy',emoji:'🥬',name:'Bok Choy',cat:'veg',sqFt:0.5,
+   frostTol:'hardy',sowMethod:'direct',daysMin:40,daysMax:55,
+   companions:{good:['dill','sage','beet','nasturtium','onion'],bad:['tomato-ind','tomato-det','strawberry']},
+   bestBeds:['D','B'],spacing:'6–8"',notes:'Shade-tolerant — Bed D works well. Bolts in heat; sow early spring or late summer. Baby varieties harvest in 30 days.'},
+  {id:'brussels-sprouts',emoji:'🟢',name:'Brussels Sprouts',cat:'veg',sqFt:3,
+   frostTol:'hardy',sowMethod:'transplant',daysMin:90,daysMax:110,
+   companions:{good:['dill','sage','beet','nasturtium','onion'],bad:['tomato-ind','tomato-det','strawberry']},
+   bestBeds:['B'],spacing:'18–24"',notes:'Long-season crop — start indoors Feb/Mar. Flavor sweetens dramatically after first hard frost. Stake tall varieties; remove lower leaves as sprouts form.'},
   {id:'kohlrabi',emoji:'🟣',name:'Kohlrabi',cat:'veg',sqFt:1,
    frostTol:'hardy',sowMethod:'direct',daysMin:45,daysMax:60,
    companions:{good:['beet','nasturtium'],bad:['tomato-ind','pepper']},
@@ -1924,6 +1932,8 @@ const PLANT_DESIGN_META = {
   'eggplant':         {height:'med'},
   'brassica-broc':    {height:'med'},
   'brassica-kale':    {height:'med'},
+  'bok-choy':         {height:'short'},
+  'brussels-sprouts': {height:'tall'},
   'cabbage':          {height:'med'},
   'cauliflower':      {height:'med'},
   'chard':            {height:'med'},
@@ -3980,7 +3990,8 @@ function seedToLibId(seed) {
   if (n === 'tomatillo' || n === 'tomatillos') return 'tomatillo';
   if (n === 'kale') return 'brassica-kale';
   if (n === 'broccoli') return 'brassica-broc';
-  if (n === 'bok choy' || n === 'pak choi' || n === 'brussels sprouts') return 'brassica-kale';
+  if (n === 'bok choy' || n === 'pak choi' || n === 'pac choi' || n === 'baby bok choy') return 'bok-choy';
+  if (n === 'brussels sprouts' || n === 'brussels sprout' || n === 'brussel sprouts') return 'brussels-sprouts';
   if (n === 'cabbage') return 'cabbage';
   if (n === 'cauliflower') return 'cauliflower';
   if (n === 'kohlrabi') return 'kohlrabi';
@@ -7967,7 +7978,7 @@ const BED_CAP={A:28,B:28,C:28,D:20,herb:16};
 const VEG_TO_LIB={
   tomato:'tomato-ind',cherry_tomato:'tomato-det',tomatillo:null,pepper:'pepper',eggplant:null,potato:null,
   broccoli:'brassica-broc',kale:'brassica-kale',cabbage:null,cauliflower:null,kohlrabi:'kohlrabi',
-  brussels_sprouts:null,bok_choy:null,arugula:'arugula',lettuce:'lettuce',spinach:'spinach',
+  brussels_sprouts:'brussels-sprouts',bok_choy:'bok-choy',arugula:'arugula',lettuce:'lettuce',spinach:'spinach',
   chard:null,asian_greens:null,carrot:'carrot',beet:'beet',radish:'radish',turnip:null,parsnip:null,
   zucchini:'zucchini',cucumber:'cucumber',winter_squash:'squash-winter',summer_squash:'zucchini',
   pumpkin:null,melon:null,corn:null,pole_bean:'bean-bush',bush_bean:'bean-bush',pea:null,fava_bean:null,

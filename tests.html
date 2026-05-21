@@ -108,6 +108,8 @@ function runTests(win) {
   assertEq('seedToLibId: tomato → tomato-ind', seedToLibId({name:'Tomato', variety:'Cherokee Purple'}), 'tomato-ind');
   assertEq('seedToLibId: roma tomato → tomato-det', seedToLibId({name:'Tomato', variety:'Roma'}), 'tomato-det');
   assertEq('seedToLibId: kale → brassica-kale', seedToLibId({name:'Kale'}), 'brassica-kale');
+  assertEq('seedToLibId: bok choy → bok-choy (not kale)', seedToLibId({name:'Bok Choy'}), 'bok-choy');
+  assertEq('seedToLibId: brussels sprouts → brussels-sprouts (not kale)', seedToLibId({name:'Brussels Sprouts'}), 'brussels-sprouts');
   assertEq('seedToLibId: rosemary → rosemary (not thyme)', seedToLibId({name:'Rosemary'}), 'rosemary');
   assertEq('seedToLibId: sage → sage (not thyme)', seedToLibId({name:'Sage'}), 'sage');
   assertEq('seedToLibId: marigold → marigold', seedToLibId({name:'Marigold'}), 'marigold');
