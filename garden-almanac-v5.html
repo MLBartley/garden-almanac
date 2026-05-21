@@ -5091,16 +5091,37 @@ function renderPlantLib() {
   else if (ppCategory === 'cover') plants = plants.filter(p => p.cat === 'cover');
   else if (ppCategory === 'stock') plants = plants.filter(p => stockNames.has(p.name.toLowerCase()) || (db.seeds||[]).some(s => p.name.toLowerCase().includes(s.name.toLowerCase())));
   else if (ppCategory === 'recommended') {
-    // Plants that list this bed in bestBeds AND don't conflict with current
-    // neighbors. Excludes cover crops (always manual). Falls back to all
-    // non-conflicting plants if no bestBed matches exist.
+    // Inventory-driven: only suggest plants the user actually has seeds or
+    // starts for, AND that aren't already placed in any bed design. Excludes
+    // cover crops and plants that conflict with current bed neighbors. The
+    // user's question was 'why am I being recommended plants I don't have' —
+    // answer: now we only recommend from their inventory.
+    const inventoryLibIds = new Set();
+    (db.seeds || []).forEach(s => {
+      if (s.skipYear) return;
+      const id = seedToLibId(s);
+      if (id) inventoryLibIds.add(id);
+    });
+    // Lib ids already placed in any bed design (any status)
+    const placedLibIds = new Set();
+    Object.values(db.bedDesigns || {}).forEach(d => {
+      Object.values(d || {}).forEach(id => { if (id) placedLibIds.add(id); });
+    });
     let pool = plants.filter(p =>
       p.cat !== 'cover'
-      && p.bestBeds.includes(activeBedKey)
+      && inventoryLibIds.has(p.id)
+      && !placedLibIds.has(p.id)
       && !badNeighborIds.has(p.id)
     );
+    // Fallback: if everything in inventory is already placed, drop the
+    // 'not placed' constraint so the user can still place more from
+    // remaining inventory (e.g., second tomatillo block).
     if (!pool.length) {
-      pool = plants.filter(p => p.cat !== 'cover' && !badNeighborIds.has(p.id));
+      pool = plants.filter(p =>
+        p.cat !== 'cover'
+        && inventoryLibIds.has(p.id)
+        && !badNeighborIds.has(p.id)
+      );
     }
     plants = pool;
   }
@@ -5128,7 +5149,7 @@ function renderPlantLib() {
 
   // Lead-in hint for Recommended mode so users understand the filter
   const recHint = (ppCategory === 'recommended' && !current)
-    ? `<div style="padding:8px 10px;background:#f0f8f0;border:1px solid #b8d9be;border-radius:6px;margin-bottom:10px;font-size:.78rem;color:var(--moss);">★ Filtered to plants that fit ${esc(bed?.name || 'this bed')}${placedIds.length ? ' and don\'t conflict with what\'s already planted' : ''}.</div>`
+    ? `<div style="padding:8px 10px;background:#f0f8f0;border:1px solid #b8d9be;border-radius:6px;margin-bottom:10px;font-size:.78rem;color:var(--moss);">★ Showing plants from your seed inventory that aren't already placed in any bed${placedIds.length ? ', filtered to avoid conflicts here' : ''}. Switch to 'All plants' to see the full library.</div>`
     : '';
 
   document.getElementById('plant-lib-list').innerHTML = recHint + [
