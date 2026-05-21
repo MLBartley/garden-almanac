@@ -2296,6 +2296,13 @@ function loadDB() {
         (d.seeds||[]).forEach(s=>{if(skipIds.includes(s.id)&&!s.skipYear)s.skipYear=2026;});
         d._seedTiming2026=true;
       }
+      // User-requested 2026-05-20: bump Roma start qty 2 → 3 (overwrites
+      // user-edits to that field; this is an explicit request not a default).
+      if (!d._invUpdate20260520) {
+        const roma = (d.seeds||[]).find(s => s.id === 'seed-af-08');
+        if (roma) roma.qty = 3;
+        d._invUpdate20260520 = true;
+      }
       d.schemaVersion = SCHEMA_VERSION;
       saveDB(d);
       return d;
@@ -2402,7 +2409,7 @@ function defaultSeeds() {
      notes:'Live start — plant in Bed D. Shade-tolerant; aspen cover is ideal. Harvest whole head at base or cut outer leaves. Will bolt in summer heat — harvest before then.'},
     {id:'seed-af-07',name:'Tomato',variety:'Pink Berkeley Tie Dye',days:'80',bed:'A',storage:'live',source:'Amalthia Farm 2026',qty:2,addedDate:'2026-05-18',thumb:'',thumbType:'',
      notes:'Live start — indeterminate. Plant in Bed A with cage or stake at transplant. Multicolored beefsteak-style. 80d from transplant — targets late-Aug harvest. Wall-o-water for first 2 weeks if nights still cold.'},
-    {id:'seed-af-08',name:'Tomato',variety:'Roma',days:'75',bed:'A',storage:'live',source:'Amalthia Farm 2026',qty:2,addedDate:'2026-05-18',thumb:'',thumbType:'',
+    {id:'seed-af-08',name:'Tomato',variety:'Roma',days:'75',bed:'A',storage:'live',source:'Amalthia Farm 2026',qty:3,addedDate:'2026-05-18',thumb:'',thumbType:'',
      notes:'Live start — determinate paste tomato. Plant in Bed A. Sets all fruit at once — excellent for canning/sauce. 75d. Good choice for Zone 5b short season.'},
     {id:'seed-af-09',name:'Tomato',variety:'Cherokee Purple',days:'80',bed:'A',storage:'live',source:'Amalthia Farm 2026',qty:2,addedDate:'2026-05-18',thumb:'',thumbType:'',
      notes:'Live start — indeterminate heirloom beefsteak. Plant in Bed A with cage/stake. Deep burgundy-purple, rich flavor. 80d — targets late-Aug. Wall-o-water for first 2 weeks.'},
@@ -2424,6 +2431,8 @@ function defaultSeeds() {
      notes:'Live start — biennial. Plant in Bed D (shade-tolerant). Harvest outer stems continuously. Host plant for black swallowtail butterfly larvae — leave some if you see caterpillars.'},
     {id:'seed-af-18',name:'Rosemary',variety:'(Amalthia Farm)',days:'',bed:'any',storage:'live',source:'Amalthia Farm 2026',qty:1,addedDate:'2026-05-18',thumb:'',thumbType:'',
      notes:'Live start — borderline hardy for Zone 5b. Plant in sunniest, most sheltered spot (herb section south-facing if possible). Mulch heavily before first frost. Consider bringing indoors Nov–Mar or treat as annual.'},
+    {id:'seed-af-19',name:'Cherry Tomato',variety:'Sungold',days:'65',bed:'A',storage:'live',source:'Amalthia Farm 2026',qty:2,addedDate:'2026-05-20',thumb:'',thumbType:'',
+     notes:'Live start — indeterminate cherry, exceptionally sweet golden-orange fruit. 65d, prolific. Plant in Bed A with cage or stake. Wall-o-water for first 2 weeks if nights still cold.'},
     // ── FERRY MORSE
     {id:'seed-fm-01',name:'Leek',variety:'American Flag',days:'130',bed:'B',storage:'cool',source:fm,qty:1,addedDate:d,thumb:t,thumbType:tt,
      notes:'Classic reliable leek, 130d. You have 3 leek varieties — American Flag is the most forgiving. Direct sow now for small fall leeks; start properly indoors next Feb for full-size.'},
