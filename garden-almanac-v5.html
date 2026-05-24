@@ -924,6 +924,16 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <div id="succ-list"></div>
       </div>
 
+      <!-- Gap fillers — seeds tagged 'gap filler' (any season) -->
+      <div class="track-section" id="gap-filler-section">
+        <div class="section-label" style="display:flex;align-items:center;gap:8px;">
+          <span>🪡 Gap fillers</span>
+          <span id="sec-gap-fillers-count" style="font-weight:400;opacity:.6;font-family:'Crimson Pro',serif;font-size:.85rem;text-transform:none;letter-spacing:0;"></span>
+        </div>
+        <div style="font-size:.8rem;color:var(--muted);margin-bottom:10px;">Seeds you marked as fillers — direct-sow when gaps open up.</div>
+        <div id="gap-filler-list"></div>
+      </div>
+
       <!-- Harvest log -->
       <div class="track-section" id="sec-harvest">
         <div class="section-label" style="display:flex;align-items:center;gap:8px;">
@@ -4090,7 +4100,7 @@ function autoPopulateAllBeds() {
   // Without this, live starts can silently fill a bed and seed packets assigned to the
   // same bed overflow to another bed with no warning shown to the user.
   const seenCapKey = new Set();
-  (db.seeds || []).filter(s => s.storage !== 'live' && !s.skipYear && s.bed && s.bed !== 'any').forEach(seed => {
+  (db.seeds || []).filter(s => s.storage !== 'live' && !s.skipYear && !s.isGapFiller && s.bed && s.bed !== 'any').forEach(seed => {
     const libId = seedToLibId(seed); if (!libId) return;
     const plant = PLANT_IDX[libId]; if (!plant) return;
     const key = libId + '|' + seed.bed;
@@ -4402,7 +4412,7 @@ function computeAutoPopulate(db, opts = {}) {
   // then 'any' seeds can route around the resulting conflicts.
   // Deduplicate by (libId, bed): multiple packets of the same plant in the same
   // bed count as one planting — extra packets mean seed abundance, not extra space.
-  const rawSeedItems = noSeeds ? [] : (db.seeds || []).filter(s => s.storage !== 'live' && !s.skipYear)
+  const rawSeedItems = noSeeds ? [] : (db.seeds || []).filter(s => s.storage !== 'live' && !s.skipYear && !s.isGapFiller)
     .sort((a, b) => (a.bed !== 'any' ? 0 : 1) - (b.bed !== 'any' ? 0 : 1));
   const seenBedPlant = new Set();
   const seedItems = rawSeedItems.filter(seed => {
@@ -5098,6 +5108,7 @@ function renderPlantLib() {
     const inventoryCells = {};
     (db.seeds || []).forEach(s => {
       if (s.skipYear) return;
+      if (s.isGapFiller) return; // gap fillers aren't recommended for specific cells
       const id = seedToLibId(s);
       if (!id) return;
       const p = PLANT_IDX[id];
@@ -6130,6 +6141,28 @@ function changeSeedQty(id,val){
   if(s.qty2 && s.qty2 >= s.qty) delete s.qty2;
   s._userModified=true;saveDB(db);renderSeeds();syncInventoryToBeds();
 }
+// Toggle a packet between 'assigned to bed' and 'gap filler'.
+// Gap fillers don't get auto-placed in bed designs and don't appear in the
+// Recommended picker — instead they surface on the Track page as 'ready to
+// direct-sow when gaps open up' through the season.
+function toggleSeedGapFiller(id) {
+  const s = (db.seeds||[]).find(s => s.id === id);
+  if (!s) return;
+  s.isGapFiller = !s.isGapFiller;
+  if (s.isGapFiller) {
+    // Clear bed assignment + split — fillers don't belong to a fixed cell
+    s.bed = 'any';
+    delete s.bed2;
+    delete s.qty2;
+  }
+  s._userModified = true;
+  saveDB(db);
+  renderSeeds();
+  syncInventoryToBeds();
+  if (typeof renderSpring === 'function') try { renderSpring(); } catch(_) {}
+  showToast({msg: s.isGapFiller ? `🪡 "${s.name}" set as gap filler — Track tab will suggest sow times` : `"${s.name}" no longer a gap filler`});
+}
+
 // Update how many seeds to plant from a packet. Pass empty/0 to revert to default.
 function changeSeedPlantCount(id,val){
   const s=(db.seeds||[]).find(s=>s.id===id);if(!s)return;
@@ -6247,17 +6280,25 @@ function renderSeeds(){
         <input type="number" min="1" max="999" value="${_curN}" style="width:54px;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;font-size:.78rem;text-align:center;${_isDefault?'color:var(--muted);':''}" onchange="changeSeedPlantCount('${escAttr(s.id)}',this.value)" title="Number of seeds to plant from this packet">
         <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">SEEDS${_isDefault?` <span style="opacity:.7;">(default)</span>`:''}</span>
       </div>`;
-      const assignHtmlN=`<div style="margin-top:7px;">
-        <div style="display:flex;align-items:center;gap:5px;">
-          <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">ASSIGN TO</span>
-          <select style="font-size:.78rem;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;background:white;" onchange="changeSeedBed('${escAttr(s.id)}',this.value)">${bedOptsN}</select>
-        </div>${plantCountRow}${splitRow}</div>`;
+      const assignHtmlN = s.isGapFiller
+        ? `<div style="margin-top:7px;padding:8px 10px;background:#fff8e2;border:1px solid #e8d080;border-radius:4px;font-size:.78rem;color:#7a5500;line-height:1.45;">
+            <strong>🪡 Gap filler</strong> — not auto-placed in beds. The Track tab will suggest direct-sow times when gaps open up through the season.
+          </div>`
+        : `<div style="margin-top:7px;">
+            <div style="display:flex;align-items:center;gap:5px;">
+              <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">ASSIGN TO</span>
+              <select style="font-size:.78rem;border:1px solid var(--rule);border-radius:4px;padding:2px 5px;background:white;" onchange="changeSeedBed('${escAttr(s.id)}',this.value)">${bedOptsN}</select>
+            </div>${plantCountRow}${splitRow}</div>`;
       const lateReason = seedTooLateReason(s);
       const lateCallout = lateReason ? `<div style="margin-top:7px;padding:7px 10px;background:#fde8e8;border:1px solid #e8b0b0;border-radius:4px;font-size:.78rem;color:#7a1a1a;line-height:1.45;">
         <strong>⛔ Too late this season.</strong> ${esc(lateReason)}.
         <button class="seed-skip-btn" style="margin-top:5px;border-color:#c47a7a;color:#7a1a1a;background:white;" onclick="skipSeed('${escAttr(s.id)}')">💤 Save for next year</button>
       </div>` : '';
-      bodyContent=`<div class="seed-meta-row"><span class="storage-badge ${store.cls}">${store.icon} ${store.label}</span>${s.source?`<span class="plant-pill pill-sage">${esc(s.source)}</span>`:''}</div>${s.notes?`<div class="seed-detail">${esc(s.notes)}</div>`:''}${lateCallout}${assignHtmlN}<div style="margin-top:8px;"><button class="seed-skip-btn" onclick="skipSeed('${escAttr(s.id)}')">💤 Not this year</button></div>`;
+      const fillerBtnLabel = s.isGapFiller ? '🪡 Gap filler ✓' : '🪡 Mark as gap filler';
+      const fillerBtnStyle = s.isGapFiller
+        ? 'border-color:#c4922a;color:#7a5500;background:#fff8e2;'
+        : 'border-color:var(--rule);color:var(--muted);background:white;';
+      bodyContent=`<div class="seed-meta-row"><span class="storage-badge ${store.cls}">${store.icon} ${store.label}</span>${s.source?`<span class="plant-pill pill-sage">${esc(s.source)}</span>`:''}${s.isGapFiller?'<span class="plant-pill" style="background:#fff8e2;color:#7a5500;font-weight:600;">🪡 Filler</span>':''}</div>${s.notes?`<div class="seed-detail">${esc(s.notes)}</div>`:''}${lateCallout}${assignHtmlN}<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;"><button class="seed-skip-btn" style="${fillerBtnStyle}" onclick="toggleSeedGapFiller('${escAttr(s.id)}')">${fillerBtnLabel}</button><button class="seed-skip-btn" onclick="skipSeed('${escAttr(s.id)}')">💤 Not this year</button></div>`;
     }
     const bed2tag=s.bed2&&s.bed2!=='any'?`<span class="seed-bed-tag ${(BED_INFO[s.bed2]||{}).cls||''}">${(BED_INFO[s.bed2]||{}).label||s.bed2}</span>`:'';
     const qtyDisplay=s.bed2&&s.qty2?`×${(s.qty||1)-(s.qty2||0)}+${s.qty2}`:`×${s.qty||1}`;
@@ -7753,6 +7794,133 @@ function renderGardenEvents() {
   }).join('');
 }
 
+// ── GAP FILLERS ─────────────────────────────────────────────────────
+// Seeds tagged `isGapFiller` aren't auto-placed in bed designs. Instead we
+// surface them here with current planting timing + empty-cell counts across
+// beds where the plant fits, so the user can direct-sow them when gaps open
+// up through the season.
+function renderGapFillers() {
+  const el = document.getElementById('gap-filler-list');
+  if (!el) return;
+  const fillers = (db.seeds || []).filter(s => s.isGapFiller && !s.skipYear);
+  const countEl = document.getElementById('sec-gap-fillers-count');
+  if (countEl) countEl.textContent = fillers.length ? `${fillers.length} active` : '';
+  // Hide the whole section if no fillers
+  const section = document.getElementById('gap-filler-section');
+  if (section) section.style.display = fillers.length ? '' : 'none';
+  if (!fillers.length) { el.innerHTML = ''; return; }
+
+  // Compute empty cells per bed
+  const emptyCounts = {};
+  (db.beds || []).forEach(b => {
+    if (b.type === 'perennial' || b.type === 'herb') return;
+    const cap = b.cols * b.rows;
+    const d = (db.bedDesigns || {})[b.key] || {};
+    let empty = 0;
+    for (let i = 0; i < cap; i++) if (!d[i]) empty++;
+    if (empty > 0) emptyCounts[b.key] = { bed: b, count: empty };
+  });
+
+  el.innerHTML = fillers.map(s => {
+    const libId = seedToLibId(s);
+    const plant = libId ? PLANT_IDX[libId] : null;
+    const emoji = plant?.emoji || '🌱';
+    // Planting timing
+    const ps = plant ? getPlantingStatus(plant, wxData) : null;
+    let timingHtml = '';
+    let canSowNow = false;
+    if (ps) {
+      if (ps.status === 'now') { timingHtml = `<span class="seed-timing-now">🟢 Sow now</span>`; canSowNow = true; }
+      else if (ps.status === 'soon') { timingHtml = `<span class="seed-timing-soon">🟡 ${ps.daysUntilOutside}d to go</span>`; }
+      else if (ps.status === 'indoor') { timingHtml = `<span class="seed-timing-soon">🪴 Start indoors</span>`; canSowNow = true; }
+      else if (ps.status === 'wait') {
+        const d = ps.daysUntilOutside || 0;
+        timingHtml = d <= 14 ? `<span class="seed-timing-soon">🟡 ${d}d to go</span>` : `<span class="seed-timing-wait">⏳ ~${Math.round(d/7)}wk</span>`;
+      } else if (ps.status === 'late') {
+        timingHtml = `<span class="seed-timing-late">⛔ Past window</span>`;
+      }
+    }
+    const lateReason = seedTooLateReason(s);
+    if (lateReason) { timingHtml = `<span class="seed-timing-late">⛔ Too late this season</span>`; canSowNow = false; }
+
+    // Find beds with gaps where this plant fits
+    const bestBeds = new Set(plant?.bestBeds || []);
+    const fitBeds = Object.entries(emptyCounts)
+      .filter(([k]) => bestBeds.has(k))
+      .sort((a, b) => b[1].count - a[1].count);
+    const otherBeds = Object.entries(emptyCounts)
+      .filter(([k]) => !bestBeds.has(k))
+      .sort((a, b) => b[1].count - a[1].count);
+    const allOptions = [...fitBeds, ...otherBeds];
+    const gapsTotal = allOptions.reduce((a, [, info]) => a + info.count, 0);
+    const gapsLabel = gapsTotal
+      ? allOptions.slice(0, 3).map(([k, info]) => `${(BED_INFO[k]?.label || k).replace('Bed ','')} (${info.count})`).join(' · ')
+      : 'No empty cells in any bed';
+
+    const lastSow = (db.sowLogs || []).find(e => e.name === s.name && new Date(e.date) > new Date(Date.now() - 30 * 86400000));
+    const lastSowText = lastSow ? `Last sown ${Math.round((Date.now() - new Date(lastSow.date)) / 86400000)}d ago` : 'Not yet sown this season';
+
+    return `<div class="succ-card">
+      <div class="succ-emoji">${emoji}</div>
+      <div class="succ-body">
+        <div class="succ-name">${esc(s.name)}${s.variety && !s.variety.startsWith('(') ? ` <span style="opacity:.6;font-weight:400;">${esc(s.variety)}</span>` : ''} ${timingHtml}</div>
+        <div class="succ-detail">${esc(lastSowText)} · ${gapsTotal ? `🪶 Gaps in: ${esc(gapsLabel)}` : esc(gapsLabel)}</div>
+      </div>
+      <button class="succ-btn ${canSowNow && gapsTotal ? 'succ-due' : ''}" onclick="markGapFillerSown('${escAttr(s.id)}')">✓ Sowed today</button>
+    </div>`;
+  }).join('');
+}
+
+function markGapFillerSown(seedId) {
+  const s = (db.seeds || []).find(x => x.id === seedId);
+  if (!s) return;
+  const libId = seedToLibId(s);
+  const plant = libId ? PLANT_IDX[libId] : null;
+  const today = new Date().toISOString().slice(0, 10);
+  // Find the bed with the most empty cells where this plant fits
+  const bestBeds = new Set(plant?.bestBeds || []);
+  let targetBed = null;
+  let maxGap = 0;
+  (db.beds || []).forEach(b => {
+    if (b.type === 'perennial' || b.type === 'herb') return;
+    const cap = b.cols * b.rows;
+    const d = (db.bedDesigns || {})[b.key] || {};
+    let empty = 0;
+    for (let i = 0; i < cap; i++) if (!d[i]) empty++;
+    const score = empty + (bestBeds.has(b.key) ? 100 : 0); // prefer bestBeds
+    if (score > maxGap && empty > 0) { maxGap = score; targetBed = b.key; }
+  });
+  const gd = germDaysForPlant(s.name);
+  if (!db.sowLogs) db.sowLogs = [];
+  db.sowLogs.unshift({
+    id: 'sl' + Date.now(),
+    name: s.name,
+    method: 'direct',
+    bed: targetBed || 'any',
+    date: today,
+    germDays: gd || 10,
+    notes: 'Gap-filler direct sow',
+    status: 'waiting',
+    statusDate: null,
+  });
+  if (!db.journal) db.journal = [];
+  db.journal.unshift({
+    id: 'j' + Date.now(),
+    date: new Date().toISOString(),
+    mood: '🌱',
+    tags: ['seeded', 'gap-filler'],
+    text: `Gap-filler sown: ${s.name}${targetBed ? ` in ${BED_INFO[targetBed]?.label || targetBed}` : ''}.`,
+    weather: null,
+  });
+  saveDB(db);
+  renderSpring();
+  renderJournal();
+  showToast({
+    msg: `Logged ${s.name} sown${targetBed ? ` → ${BED_INFO[targetBed]?.label || targetBed}` : ''}`,
+    duration: 8000,
+  });
+}
+
 // ── TRANSPLANT LOG ──
 function renderTransplantLog() {
   const all = db.sowLogs || [];
@@ -7909,6 +8077,7 @@ function renderSectionIndex() {
     {id:'sec-hardening',   label:'🌿 Hardening',count:(db.hardenLogs||[]).filter(e=>!e.done).length, show:true},
     {id:'oya-section',     label:'🏺 Oya',      count:oyaUrgent, show: mo >= 5 && mo <= 9},
     {id:'succ-section',    label:'🔄 Succession',count:succDue, show: mo >= 5 && mo <= 8},
+    {id:'gap-filler-section', label:'🪡 Fillers', count:(db.seeds||[]).filter(s=>s.isGapFiller && !s.skipYear).length, show:(db.seeds||[]).some(s=>s.isGapFiller && !s.skipYear)},
     {id:'sec-harvest',     label:'🧺 Harvest',  count:(db.harvestLog||[]).filter(h=>new Date(h.date).getFullYear()===(new Date().getFullYear())).length, show:true},
     {id:'sec-transplant',  label:'📋 Log',      count:(db.sowLogs||[]).length, show:true},
   ];
@@ -7929,6 +8098,7 @@ function renderSpring(){
   renderHardening();
   renderOya();
   renderSuccession();
+  renderGapFillers();
   renderTransplantLog();
   renderHarvestLog();
   renderGardenEvents();
