@@ -715,6 +715,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <div id="care-list"></div>
       </div>
       <div id="multi-day-wrap"></div>
+      <div id="pest-scout-wrap"></div>
       <div id="week-sprint-wrap"></div>
       <div id="ready-to-plant-wrap"></div>
       <div id="spring-widget-wrap"></div>
@@ -2930,7 +2931,96 @@ function renderMultiDayPlan(d) {
       `).join('')}
     </div>
   `;
+  renderPestScout();
 }
+
+// Month-keyed Bozeman / Zone 5b pest pressure calendar. Each entry lists
+// the bug name, what to scout for, and which families it affects so we can
+// match against currently-planted libIds in db.bedDesigns.
+const BOZEMAN_PESTS = [
+  {name:'Flea beetle',         emoji:'🪲', months:[4,5,6],     families:['brassica','nightshade'],
+    scout:'Tiny shotgun holes in leaves of arugula, radish, eggplant. Insects jump when disturbed.',
+    action:'Row cover at transplant. Sticky traps. Diatomaceous earth on dry foliage.'},
+  {name:'Cutworm',             emoji:'🐛', months:[4,5],       families:['nightshade','brassica','cucurbit'],
+    scout:'Transplants severed at soil line overnight. Greasy gray caterpillars in soil.',
+    action:'Cardboard or foil collar around stem at transplant. Hand-pick at dusk.'},
+  {name:'Cabbage looper / worm', emoji:'🦋', months:[5,6,7,8], families:['brassica'],
+    scout:'Pale-green caterpillars on broccoli, kale. Frass on leaves. White butterflies overhead.',
+    action:'Bt (Bacillus thuringiensis) spray weekly. Hand-pick. Row cover until heading.'},
+  {name:'Aphids',              emoji:'🐜', months:[5,6,7,8,9], families:['nightshade','brassica','cucurbit','legume'],
+    scout:'Clusters on new growth, undersides of leaves. Sticky honeydew. Curled leaves.',
+    action:'Blast with water, encourage ladybugs/lacewings, neem oil as last resort.'},
+  {name:'Colorado potato beetle', emoji:'🥔', months:[5,6,7], families:['nightshade'],
+    scout:'Yellow-and-black striped adults, orange egg clusters on leaf undersides, red larvae.',
+    action:'Hand-pick adults and crush eggs daily. Mulch heavily under potatoes/tomatoes.'},
+  {name:'Squash bug',          emoji:'🦟', months:[6,7,8],     families:['cucurbit'],
+    scout:'Bronze egg clusters on leaf undersides. Wilting leaves. Gray adults clustering at base.',
+    action:'Crush eggs weekly. Trap under boards overnight. Remove debris in fall.'},
+  {name:'Squash vine borer',   emoji:'🐝', months:[6,7],       families:['cucurbit'],
+    scout:'Sudden wilt of one vine, sawdust frass at base. Adult is orange-and-black wasp mimic.',
+    action:'Wrap stem base with foil. Inject Bt into hollow stem. Replant if caught early.'},
+  {name:'Tomato hornworm',     emoji:'🐉', months:[7,8],       families:['nightshade'],
+    scout:'Bare stems, large green droppings, fat horned caterpillar (often missed — uses camouflage).',
+    action:'Hand-pick at dawn. Leave any with white braconid wasp cocoons — they parasitize more.'},
+  {name:'Slugs',               emoji:'🐌', months:[5,6,9],     families:['leafy','brassica'],
+    scout:'Slime trails. Ragged holes in lettuce, hostas, cabbage — worse after rain.',
+    action:'Beer traps. Copper tape. Iron phosphate bait. Hand-pick after dusk.'},
+  {name:'Spider mites',        emoji:'🕷', months:[7,8],       families:['cucurbit','nightshade','legume'],
+    scout:'Stippled / bronzed leaves. Fine webbing on undersides. Worse in hot dry weather.',
+    action:'Strong water spray daily on undersides. Avoid drought-stressing plants.'},
+  {name:'Voles',               emoji:'🐭', months:[3,4,10,11], families:['root','allium'],
+    scout:'Surface runways under mulch. Chewed carrots/beets. Bark gnawed on young trees in winter.',
+    action:'Pull mulch back from trunks/crowns. Hardware-cloth root cages for prized roots.'},
+  {name:'Cucumber beetle',     emoji:'🥒', months:[5,6,7],     families:['cucurbit'],
+    scout:'Striped or spotted yellow beetles on flowers/leaves. They vector bacterial wilt.',
+    action:'Row cover until flowering. Yellow sticky traps. Kaolin clay dust.'},
+];
+
+function renderPestScout() {
+  const wrap = document.getElementById('pest-scout-wrap');
+  if (!wrap) return;
+  const now = new Date();
+  const month = now.getMonth() + 1; // 1-12
+  // Which families are currently planted across all beds?
+  const plantedFamilies = new Set();
+  Object.values(db.bedDesigns || {}).forEach(d => {
+    Object.values(d || {}).forEach(id => {
+      if (id) {
+        const f = getFamily(id);
+        if (f) plantedFamilies.add(f);
+      }
+    });
+  });
+  // This-month pests, prioritized by family overlap with what's in beds.
+  const relevant = BOZEMAN_PESTS
+    .filter(p => p.months.includes(month))
+    .map(p => ({...p, isHot: p.families.some(f => plantedFamilies.has(f))}))
+    .sort((a, b) => (b.isHot ? 1 : 0) - (a.isHot ? 1 : 0));
+  if (!relevant.length) { wrap.innerHTML = ''; return; }
+  const open = _pestScoutOpen;
+  const visible = open ? relevant : relevant.slice(0, 2);
+  wrap.innerHTML = `
+    <div class="section-label" style="margin-top:14px;cursor:pointer;" onclick="togglePestScout()">
+      Scout for pests now <span style="opacity:.6;font-size:.7rem;">${open ? '▴' : '▾'}</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;">
+      ${visible.map(p => `
+        <div style="padding:9px 11px;background:white;border:1px solid ${p.isHot?'#e8c4a0':'var(--rule)'};border-radius:6px;${p.isHot?'background:#fffaf0;':''}">
+          <div style="display:flex;align-items:baseline;gap:6px;font-size:.92rem;font-weight:600;">
+            <span style="font-size:1.05rem;">${p.emoji}</span>
+            <span>${esc(p.name)}</span>
+            ${p.isHot ? `<span style="margin-left:auto;font-family:'Space Mono',monospace;font-size:8px;color:#a04030;letter-spacing:.07em;">⚠ TARGET IN BEDS</span>` : ''}
+          </div>
+          <div style="font-size:.78rem;color:var(--muted);margin-top:4px;line-height:1.4;"><strong>Scout:</strong> ${esc(p.scout)}</div>
+          <div style="font-size:.78rem;color:var(--moss);margin-top:3px;line-height:1.4;"><strong>Action:</strong> ${esc(p.action)}</div>
+        </div>
+      `).join('')}
+      ${!open && relevant.length > 2 ? `<button onclick="togglePestScout()" style="background:none;border:1px dashed var(--rule);border-radius:6px;padding:6px;font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);cursor:pointer;">+ ${relevant.length - 2} more this month</button>` : ''}
+    </div>
+  `;
+}
+let _pestScoutOpen = false;
+function togglePestScout() { _pestScoutOpen = !_pestScoutOpen; renderPestScout(); }
 
 function renderFrostAlert(d) {
   const banner = document.getElementById('frost-alert-banner');
@@ -5399,6 +5489,51 @@ function ppTab(cat, btn) {
   renderPlantLib();
 }
 
+// Build a human-readable list of reasons a plant appears in the picker for
+// the current bed. Used by the "Why?" affordance in lib-item.
+function whyRecommended(libId, bedKey) {
+  const reasons = [];
+  const p = PLANT_IDX[libId];
+  if (!p) return reasons;
+  const inStock = (db.seeds||[]).some(s => seedToLibId(s) === libId && !s.skipYear);
+  if (inStock) reasons.push({icon:'📦', text:'You have this in your inventory.'});
+  if (p.bestBeds && p.bestBeds.includes(bedKey)) {
+    const bedLabel = (BED_INFO[bedKey]||{}).label || bedKey;
+    reasons.push({icon:'📍', text:`Good fit for ${bedLabel} — listed in this plant's best-beds set.`});
+  }
+  const status = getPlantingStatus(p, wxData);
+  if (status.status === 'now') reasons.push({icon:'⏱', text:`Timing: ${status.label} — ${status.sublabel||'within the planting window'}.`});
+  else if (status.status === 'soon') reasons.push({icon:'⏱', text:`Timing: ${status.label} — ${status.sublabel||'planting window opens soon'}.`});
+  else if (status.status === 'indoor') reasons.push({icon:'🪴', text:'Best started indoors at this point in the season.'});
+  const placedIds = [...new Set(Object.values(activeBedDesign||{}).filter(Boolean))];
+  const goodNeighbors = placedIds.filter(pid => {
+    const pp = PLANT_IDX[pid];
+    return pp && pp.companions?.good?.includes(libId);
+  });
+  if (goodNeighbors.length) {
+    const names = goodNeighbors.slice(0,2).map(id => PLANT_IDX[id]?.name).filter(Boolean).join(', ');
+    reasons.push({icon:'🤝', text:`Companion match — pairs well with ${names} already in this bed.`});
+  }
+  const rotWarn = rotationWarningForBed(bedKey, libId);
+  if (rotWarn) {
+    reasons.push({icon: rotWarn.severity==='hard'?'⚠':'🔁', text:rotWarn.msg + (rotWarn.severity==='hard'?' Consider another bed.':'')});
+  }
+  const variety = getVarietyData((db.seeds||[]).find(s => seedToLibId(s) === libId));
+  if (variety?.notes) reasons.push({icon:'🧬', text:`Cultivar note: ${variety.notes}`});
+  if (!reasons.length) reasons.push({icon:'💡', text:'Standard library plant for your zone.'});
+  return reasons;
+}
+
+function showWhyRecommended(libId, evt) {
+  if (evt) { evt.stopPropagation(); evt.preventDefault(); }
+  const p = PLANT_IDX[libId];
+  if (!p) return;
+  const reasons = whyRecommended(libId, activeBedKey);
+  const bedLabel = (BED_INFO[activeBedKey]||{}).label || activeBedKey;
+  const body = reasons.map(r => `<div style="display:flex;gap:8px;margin-bottom:6px;font-size:.85rem;line-height:1.4;"><span style="flex-shrink:0;">${r.icon}</span><span>${esc(r.text)}</span></div>`).join('');
+  alert(`Why ${p.name} for ${bedLabel}?\n\n` + reasons.map(r => `${r.icon} ${r.text}`).join('\n\n'));
+}
+
 function renderPlantLib() {
   const bed = db.beds.find(b => b.key === activeBedKey);
   const stockNames = new Set((db.seeds||[]).map(s => s.name.toLowerCase()));
@@ -5504,6 +5639,7 @@ function renderPlantLib() {
             ${isBestBed?`<span class="lib-badge badge-comp-good">✓ good for this bed</span>`:''}
           </div>
         </div>
+        <button onclick="showWhyRecommended('${p.id}',event)" style="background:none;border:1px solid var(--rule);border-radius:50%;width:24px;height:24px;flex-shrink:0;cursor:pointer;color:var(--muted);font-family:'Space Mono',monospace;font-size:11px;align-self:center;" title="Why is this recommended?">?</button>
       </div>`;
     })
   ].join('');
@@ -7409,6 +7545,50 @@ const GDD_MILESTONES=[
   {gdd:700,label:'First ripe tomato',emoji:'🍅'},
   {gdd:1000,label:'Late crops finishing',emoji:'🍂'},
 ];
+
+// Approximate GDD-to-first-harvest for common crops (base 50°F, accumulated
+// from sow/transplant). Used by ripenessProjections() to forecast harvest
+// readiness against logged sow dates and accumulated season GDD.
+const GDD_TO_HARVEST = {
+  'pea': 850, 'bean-bush': 1100, 'bean-pole': 1300,
+  'tomato-ind': 1800, 'tomato-det': 1500,
+  'pepper': 2200, 'eggplant': 2500,
+  'cucumber': 1200, 'squash-summer': 1100, 'squash-winter': 1900,
+  'corn': 2000, 'lettuce': 500, 'spinach': 500,
+  'carrot': 1300, 'beet': 1000, 'radish': 400,
+  'cabbage': 1400, 'broccoli': 1200, 'kale': 900,
+  'onion': 1900, 'garlic': 1700,
+};
+// Returns array of {plant, sowDate, gddNeeded, gddSoFarSince, pct, readyEst}.
+function ripenessProjections() {
+  const out = [];
+  const seasonStart = new Date(new Date().getFullYear(), 4, 15);
+  const logs = (db.gddLog || []).filter(e => new Date(e.date) >= seasonStart);
+  if (!logs.length) return out;
+  const sortedLogs = [...logs].sort((a, b) => new Date(a.date) - new Date(b.date));
+  // Pre-sum GDD by date so we can compute totals from any sow date forward.
+  const gddByDate = sortedLogs.map(e => ({d: new Date(e.date), v: e.gdd}));
+  function gddSince(d) {
+    return gddByDate.filter(x => x.d >= d).reduce((s, x) => s + x.v, 0);
+  }
+  (db.sowLogs || []).forEach(log => {
+    if (!log.plantId || !log.sowDate) return;
+    const need = GDD_TO_HARVEST[log.plantId];
+    if (!need) return;
+    const sowDate = new Date(log.sowDate);
+    if (sowDate < seasonStart) return;
+    const plant = PLANT_IDX[log.plantId];
+    if (!plant) return;
+    const got = gddSince(sowDate);
+    const pct = Math.min(100, (got / need) * 100);
+    // Project ready date: assume ~12 GDD/day average across the season
+    const remaining = Math.max(0, need - got);
+    const projDays = Math.round(remaining / 12);
+    const ready = new Date(); ready.setDate(ready.getDate() + projDays);
+    out.push({plant, sowDate, gddNeeded:need, gddSoFar:got, pct, projDays, ready});
+  });
+  return out.sort((a, b) => b.pct - a.pct);
+}
 
 // ════════════════════════════════════════
 //  MONTHLY CHECKLISTS — Zone 5b Bozeman
@@ -9572,7 +9752,25 @@ function renderGDD(){
     return`<span class="gdd-stone ${cls}">${ms.emoji} ${ms.gdd} ${ms.label}</span>`;
   }).join('');
   const recentHtml=log.slice(0,8).map(e=>`<div class="clim-log-row"><span class="clim-badge clb-gdd">GDD</span><span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">${new Date(e.date+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span><span style="flex:1;text-align:right;font-size:.88rem;">+${e.gdd} <span style="font-size:.75rem;color:var(--muted);">(${e.hi}°/${e.lo}°)</span></span><button onclick="deleteGDDEntry('${e.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:1px 5px;">✕</button></div>`).join('');
-  el.innerHTML=`<div class="card" style="padding:12px 13px;margin-bottom:10px;"><div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">SEASON TOTAL (since May 15)</span><span style="font-family:'Space Mono',monospace;font-size:1.1rem;font-weight:700;color:var(--moss);">${Math.round(total)} GDD</span></div><div class="gdd-bar"><div class="gdd-fill" style="width:${pct}%;"></div></div><div style="font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:8px;"><span>0</span><span>700</span><span>1400</span></div><div class="gdd-milestones">${msHtml}</div>${log.length?`<div style="margin-top:8px;border-top:1px solid var(--rule);padding-top:8px;">${recentHtml}</div>`:''}</div>`;
+  // Per-plant ripeness projections from sowLogs + GDD
+  const projections = ripenessProjections();
+  const projHtml = projections.length ? `<div style="margin-top:8px;border-top:1px solid var(--rule);padding-top:8px;">
+    <div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:.1em;margin-bottom:6px;">RIPENESS PROJECTIONS</div>
+    ${projections.slice(0, 6).map(pr => {
+      const barCls = pr.pct >= 100 ? 'gm-done' : pr.pct >= 70 ? 'gm-next' : 'gm-far';
+      const readyText = pr.pct >= 100 ? '✓ Ready window' : `~${pr.projDays}d (${pr.ready.toLocaleDateString('en-US',{month:'short',day:'numeric'})})`;
+      return `<div style="margin-bottom:6px;">
+        <div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:2px;">
+          <span>${pr.plant.emoji} ${esc(pr.plant.name)}</span>
+          <span style="color:var(--muted);font-family:'Space Mono',monospace;font-size:9px;">${Math.round(pr.pct)}% · ${readyText}</span>
+        </div>
+        <div style="height:5px;background:var(--surface);border-radius:3px;overflow:hidden;">
+          <div style="width:${pr.pct}%;height:100%;background:${pr.pct>=100?'#6b8f71':pr.pct>=70?'#c4922a':'#9fc9a0'};"></div>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>` : '';
+  el.innerHTML=`<div class="card" style="padding:12px 13px;margin-bottom:10px;"><div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">SEASON TOTAL (since May 15)</span><span style="font-family:'Space Mono',monospace;font-size:1.1rem;font-weight:700;color:var(--moss);">${Math.round(total)} GDD</span></div><div class="gdd-bar"><div class="gdd-fill" style="width:${pct}%;"></div></div><div style="font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:8px;"><span>0</span><span>700</span><span>1400</span></div><div class="gdd-milestones">${msHtml}</div>${projHtml}${log.length?`<div style="margin-top:8px;border-top:1px solid var(--rule);padding-top:8px;">${recentHtml}</div>`:''}</div>`;
 }
 function renderRainLog(){
   const el=document.getElementById('rain-log');if(!el)return;
