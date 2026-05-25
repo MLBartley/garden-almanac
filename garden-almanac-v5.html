@@ -800,6 +800,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
             <button class="btn-primary" style="flex:2;padding:9px;" onclick="saveBedPlan()">Save plan →</button>
           </div>
           <div id="bed-lock-toggle" style="margin-bottom:12px;"></div>
+          <div id="bed-yoy-panel" style="margin-bottom:12px;"></div>
           <div class="section-label">Planting timing — all planned plants</div>
           <div id="timing-list"></div>
           <div class="section-label">What can go in the ground?</div>
@@ -3428,6 +3429,9 @@ function renderDesign() {
   // Lock toggle
   renderBedLockToggle();
 
+  // Last-year snapshot (rotation context)
+  renderBedYoyPanel();
+
   // Refresh bed selector labels to reflect current design state
   buildBedSelector();
 }
@@ -3483,6 +3487,56 @@ function renderBedLockToggle() {
       </div>
     </div>
   `;
+}
+function renderBedYoyPanel() {
+  const el = document.getElementById('bed-yoy-panel');
+  if (!el) return;
+  const bed = db.beds.find(b => b.key === activeBedKey);
+  if (!bed || bed.type === 'perennial' || bed.type === 'bag') { el.innerHTML = ''; return; }
+  const hist = getFamilyHistoryForBed(activeBedKey, 3);
+  if (!hist.length) {
+    el.innerHTML = `<div style="background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:8px 10px;font-size:.78rem;color:var(--muted);">
+      <span style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.07em;">🔁 ROTATION HISTORY</span><br>
+      <span>No prior-season snapshots for this bed yet. Use "Snapshot this season's beds" on the History page to start tracking.</span>
+    </div>`;
+    return;
+  }
+  // Detect current plants in this bed that conflict with prior years
+  const currentLibIds = [...new Set(Object.values(db.bedDesigns[activeBedKey]||{}).filter(Boolean))];
+  const currentFams = new Set(currentLibIds.map(id => getFamily(id)).filter(f => f && f !== 'other'));
+  const conflictMarkers = [];
+  hist.forEach(h => {
+    h.families.forEach(f => {
+      if (currentFams.has(f)) conflictMarkers.push({year:h.year, family:f});
+    });
+  });
+  const hardConflicts = currentLibIds.map(id => rotationWarningForBed(activeBedKey, id))
+    .filter(w => w && w.severity === 'hard');
+  const rows = hist.map(h => {
+    const plantNames = Object.keys(h.plants || {}).slice(0, 6).map(id => {
+      const p = PLANT_IDX[id]; return p ? `${p.emoji} ${p.name}` : id;
+    }).join(', ');
+    const famClash = h.families.filter(f => currentFams.has(f));
+    const clashTag = famClash.length ? `<span style="color:#a04030;font-weight:600;"> ⚠ ${famClash.join(', ')} repeat</span>` : '';
+    return `<div style="margin-top:4px;font-size:.78rem;line-height:1.4;">
+      <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">${h.year}</span>
+      ${esc(plantNames)}${clashTag}
+    </div>`;
+  }).join('');
+  const banner = hardConflicts.length
+    ? `<div style="margin-top:6px;padding:6px 8px;background:#fde8e8;border:1px solid #e8b0b0;border-radius:4px;font-size:.78rem;color:#7a1a1a;line-height:1.4;">
+        <strong>⚠ ${hardConflicts.length} hard conflict${hardConflicts.length===1?'':'s'}.</strong> Same family for 2+ consecutive years — consider moving these plants to a different bed.
+      </div>`
+    : conflictMarkers.length
+      ? `<div style="margin-top:6px;padding:6px 8px;background:#fff8e2;border:1px solid #e8d080;border-radius:4px;font-size:.78rem;color:#7a5500;line-height:1.4;">
+          <strong>🔁 Soft conflict.</strong> ${conflictMarkers.map(c => `${c.family} (${c.year})`).join(' · ')} — same family planted recently here.
+        </div>`
+      : '';
+  el.innerHTML = `<div style="background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:8px 10px;">
+    <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.07em;color:var(--muted);">🔁 ROTATION HISTORY</div>
+    ${rows}
+    ${banner}
+  </div>`;
 }
 let _bedSoilEditorOpen = null;
 function toggleBedSoilEditor(bedKey) {
@@ -5800,6 +5854,16 @@ function placePlant(plantId) {
   const plant = PLANT_IDX[plantId];
   if (!plant) { closeModal('plant-picker-modal'); return; }
   closeModal('plant-picker-modal');
+
+  // Rotation guard — warn before placement if same family was here recently
+  const rotWarn = rotationWarningForBed(activeBedKey, plantId);
+  if (rotWarn && rotWarn.severity === 'hard') {
+    if (!confirm(`⚠️ Rotation conflict\n\n${rotWarn.msg}\n\nPlace ${plant.name} anyway?`)) {
+      return;
+    }
+  } else if (rotWarn && rotWarn.severity === 'soft') {
+    showToast({id:'rot-'+plantId, msg:`🔁 ${rotWarn.msg}`, variant:'warn', duration:6000});
+  }
 
   // How many of this plant are in inventory? Live starts: sum of qty.
   // Packets: each packet is a separate block in placement terms.
@@ -9693,6 +9757,39 @@ function getFamily(libId){
     if(words.some(w=>n.includes(w)))return fam;
   }
   return 'other';
+}
+// Walk back through bedHistory and return [{year, families, plants}] for a bed.
+function getFamilyHistoryForBed(bedKey, lookback=3){
+  const out = [];
+  const yr = new Date().getFullYear();
+  for (let y = yr - 1; y >= yr - lookback; y--) {
+    const snap = (db.bedHistory||{})[y];
+    if (!snap || !snap[bedKey]) continue;
+    const plants = snap[bedKey].plants || {};
+    const fams = [...new Set(Object.keys(plants).map(id => getFamily(id)).filter(f => f && f !== 'other'))];
+    if (fams.length) out.push({year: y, families: fams, plants});
+  }
+  return out;
+}
+// Returns {severity, family, msg} or null. 'hard' = same family 2+ years; 'soft' = same family last year.
+function rotationWarningForBed(bedKey, libId){
+  const fam = getFamily(libId);
+  if (!fam || fam === 'other') return null;
+  const hist = getFamilyHistoryForBed(bedKey, 3);
+  if (!hist.length) return null;
+  // Count consecutive recent years with this family, starting from last year
+  let consecutive = 0;
+  const yr = new Date().getFullYear();
+  for (let y = yr - 1; y >= yr - 3; y--) {
+    const entry = hist.find(h => h.year === y);
+    if (!entry) break;
+    if (entry.families.includes(fam)) consecutive++; else break;
+  }
+  if (consecutive >= 2) return {severity:'hard', family:fam, years:consecutive,
+    msg:`${fam} family planted in ${(BED_INFO[bedKey]||{}).label||bedKey} for ${consecutive} consecutive years. High risk of soilborne pests/nutrient depletion.`};
+  if (consecutive === 1) return {severity:'soft', family:fam, years:1,
+    msg:`${fam} family was here last year. Consider a different bed to break the cycle.`};
+  return null;
 }
 function renderBedHistory(){
   const labelEl=document.getElementById('hist-year-label');if(labelEl)labelEl.textContent=histYear;
