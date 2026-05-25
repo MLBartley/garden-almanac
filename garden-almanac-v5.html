@@ -8717,9 +8717,11 @@ function renderReadyToPlant() {
   if (!ready.length) { el.innerHTML=''; return; }
   const anyNotHardening = ready.some(s=>!activeHardenNames.has(s.name.toLowerCase()));
   const hardenAllBtn = anyNotHardening
-    ? `<button class="btn-sm" style="float:right;padding:3px 10px;font-size:.75rem;margin-top:-2px;" onclick="openHardenAllModal()">🌿 Harden all</button>`
+    ? `<button class="btn-sm" style="padding:3px 10px;font-size:.75rem;margin-top:-2px;" onclick="openHardenAllModal()">🌿 Harden all</button>`
     : '';
-  el.innerHTML = `<div class="section-label">Ready to transplant${hardenAllBtn}</div><div style="clear:both;"></div><div class="rtp-grid">` +
+  const transplantAllBtn = `<button class="btn-sm" style="padding:3px 10px;font-size:.75rem;margin-top:-2px;color:var(--moss);border-color:var(--moss);" onclick="transplantAllReady()">🌱 Transplant all</button>`;
+  const headerActions = `<span style="float:right;display:inline-flex;gap:5px;">${hardenAllBtn}${transplantAllBtn}</span>`;
+  el.innerHTML = `<div class="section-label">Ready to transplant${headerActions}</div><div style="clear:both;"></div><div class="rtp-grid">` +
     ready.map(s => {
       const libId=seedToLibId(s); const plant=PLANT_IDX[libId];
       const bed=BED_INFO[s.bed]||BED_INFO.any;
@@ -8767,6 +8769,81 @@ function logStartAsTransplanted(seedId) {
     text:`Transplanted ${seed.name}${seed.variety?' ('+seed.variety+')':''} ×${seed.qty||1} to ${BED_INFO[seed.bed]?.label||'the garden'}.`,weather:null});
   saveDB(db);
   renderReadyToPlant(); renderWeekSprint(); renderSpring(); renderJournal();
+}
+
+// Bulk-transplant every 'ready' live start. Iterates the same predicate as
+// renderReadyToPlant (live, in window, not already transplanted this year),
+// stamps each as transplanted with a single saveDB. Offers Undo via toast.
+function transplantAllReady() {
+  const now = new Date();
+  const yr = now.getFullYear();
+  const today = now.toISOString().slice(0, 10);
+  const loggedNames = new Set((db.sowLogs || [])
+    .filter(e => e.method === 'transplant' && e.date.startsWith(yr))
+    .map(e => e.name.toLowerCase().split(' (')[0]));
+  const ready = (db.seeds || []).filter(s => {
+    if (s.storage !== 'live') return false;
+    if (loggedNames.has(s.name.toLowerCase())) return false;
+    return now >= _startWindowDate(PLANT_IDX[seedToLibId(s)], yr);
+  });
+  if (!ready.length) { showToast({msg: 'No starts ready to transplant.'}); return; }
+  if (!confirm(`Mark all ${ready.length} ready start${ready.length === 1 ? '' : 's'} as transplanted today?`)) return;
+
+  // Snapshot existing sowLogs + bedStatuses for undo
+  const sowLogsBefore = JSON.parse(JSON.stringify(db.sowLogs || []));
+  const bedStatusesBefore = JSON.parse(JSON.stringify(db.bedStatuses || {}));
+  const journalBefore = JSON.parse(JSON.stringify(db.journal || []));
+
+  db.sowLogs = db.sowLogs || [];
+  db.journal = db.journal || [];
+  db.bedDesigns = db.bedDesigns || {};
+  db.bedStatuses = db.bedStatuses || {};
+  ready.forEach((seed, i) => {
+    const libId = seedToLibId(seed);
+    const plant = libId ? PLANT_IDX[libId] : null;
+    db.sowLogs.unshift({
+      id: 'sl' + Date.now() + '-' + i,
+      name: seed.name + (seed.variety ? ' (' + seed.variety + ')' : ''),
+      bed: seed.bed !== 'any' ? seed.bed : 'A',
+      method: 'transplant', date: today, germDays: 0, notes: 'Bulk transplant',
+      status: 'sprouted', qty: seed.qty || 1,
+    });
+    // Mark matching Design squares as planted
+    if (libId && seed.bed && seed.bed !== 'any') {
+      const design = db.bedDesigns[seed.bed] || {};
+      const statuses = { ...(db.bedStatuses[seed.bed] || {}) };
+      const sqNeeded = plant ? liveStartSquares(seed, plant) : 1;
+      let marked = 0;
+      Object.entries(design).forEach(([idx, id]) => {
+        if (id === libId && statuses[idx] !== 'planted' && marked < sqNeeded) {
+          statuses[idx] = 'planted';
+          marked++;
+        }
+      });
+      db.bedStatuses[seed.bed] = statuses;
+      if (activeBedKey === seed.bed) activeBedStatuses = { ...statuses };
+    }
+    db.journal.unshift({
+      id: 'j' + Date.now() + '-' + i,
+      date: new Date().toISOString(), mood: '🌱', tags: ['planted'],
+      text: `Transplanted ${seed.name}${seed.variety ? ' (' + seed.variety + ')' : ''} ×${seed.qty || 1} to ${BED_INFO[seed.bed]?.label || 'the garden'}.`,
+      weather: null,
+    });
+  });
+  saveDB(db);
+  renderReadyToPlant(); renderWeekSprint(); renderSpring(); renderJournal();
+  showToast({
+    msg: `Marked ${ready.length} start${ready.length === 1 ? '' : 's'} as transplanted`,
+    action: () => {
+      db.sowLogs = sowLogsBefore;
+      db.bedStatuses = bedStatusesBefore;
+      db.journal = journalBefore;
+      saveDB(db);
+      renderReadyToPlant(); renderWeekSprint(); renderSpring(); renderJournal();
+      if (activeBedKey && db.bedStatuses[activeBedKey]) activeBedStatuses = { ...db.bedStatuses[activeBedKey] };
+    },
+    duration: 15000,
+  });
 }
 
 function openHardenAllModal() {
