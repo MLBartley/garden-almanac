@@ -2002,6 +2002,50 @@ PLANT_LIB.forEach(p => {
   PLANT_IDX[p.id] = p;
 });
 
+// ═══ VARIETY LIBRARY ═══
+// Cultivar-specific data layered on top of PLANT_LIB. Keyed by lowercase
+// variety name. Each entry can override daysToMaturity, fruitColor, habit
+// (indeterminate/determinate/bush/vining), diseaseResistance tags, and
+// notes specific to that cultivar in Zone 5b.
+const PLANT_VARIETIES = {
+  // Tomatoes
+  'sungold':           {parent:'tomato-ind', days:65, color:'golden orange', habit:'indeterminate', size:'cherry', notes:'Exceptionally sweet, prolific cherry. Skin can crack — pick at peak.'},
+  'cherokee purple':   {parent:'tomato-ind', days:80, color:'dusky pink-purple', habit:'indeterminate', size:'beefsteak', notes:'Rich, complex flavor. Heirloom — late season; targets late August in Bozeman.'},
+  'pink berkeley tie dye':{parent:'tomato-ind', days:80, color:'pink + green streaks', habit:'indeterminate', size:'beefsteak', notes:'Multi-color beefsteak. Reliable producer for short seasons.'},
+  'roma':              {parent:'tomato-det', days:75, color:'red', habit:'determinate', size:'paste', notes:'Determinate paste — sets fruit all at once, excellent for canning/sauce.'},
+  'san marzano':       {parent:'tomato-det', days:80, color:'red', habit:'indeterminate', size:'paste', notes:'Classic Italian paste. Indeterminate despite being a paste — needs staking.'},
+  'early girl':        {parent:'tomato-ind', days:55, color:'red', habit:'indeterminate', size:'medium', notes:'One of the earliest — good for Zone 5b short season.'},
+  'brandywine':        {parent:'tomato-ind', days:90, color:'pink', habit:'indeterminate', size:'beefsteak', diseaseResistance:[], notes:'Long-season heirloom — risky for Bozeman. Try only with wall-o-water + black plastic.'},
+  // Peppers
+  'jalapeño':          {parent:'pepper', days:75, color:'green→red', habit:'bush', size:'small hot', notes:'Reliable Zone 5b hot pepper. 70-80 days from transplant.'},
+  'shishito':          {parent:'pepper', days:60, color:'green', habit:'bush', size:'small mild', notes:'Quick to bear, 1-in-10 spicy. Pick green.'},
+  'california wonder': {parent:'pepper', days:75, color:'green→red', habit:'bush', size:'bell', notes:'Standard bell. Marginal in Bozeman — wall-o-water + black plastic recommended.'},
+  // Lettuces
+  'buttercrunch':      {parent:'lettuce', days:50, color:'green', habit:'bibb', size:'small head', notes:'Classic bibb — heat-tolerant compared to most lettuces.'},
+  'black seeded simpson':{parent:'lettuce', days:45, color:'pale green', habit:'loose-leaf', size:'large leaf', notes:'Fast-growing, sweet. Heirloom standard.'},
+  // Carrots
+  'danvers 126':       {parent:'carrot', days:75, color:'orange', habit:'root', size:'7"', notes:'Reliable for heavy/clay soil. Standard market carrot.'},
+  'nantes':            {parent:'carrot', days:70, color:'orange', habit:'root', size:'6"', notes:'Sweet, cylindrical. Needs loose soil — sandy loam ideal.'},
+  // Squash / cucumber
+  'delicata':          {parent:'squash-winter', days:90, color:'cream + green stripes', habit:'vining', size:'1-2 lb', notes:'Sweet, edible skin. Compact for winter squash.'},
+  'butternut':         {parent:'squash-winter', days:100, color:'tan', habit:'vining', size:'2-3 lb', notes:'Classic storage squash. Marginal in Bozeman — pick short-season varieties.'},
+  'marketmore 76':     {parent:'cucumber', days:65, color:'dark green', habit:'vining', size:'8-9"', notes:'Disease-resistant slicer. Trellis to save space.'},
+  // Beans
+  'provider':          {parent:'bean-bush', days:50, color:'green', habit:'bush', size:'snap', notes:'Cold-tolerant bush bean — sows early, reliable in Bozeman.'},
+  'royal burgundy':    {parent:'bean-bush', days:55, color:'purple→green when cooked', habit:'bush', size:'snap', notes:'Easy to spot for picking. Cold-tolerant.'},
+};
+// Build a lookup from seed.variety strings (lowercased, normalized) to entries
+function getVarietyData(seed) {
+  if (!seed || !seed.variety) return null;
+  const key = seed.variety.toLowerCase().replace(/[()]/g, '').trim();
+  if (PLANT_VARIETIES[key]) return PLANT_VARIETIES[key];
+  // Substring match for things like 'Cherry Tomato — Sungold'
+  for (const [vk, vd] of Object.entries(PLANT_VARIETIES)) {
+    if (key.includes(vk) || vk.includes(key)) return vd;
+  }
+  return null;
+}
+
 // Bozeman frost dates
 const LAST_FROST_MONTH = 4; // May (0-indexed)
 const LAST_FROST_DAY = 15;
@@ -2106,7 +2150,11 @@ function fmtDate(d) {
 }
 // Estimated harvest date from today. Uses seed.days if set, else plant library midpoint.
 function estimatedHarvest(seed, plant) {
-  const days = parseInt(seed?.days) || (plant ? Math.round((plant.daysMin + (plant.daysMax || plant.daysMin)) / 2) : 0);
+  // Priority: variety-specific days > packet days > plant average
+  const variety = getVarietyData(seed);
+  const days = parseInt(seed?.days)
+    || variety?.days
+    || (plant ? Math.round((plant.daysMin + (plant.daysMax || plant.daysMin)) / 2) : 0);
   if (!days) return null;
   const d = new Date();
   d.setDate(d.getDate() + days);
@@ -6517,7 +6565,18 @@ function renderSeeds(){
       const fillerBtnStyle = s.isGapFiller
         ? 'border-color:#c4922a;color:#7a5500;background:#fff8e2;'
         : 'border-color:var(--rule);color:var(--muted);background:white;';
-      bodyContent=`<div class="seed-meta-row"><span class="storage-badge ${store.cls}">${store.icon} ${store.label}</span>${s.source?`<span class="plant-pill pill-sage">${esc(s.source)}</span>`:''}${s.isGapFiller?'<span class="plant-pill" style="background:#fff8e2;color:#7a5500;font-weight:600;">🪡 Filler</span>':''}</div>${s.notes?`<div class="seed-detail">${esc(s.notes)}</div>`:''}${lateCallout}${assignHtmlN}<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;"><button class="seed-skip-btn" style="${fillerBtnStyle}" onclick="toggleSeedGapFiller('${escAttr(s.id)}')">${fillerBtnLabel}</button><button class="seed-skip-btn" onclick="skipSeed('${escAttr(s.id)}')">💤 Not this year</button></div>`;
+      const varietyData = getVarietyData(s);
+      const varietyBlock = varietyData ? `<div style="margin-top:7px;padding:7px 10px;background:#f6f1e4;border:1px solid #d9ccb0;border-radius:4px;font-size:.78rem;color:#5a4a26;line-height:1.45;">
+        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:3px;">
+          <span class="plant-pill" style="background:#e8d9b8;color:#5a4a26;font-weight:600;">🧬 ${esc(s.variety)}</span>
+          ${varietyData.days?`<span class="plant-pill pill-ink">⏱ ${varietyData.days}d</span>`:''}
+          ${varietyData.color?`<span class="plant-pill pill-sage">🎨 ${esc(varietyData.color)}</span>`:''}
+          ${varietyData.habit?`<span class="plant-pill pill-sage">🌿 ${esc(varietyData.habit)}</span>`:''}
+          ${varietyData.size?`<span class="plant-pill pill-sage">📏 ${esc(varietyData.size)}</span>`:''}
+        </div>
+        ${varietyData.notes?`<div style="opacity:.85;">${esc(varietyData.notes)}</div>`:''}
+      </div>` : '';
+      bodyContent=`<div class="seed-meta-row"><span class="storage-badge ${store.cls}">${store.icon} ${store.label}</span>${s.source?`<span class="plant-pill pill-sage">${esc(s.source)}</span>`:''}${s.isGapFiller?'<span class="plant-pill" style="background:#fff8e2;color:#7a5500;font-weight:600;">🪡 Filler</span>':''}</div>${s.notes?`<div class="seed-detail">${esc(s.notes)}</div>`:''}${varietyBlock}${lateCallout}${assignHtmlN}<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;"><button class="seed-skip-btn" style="${fillerBtnStyle}" onclick="toggleSeedGapFiller('${escAttr(s.id)}')">${fillerBtnLabel}</button><button class="seed-skip-btn" onclick="skipSeed('${escAttr(s.id)}')">💤 Not this year</button></div>`;
     }
     const bed2tag=s.bed2&&s.bed2!=='any'?`<span class="seed-bed-tag ${(BED_INFO[s.bed2]||{}).cls||''}">${(BED_INFO[s.bed2]||{}).label||s.bed2}</span>`:'';
     const qtyDisplay=s.bed2&&s.qty2?`×${(s.qty||1)-(s.qty2||0)}+${s.qty2}`:`×${s.qty||1}`;
