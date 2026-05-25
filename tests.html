@@ -681,6 +681,40 @@ function runTests(win) {
     assert('Scenario 32c: bean-bush in GDD table', typeof t['bean-bush'] === 'number');
   }
 
+  // ── Scenario 33: computeSoilHealth scores reflect data presence ─────
+  {
+    const emptyDb = T.defaultDB();
+    emptyDb.beds = T.defaultBeds();
+    emptyDb.amendments = [];
+    emptyDb.bedSoilProfiles = {};
+    emptyDb.bedHistory = {};
+    emptyDb.bedDesigns = {};
+    T.setDb(emptyDb);
+    const lowScore = T.computeSoilHealth('A');
+    assert('Scenario 33: empty data → low score (<40)',
+      lowScore.score < 40,
+      'expected <40, got ' + lowScore.score);
+    assert('Scenario 33b: factor breakdown present',
+      lowScore.factors.length === 6,
+      'expected 6 factors, got ' + lowScore.factors.length);
+
+    // Now load up a well-tended bed
+    const goodDb = T.defaultDB();
+    goodDb.beds = T.defaultBeds();
+    goodDb.amendments = [
+      {id:'a1', bed:'A', type:'Compost', amount:'2"', date: new Date().toISOString()},
+    ];
+    goodDb.bedSoilProfiles = {A: {ph: '6.5', mulch:'straw'}};
+    const yr = new Date().getFullYear();
+    goodDb.bedHistory = {[yr-1]: {A: {plants: {'cover-winter-rye': 4}}}};
+    goodDb.bedDesigns = {A: {}};
+    T.setDb(goodDb);
+    const highScore = T.computeSoilHealth('A');
+    assert('Scenario 33c: well-tended bed → high score (>80)',
+      highScore.score > 80,
+      'expected >80, got ' + highScore.score);
+  }
+
   finish();
 }
 function finish() {

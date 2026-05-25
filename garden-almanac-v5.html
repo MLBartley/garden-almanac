@@ -1007,7 +1007,9 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
 
       <!-- ── COMPOST TAB ── -->
       <div id="track-compost" style="display:none;">
-        <div class="section-label" style="margin-top:0;">🌀 Compost tumbler</div>
+        <div class="section-label" style="margin-top:0;">🌿 Soil health overview</div>
+        <div id="soil-health-overview" style="margin-bottom:14px;"></div>
+        <div class="section-label">🌀 Compost tumbler</div>
         <div id="tumbler-status"></div>
         <div style="display:flex;gap:8px;margin-bottom:14px;">
           <button class="btn-sm" style="flex:1;padding:9px;" onclick="logTumblerTurn()">↺ Log turn</button>
@@ -2772,6 +2774,23 @@ function renderCare(d) {
       }
     }
   }
+  // Soil health nudges: pH overdue + amendment cadence overdue (April-Oct).
+  if (mon >= 4 && mon <= 10) {
+    const lowBeds = (db.beds || [])
+      .filter(b => b.type !== 'bag')
+      .map(b => ({bed:b, h:computeSoilHealth(b.key)}))
+      .filter(x => x.h.score < 55);
+    if (lowBeds.length) {
+      const label = lowBeds.slice(0, 3).map(x => (BED_INFO[x.bed.key]||{}).label || x.bed.key).join(', ');
+      const more = lowBeds.length > 3 ? ` +${lowBeds.length - 3} more` : '';
+      tasks.push({
+        cls:'info', icon:'🌿',
+        title:`Low soil health: ${lowBeds.length} bed${lowBeds.length===1?'':'s'}`,
+        desc:`${label}${more}. Tap to review amendments, mulch, cover crop, and pH.`,
+        onclick:`switchViewByName('track');setTrackTab('compost',document.getElementById('spt-compost'))`,
+      });
+    }
+  }
   if(wind>=20)tasks.push({cls:'urgent',icon:'💨',title:`Wind ${wind} mph`,desc:'Secure cages. Hold off on transplanting.'});
   if(hum>=80&&hi>=65)tasks.push({cls:'info',icon:'🍄',title:'Fungal watch',desc:'Warm + humid. Watch for mildew and blight.'});
   if(hi>=85){
@@ -3622,10 +3641,25 @@ function renderBedYoyPanel() {
           <strong>🔁 Soft conflict.</strong> ${conflictMarkers.map(c => `${c.family} (${c.year})`).join(' · ')} — same family planted recently here.
         </div>`
       : '';
+  // Soil health summary for this bed
+  const sh = computeSoilHealth(activeBedKey);
+  const shColor = sh.score >= 75 ? '#6b8f71' : sh.score >= 50 ? '#c4922a' : '#c47a7a';
+  const worstFactor = [...sh.factors].sort((a, b) => (a.score/a.max) - (b.score/b.max))[0];
+  const soilHtml = `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--rule);">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;cursor:pointer;" onclick="showSoilDetail('${escAttr(activeBedKey)}')">
+      <span style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.07em;color:var(--muted);">🌿 SOIL HEALTH</span>
+      <span style="font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:${shColor};">${sh.score}/100</span>
+    </div>
+    <div style="height:5px;background:white;border-radius:3px;overflow:hidden;margin-top:4px;">
+      <div style="width:${sh.score}%;height:100%;background:${shColor};"></div>
+    </div>
+    ${worstFactor && worstFactor.score < worstFactor.max ? `<div style="font-size:.72rem;color:var(--muted);margin-top:4px;line-height:1.4;">↳ Improve: <strong>${esc(worstFactor.name)}</strong> — ${esc(worstFactor.note)}</div>` : ''}
+  </div>`;
   el.innerHTML = `<div style="background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:8px 10px;">
     <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.07em;color:var(--muted);">🔁 ROTATION HISTORY</div>
     ${rows}
     ${banner}
+    ${soilHtml}
   </div>`;
 }
 let _bedSoilEditorOpen = null;
@@ -10114,6 +10148,73 @@ function getFamilyHistoryForBed(bedKey, lookback=3){
   }
   return out;
 }
+// ═══ SOIL HEALTH SCORING ═══
+// Composite 0-100 score from existing data: amendment cadence, mulch
+// coverage, organic-matter additions, cover-crop history, pH on file, and
+// rotation hygiene. Each factor is weighted; the breakdown is returned so
+// the UI can show which dimensions are dragging the score down.
+function computeSoilHealth(bedKey) {
+  const factors = [];
+  const now = Date.now();
+  const dayMs = 86400000;
+  const profile = (db.bedSoilProfiles || {})[bedKey] || {};
+  const beds = db.beds || [];
+  const bed = beds.find(b => b.key === bedKey);
+  // Amendment cadence (25 pts) — when was anything added to this bed last?
+  const bedAmends = (db.amendments || []).filter(a => a.bed === bedKey || a.bed === 'all');
+  const lastAmend = bedAmends[0]; // amendments list is unshift-ordered (newest first)
+  let amendScore = 0, amendNote;
+  if (lastAmend) {
+    const daysSince = Math.floor((now - new Date(lastAmend.date)) / dayMs);
+    if (daysSince <= 180) { amendScore = 25; amendNote = `Last amended ${daysSince}d ago — current.`; }
+    else if (daysSince <= 365) { amendScore = 15; amendNote = `Last amended ${daysSince}d ago — due soon.`; }
+    else { amendScore = 5; amendNote = `Last amended ${daysSince}d ago — overdue.`; }
+  } else amendNote = 'No amendments logged yet.';
+  factors.push({name:'Amendment cadence', score:amendScore, max:25, note:amendNote});
+  // Organic matter — compost or worm castings in last 12 months (15 pts)
+  const omAmend = bedAmends.find(a => {
+    const t = (a.type || '').toLowerCase();
+    return (t.includes('compost') || t.includes('worm') || t.includes('manure'))
+      && (now - new Date(a.date)) / dayMs <= 365;
+  });
+  factors.push({name:'Organic matter (12mo)', score: omAmend ? 15 : 0, max:15,
+    note: omAmend ? `${omAmend.type} added.` : 'No compost / worm castings logged in past year.'});
+  // Mulch coverage (15 pts) — soil-profile mulch field set
+  factors.push({name:'Mulch coverage', score: profile.mulch ? 15 : 0, max:15,
+    note: profile.mulch ? `Currently ${profile.mulch}.` : 'No mulch on record.'});
+  // pH on file (10 pts) — let user know to test if missing
+  factors.push({name:'pH on file', score: profile.ph ? 10 : 0, max:10,
+    note: profile.ph ? `pH ${profile.ph}.` : 'No pH test on file. Test every 2–3 years.'});
+  // Cover crop history (20 pts) — cover family in past 2 bedHistory entries
+  let coverScore = 0, coverNote = 'No cover crops in past 2 seasons.';
+  const yr = new Date().getFullYear();
+  for (let y = yr - 1; y >= yr - 2; y--) {
+    const snap = (db.bedHistory || {})[y];
+    if (!snap || !snap[bedKey]) continue;
+    const ids = Object.keys(snap[bedKey].plants || {});
+    if (ids.some(id => (PLANT_IDX[id]?.cat || '').includes('cover'))) {
+      coverScore = 20;
+      coverNote = `Cover crop grown in ${y}.`;
+      break;
+    }
+  }
+  factors.push({name:'Cover crop history', score:coverScore, max:20, note:coverNote});
+  // Rotation hygiene (15 pts) — no hard conflicts in current plan
+  const currentLibIds = [...new Set(Object.values(db.bedDesigns?.[bedKey] || {}).filter(Boolean))];
+  const hardConflicts = currentLibIds.map(id => rotationWarningForBed(bedKey, id))
+    .filter(w => w && w.severity === 'hard');
+  const softConflicts = currentLibIds.map(id => rotationWarningForBed(bedKey, id))
+    .filter(w => w && w.severity === 'soft');
+  let rotScore = 15, rotNote = 'No conflicts.';
+  if (hardConflicts.length) { rotScore = 0; rotNote = `${hardConflicts.length} hard conflict${hardConflicts.length===1?'':'s'} (2+ consecutive years same family).`; }
+  else if (softConflicts.length) { rotScore = 8; rotNote = `${softConflicts.length} soft conflict${softConflicts.length===1?'':'s'} (family was here last year).`; }
+  else if (!currentLibIds.length) { rotScore = 15; rotNote = 'No plants placed yet.'; }
+  factors.push({name:'Rotation hygiene', score:rotScore, max:15, note:rotNote});
+  const total = factors.reduce((s, f) => s + f.score, 0);
+  const max = factors.reduce((s, f) => s + f.max, 0);
+  return {bedKey, score: Math.round((total / max) * 100), factors, totalPts: total, maxPts: max};
+}
+
 // Returns {severity, family, msg} or null. 'hard' = same family 2+ years; 'soft' = same family last year.
 function rotationWarningForBed(bedKey, libId){
   const fam = getFamily(libId);
@@ -10267,7 +10368,64 @@ function deleteAmendment(id){
   showToast({msg:`Removed amendment: ${removed.type||'entry'}`,action:()=>{arr.splice(idx,0,removed);saveDB(db);renderCompost();}});
 }
 function renderCompost(){
-  renderTumblerStatus();renderTumblerLog();renderAmendmentList();renderAmendRecs();
+  renderSoilHealthOverview();renderTumblerStatus();renderTumblerLog();renderAmendmentList();renderAmendRecs();
+}
+
+// Soil health overview: scores all non-bag beds, shows a sortable list
+// with score bars and "top factor to improve" hint for each.
+function renderSoilHealthOverview() {
+  const el = document.getElementById('soil-health-overview');
+  if (!el) return;
+  const beds = (db.beds || []).filter(b => b.type !== 'bag');
+  if (!beds.length) { el.innerHTML = ''; return; }
+  const scores = beds.map(b => computeSoilHealth(b.key));
+  const avg = Math.round(scores.reduce((s, x) => s + x.score, 0) / scores.length);
+  const avgColor = avg >= 75 ? '#3d5c42' : avg >= 50 ? '#c4922a' : '#a04030';
+  // Coverage-window suggestions: any bed with empty cells after Aug 1 should
+  // get a cover-crop nudge. Bozeman: oats by Sept 1, winter rye by Sept 15.
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const coverNudges = [];
+  if (month >= 8 || month <= 9) {
+    beds.forEach(b => {
+      const design = db.bedDesigns[b.key] || {};
+      const totalCells = (b.cols || 0) * (b.rows || 0);
+      const filled = Object.keys(design).filter(i => design[i]).length;
+      const emptyPct = totalCells ? ((totalCells - filled) / totalCells) * 100 : 0;
+      if (emptyPct >= 40) coverNudges.push({bed:b, emptyPct});
+    });
+  }
+  el.innerHTML = `<div class="card" style="padding:12px 13px;">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;">
+      <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.1em;">YARD AVERAGE</span>
+      <span style="font-family:'Space Mono',monospace;font-size:1.3rem;font-weight:700;color:${avgColor};">${avg}/100</span>
+    </div>
+    ${scores.sort((a,b) => a.score - b.score).map(s => {
+      const bedLabel = (BED_INFO[s.bedKey] || {}).label || s.bedKey;
+      const color = s.score >= 75 ? '#6b8f71' : s.score >= 50 ? '#c4922a' : '#c47a7a';
+      const worst = [...s.factors].sort((a, b) => (a.score/a.max) - (b.score/b.max))[0];
+      return `<div style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:3px;">
+          <span style="cursor:pointer;color:var(--moss);text-decoration:underline;text-decoration-style:dotted;" onclick="showSoilDetail('${escAttr(s.bedKey)}')">${esc(bedLabel)}</span>
+          <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">${s.score}/100</span>
+        </div>
+        <div style="height:6px;background:var(--surface);border-radius:3px;overflow:hidden;">
+          <div style="width:${s.score}%;height:100%;background:${color};"></div>
+        </div>
+        ${worst && worst.score < worst.max ? `<div style="font-size:.72rem;color:var(--muted);margin-top:2px;">↳ Improve: ${esc(worst.name)} — ${esc(worst.note)}</div>` : ''}
+      </div>`;
+    }).join('')}
+    ${coverNudges.length ? `<div style="margin-top:10px;padding:8px 10px;background:#f0f8f0;border:1px solid #b8d9be;border-radius:6px;font-size:.78rem;color:var(--moss);line-height:1.45;">
+      <strong>🌾 Cover crop window open.</strong> ${coverNudges.map(n => (BED_INFO[n.bed.key]||{}).label||n.bed.key).join(', ')} ${coverNudges.length===1?'is':'are'} mostly empty. Sow oats by Sept 1 or winter rye by Sept 15 — both winter-kill in Zone 5b, leaving a no-till mulch mat for spring.
+    </div>` : ''}
+  </div>`;
+}
+
+function showSoilDetail(bedKey) {
+  const h = computeSoilHealth(bedKey);
+  const bedLabel = (BED_INFO[bedKey] || {}).label || bedKey;
+  const lines = h.factors.map(f => `${f.name}: ${f.score}/${f.max} — ${f.note}`).join('\n\n');
+  alert(`Soil health: ${bedLabel} — ${h.score}/100\n\n${lines}`);
 }
 function renderTumblerStatus(){
   const el=document.getElementById('tumbler-status');if(!el)return;
@@ -10608,7 +10766,7 @@ if (!TEST_MODE) {
     esc, escAttr,
     // Phase 3-5 helpers
     getVarietyData, getFamily, getFamilyHistoryForBed, rotationWarningForBed,
-    estimatedHarvest, whyRecommended,
+    estimatedHarvest, whyRecommended, computeSoilHealth,
     // Allow tests to inject a db before calling helpers that read the
     // lexical `db`. Reassign the top-level binding rather than window.db,
     // since `let db` doesn't attach to window in module/script scope.
