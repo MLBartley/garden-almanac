@@ -10603,9 +10603,16 @@ if (!TEST_MODE) {
     computeAutoPopulate, seedToLibId, fillRecommendedPass, placeThreeSisters,
     defaultSeedPlantCount, seedPacketPlantCount, seedPacketSquares, liveStartSquares,
     plantBlockDims, seedTooLateReason,
-    PLANT_IDX, PLANT_LIB, BED_INFO, FAMILY_MAP,
+    PLANT_IDX, PLANT_LIB, BED_INFO, FAMILY_MAP, PLANT_VARIETIES, GDD_TO_HARVEST, BOZEMAN_PESTS,
     defaultDB, defaultBeds, defaultSeeds, defaultPlants,
     esc, escAttr,
+    // Phase 3-5 helpers
+    getVarietyData, getFamily, getFamilyHistoryForBed, rotationWarningForBed,
+    estimatedHarvest, whyRecommended,
+    // Allow tests to inject a db before calling helpers that read the
+    // lexical `db`. Reassign the top-level binding rather than window.db,
+    // since `let db` doesn't attach to window in module/script scope.
+    setDb: (newDb) => { db = newDb; },
   };
   try { window.parent && window.parent.postMessage('ga-test-ready', '*'); } catch (_) {}
 }

@@ -584,6 +584,103 @@ function runTests(win) {
       `Lettuce in A: ${lettuceSqs} sq (expected 1..4)`);
   }
 
+  // ── Scenario 26: getVarietyData maps cultivar names to entries ──────
+  {
+    const sungold = T.getVarietyData({variety:'Sungold'});
+    assert('Scenario 26: Sungold variety resolves to tomato-ind 65d',
+      sungold && sungold.parent === 'tomato-ind' && sungold.days === 65,
+      'got: ' + JSON.stringify(sungold));
+    const roma = T.getVarietyData({variety:'Cherry Tomato — Roma'});
+    assert('Scenario 26b: substring match resolves "Cherry Tomato — Roma" to roma',
+      roma && roma.parent === 'tomato-det',
+      'got: ' + JSON.stringify(roma));
+    const missing = T.getVarietyData({variety:'fictional'});
+    assert('Scenario 26c: unknown variety returns null', missing === null);
+    const noVariety = T.getVarietyData({});
+    assert('Scenario 26d: seed with no variety returns null', noVariety === null);
+  }
+
+  // ── Scenario 27: estimatedHarvest uses variety days over packet days ─
+  {
+    const seed = {variety:'Sungold'}; // 65d in variety table
+    const plant = {daysMin:75, daysMax:85}; // avg 80
+    const harvestDate = T.estimatedHarvest(seed, plant);
+    const expectedDays = Math.round((harvestDate - new Date()) / 86400000);
+    assert('Scenario 27: variety days (65) wins over plant avg (80)',
+      Math.abs(expectedDays - 65) <= 1,
+      `expected ~65, got ${expectedDays}`);
+  }
+
+  // ── Scenario 28: getFamily maps plant IDs to crop families ──────────
+  {
+    const fam1 = T.getFamily('tomato-ind');
+    assertEq('Scenario 28: tomato-ind → nightshade', fam1, 'nightshade');
+    const fam2 = T.getFamily('brassica-kale');
+    assertEq('Scenario 28b: brassica-kale → brassica', fam2, 'brassica');
+    const fam3 = T.getFamily('bean-bush');
+    assertEq('Scenario 28c: bean-bush → legume', fam3, 'legume');
+  }
+
+  // ── Scenario 29: rotationWarningForBed flags consecutive years ──────
+  {
+    const yr = new Date().getFullYear();
+    const db = T.defaultDB();
+    db.bedHistory = {
+      [yr-1]: {A: {plants: {'tomato-ind': 4}, dims:'4×4'}},
+      [yr-2]: {A: {plants: {'tomato-ind': 4}, dims:'4×4'}},
+    };
+    T.setDb(db);
+    const warn = T.rotationWarningForBed('A', 'tomato-ind');
+    assert('Scenario 29: 2 consecutive years of nightshade → hard warning',
+      warn && warn.severity === 'hard' && warn.years === 2,
+      'got: ' + JSON.stringify(warn));
+
+    const db2 = T.defaultDB();
+    db2.bedHistory = {[yr-1]: {A: {plants: {'tomato-ind': 4}, dims:'4×4'}}};
+    T.setDb(db2);
+    const soft = T.rotationWarningForBed('A', 'tomato-det');
+    assert('Scenario 29b: 1 prior year of same family → soft warning',
+      soft && soft.severity === 'soft',
+      'got: ' + JSON.stringify(soft));
+
+    T.setDb(T.defaultDB());
+    const none = T.rotationWarningForBed('A', 'tomato-ind');
+    assert('Scenario 29c: no history → null', none === null);
+  }
+
+  // ── Scenario 30: getFamilyHistoryForBed returns ordered family list ──
+  {
+    const yr = new Date().getFullYear();
+    const db = T.defaultDB();
+    db.bedHistory = {
+      [yr-1]: {A: {plants: {'tomato-ind': 2, 'pepper': 1}}},
+      [yr-3]: {A: {plants: {'brassica-kale': 4}}},
+    };
+    T.setDb(db);
+    const hist = T.getFamilyHistoryForBed('A', 3);
+    assertEq('Scenario 30: 2 prior-year entries returned', hist.length, 2);
+    assert('Scenario 30b: most-recent entry is last year',
+      hist[0].year === yr-1 && hist[0].families.includes('nightshade'),
+      'got: ' + JSON.stringify(hist[0]));
+  }
+
+  // ── Scenario 31: BOZEMAN_PESTS has expected shape ────────────────────
+  {
+    const pests = T.BOZEMAN_PESTS;
+    assert('Scenario 31: ≥10 Bozeman pests defined', pests.length >= 10);
+    const allHaveFields = pests.every(p =>
+      p.name && p.emoji && Array.isArray(p.months) && Array.isArray(p.families) && p.scout && p.action);
+    assert('Scenario 31b: every pest has name/months/families/scout/action', allHaveFields);
+  }
+
+  // ── Scenario 32: GDD_TO_HARVEST covers main fruiting families ───────
+  {
+    const t = T.GDD_TO_HARVEST;
+    assert('Scenario 32: tomato-ind in GDD table', typeof t['tomato-ind'] === 'number');
+    assert('Scenario 32b: pepper in GDD table', typeof t['pepper'] === 'number');
+    assert('Scenario 32c: bean-bush in GDD table', typeof t['bean-bush'] === 'number');
+  }
+
   finish();
 }
 function finish() {
