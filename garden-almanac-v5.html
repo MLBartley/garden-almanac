@@ -2667,7 +2667,93 @@ async function loadWeather() {
     renderDesign(); // refresh timing with weather
     renderReadyToPlant();
     renderWeekSprint();
+    // Best-effort: pull last 7 days of observed weather and auto-append
+    // GDD / rainfall / extreme events for any date not already logged.
+    autoLogWeather().catch(() => {});
   } catch { document.getElementById('wx-desc').textContent='Weather unavailable'; }
+}
+
+// ════════════════════════════════════════
+//  AUTO WEATHER LOGGING
+// ════════════════════════════════════════
+// Pulls the past 7 days of observed daily weather from Open-Meteo and
+// fills in any missing GDD/rainfall/event entries. Auto entries carry
+// `auto: true` and are skipped during dedup so re-runs are idempotent.
+// Extreme thresholds: low ≤ 28°F = frost · high ≥ 90°F = heat · ≥ 0.5"
+// precip = heavy rain.
+async function autoLogWeather() {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}`
+    + `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum`
+    + `&temperature_unit=fahrenheit&precipitation_unit=inch`
+    + `&timezone=America%2FDenver&past_days=7&forecast_days=1`;
+  let d;
+  try { d = await (await fetch(url)).json(); } catch { return 0; }
+  if (!d?.daily?.time) return 0;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  db.gddLog = db.gddLog || [];
+  db.rainfallLog = db.rainfallLog || [];
+  db.gardenEvents = db.gardenEvents || [];
+  const gddByDate = new Set(db.gddLog.map(e => String(e.date).slice(0, 10)));
+  const rainByDate = new Set(db.rainfallLog.map(e => e.date));
+  const eventsByDateType = new Set(db.gardenEvents.map(e => e.date + ':' + e.type));
+  let added = 0;
+  d.daily.time.forEach((dateStr, i) => {
+    if (dateStr >= todayStr) return; // only auto-log finalized past days
+    const hi = d.daily.temperature_2m_max[i];
+    const lo = d.daily.temperature_2m_min[i];
+    const rain = d.daily.precipitation_sum[i] ?? 0;
+    if (Number.isFinite(hi) && Number.isFinite(lo) && !gddByDate.has(dateStr)) {
+      const gdd = Math.max(0, ((hi + lo) / 2) - 50);
+      db.gddLog.unshift({
+        id: 'gdd-auto-' + dateStr,
+        date: dateStr + 'T12:00:00.000Z',
+        hi: Math.round(hi), lo: Math.round(lo),
+        gdd: Math.round(gdd * 10) / 10,
+        auto: true,
+      });
+      added++;
+    }
+    if (rain >= 0.01 && !rainByDate.has(dateStr)) {
+      db.rainfallLog.unshift({
+        id: 'rain-auto-' + dateStr,
+        date: dateStr,
+        amount: Math.round(rain * 100) / 100,
+        auto: true,
+      });
+      added++;
+    }
+    if (Number.isFinite(lo) && lo <= 28 && !eventsByDateType.has(dateStr + ':frost')) {
+      db.gardenEvents.unshift({
+        id: 'evt-auto-frost-' + dateStr,
+        type: 'frost', date: dateStr,
+        notes: `Auto: low ${Math.round(lo)}°F`, auto: true,
+      });
+      added++;
+    }
+    if (Number.isFinite(hi) && hi >= 90 && !eventsByDateType.has(dateStr + ':heat')) {
+      db.gardenEvents.unshift({
+        id: 'evt-auto-heat-' + dateStr,
+        type: 'heat', date: dateStr,
+        notes: `Auto: high ${Math.round(hi)}°F`, auto: true,
+      });
+      added++;
+    }
+    if (rain >= 0.5 && !eventsByDateType.has(dateStr + ':rain')) {
+      db.gardenEvents.unshift({
+        id: 'evt-auto-rain-' + dateStr,
+        type: 'rain', date: dateStr,
+        notes: `Auto: ${(Math.round(rain * 100) / 100)}" precip`, auto: true,
+      });
+      added++;
+    }
+  });
+  if (added > 0) {
+    saveDB(db);
+    if (typeof renderGDD === 'function') renderGDD();
+    if (typeof renderRainLog === 'function') renderRainLog();
+    if (typeof renderGardenEvents === 'function') renderGardenEvents();
+  }
+  return added;
 }
 
 function renderForecast(d) {
@@ -8510,10 +8596,11 @@ function renderGardenEvents() {
   el.innerHTML = events.map(e => {
     const meta = GARDEN_EVENT_META[e.type] || GARDEN_EVENT_META.other;
     const d = new Date(e.date + 'T12:00:00').toLocaleDateString('en-US', {month:'short',day:'numeric',year:new Date(e.date).getFullYear()!==new Date().getFullYear()?'numeric':undefined});
+    const autoTag = e.auto ? `<span style="font-family:'Space Mono',monospace;font-size:7px;letter-spacing:.06em;color:var(--moss);background:#e2f0e4;padding:1px 4px;border-radius:3px;margin-left:6px;vertical-align:middle;" title="Auto-logged from forecast">AUTO</span>` : '';
     return `<div class="tlog-card">
       <div style="font-size:1.3rem;flex-shrink:0;">${meta.emoji}</div>
       <div class="tlog-body">
-        <div class="tlog-name">${esc(meta.label)}${e.notes?` <span style="color:var(--muted);font-weight:400;">— ${esc(e.notes)}</span>`:''}</div>
+        <div class="tlog-name">${esc(meta.label)}${autoTag}${e.notes?` <span style="color:var(--muted);font-weight:400;">— ${esc(e.notes)}</span>`:''}</div>
         <div class="tlog-meta">${d}</div>
       </div>
       <button onclick="deleteGardenEvent('${escAttr(e.id)}')" style="background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;padding:4px;">×</button>
@@ -9960,7 +10047,8 @@ function renderGDD(){
     const cls=total>=ms.gdd?'gm-done':total>ms.gdd*0.7?'gm-next':'gm-far';
     return`<span class="gdd-stone ${cls}">${ms.emoji} ${ms.gdd} ${ms.label}</span>`;
   }).join('');
-  const recentHtml=log.slice(0,8).map(e=>`<div class="clim-log-row"><span class="clim-badge clb-gdd">GDD</span><span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">${new Date(e.date+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span><span style="flex:1;text-align:right;font-size:.88rem;">+${e.gdd} <span style="font-size:.75rem;color:var(--muted);">(${e.hi}°/${e.lo}°)</span></span><button onclick="deleteGDDEntry('${e.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:1px 5px;">✕</button></div>`).join('');
+  const autoTag = `<span style="font-family:'Space Mono',monospace;font-size:7px;letter-spacing:.06em;color:var(--moss);background:#e2f0e4;padding:1px 4px;border-radius:3px;margin-left:4px;" title="Auto-logged from forecast">AUTO</span>`;
+  const recentHtml=log.slice(0,8).map(e=>`<div class="clim-log-row"><span class="clim-badge clb-gdd">GDD</span><span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">${new Date(e.date+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>${e.auto?autoTag:''}<span style="flex:1;text-align:right;font-size:.88rem;">+${e.gdd} <span style="font-size:.75rem;color:var(--muted);">(${e.hi}°/${e.lo}°)</span></span><button onclick="deleteGDDEntry('${e.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:1px 5px;">✕</button></div>`).join('');
   // Per-plant ripeness projections from sowLogs + GDD
   const projections = ripenessProjections();
   const projHtml = projections.length ? `<div style="margin-top:8px;border-top:1px solid var(--rule);padding-top:8px;">
@@ -10005,7 +10093,8 @@ function renderRainLog(){
   const cutoff=new Date();cutoff.setDate(cutoff.getDate()-30);
   const total30=log.filter(e=>new Date(e.date+'T12:00')>=cutoff).reduce((s,e)=>s+e.amount,0);
   const norm=BOZEMAN_CLIMATE[new Date().getMonth()].precip;
-  el.innerHTML=totalsHtml+`<div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:8px;">30-day total: <strong style="color:var(--ink);">${total30.toFixed(2)}"</strong> vs ${norm}" avg this month</div>`+log.map(e=>`<div class="clim-log-row"><span class="clim-badge clb-rain">RAIN</span><span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">${new Date(e.date+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span><span style="flex:1;text-align:right;font-size:.88rem;">${e.amount}"</span><button onclick="deleteRainEntry('${e.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:1px 5px;">✕</button></div>`).join('');
+  const rainAutoTag = `<span style="font-family:'Space Mono',monospace;font-size:7px;letter-spacing:.06em;color:var(--moss);background:#e2f0e4;padding:1px 4px;border-radius:3px;margin-left:4px;" title="Auto-logged from forecast">AUTO</span>`;
+  el.innerHTML=totalsHtml+`<div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:8px;">30-day total: <strong style="color:var(--ink);">${total30.toFixed(2)}"</strong> vs ${norm}" avg this month</div>`+log.map(e=>`<div class="clim-log-row"><span class="clim-badge clb-rain">RAIN</span><span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">${new Date(e.date+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>${e.auto?rainAutoTag:''}<span style="flex:1;text-align:right;font-size:.88rem;">${e.amount}"</span><button onclick="deleteRainEntry('${e.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:1px 5px;">✕</button></div>`).join('');
 }
 function renderSoilLog(){
   const el=document.getElementById('soil-log');if(!el)return;
