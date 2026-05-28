@@ -6375,6 +6375,7 @@ function confirmSq(status) {
         db.sowLogs = db.sowLogs || [];
         db.sowLogs.unshift({id:'sl'+Date.now(),name:plant.name,bed:activeBedKey,
           method:'transplant',date:today,germDays:0,notes:'',status:'sprouted',qty:1});
+        completeHardenForSeed(plant.name);
         saveDB(db);
       }
     }
@@ -8027,6 +8028,8 @@ function saveSowLog() {
   };
   db.sowLogs = db.sowLogs || [];
   db.sowLogs.unshift(entry);
+  // If this was a transplant, drop any matching open hardening entries
+  if (entry.method === 'transplant') completeHardenForSeed(name);
   // Auto journal entry
   const bedLabel = {A:'Bed A',B:'Bed B',C:'Bed C',D:'Bed D',indoor:'indoors'}[entry.bed]||entry.bed;
   db.journal.unshift({id:'j'+Date.now(),date:new Date().toISOString(),mood:'🌱',
@@ -8183,6 +8186,29 @@ function saveHardenLog() {
   saveDB(db); closeModal('log-harden-modal');
   ['lh-name','lh-qty'].forEach(id=>document.getElementById(id).value='');
   renderSpring();
+}
+
+// Once a seed has been transplanted, any matching open hardening entry
+// should drop off the list. Match on the base seed name (the prefix
+// before " (" so "Tomato (Sungold)" matches "Tomato") and stamp `done`
+// + completedDays so renderHardening filters it out and the archive
+// view still shows it.
+function completeHardenForSeed(seedName) {
+  if (!seedName) return 0;
+  const base = String(seedName).toLowerCase().split(' (')[0];
+  if (!base) return 0;
+  const today = new Date().toISOString().slice(0, 10);
+  let n = 0;
+  (db.hardenLogs || []).forEach(e => {
+    if (e.done) return;
+    if (e.name && e.name.toLowerCase().split(' (')[0] === base) {
+      e.done = true;
+      e.completedDays = Array.from({length: HARDEN_STEPS.length}, (_, i) => i);
+      e.lastAdvancedDate = today;
+      n++;
+    }
+  });
+  return n;
 }
 
 function advanceHarden(id) {
@@ -9468,6 +9494,7 @@ function logStartAsTransplanted(seedId) {
   }
   db.journal.unshift({id:'j'+Date.now(),date:new Date().toISOString(),mood:'🌱',tags:['planted'],
     text:`Transplanted ${seed.name}${seed.variety?' ('+seed.variety+')':''} ×${seed.qty||1} to ${BED_INFO[seed.bed]?.label||'the garden'}.`,weather:null});
+  completeHardenForSeed(seed.name);
   saveDB(db);
   renderReadyToPlant(); renderWeekSprint(); renderSpring(); renderJournal();
 }
@@ -9490,10 +9517,11 @@ function transplantAllReady() {
   if (!ready.length) { showToast({msg: 'No starts ready to transplant.'}); return; }
   if (!confirm(`Mark all ${ready.length} ready start${ready.length === 1 ? '' : 's'} as transplanted today?`)) return;
 
-  // Snapshot existing sowLogs + bedStatuses for undo
+  // Snapshot existing sowLogs + bedStatuses + hardenLogs for undo
   const sowLogsBefore = JSON.parse(JSON.stringify(db.sowLogs || []));
   const bedStatusesBefore = JSON.parse(JSON.stringify(db.bedStatuses || {}));
   const journalBefore = JSON.parse(JSON.stringify(db.journal || []));
+  const hardenLogsBefore = JSON.parse(JSON.stringify(db.hardenLogs || []));
 
   db.sowLogs = db.sowLogs || [];
   db.journal = db.journal || [];
@@ -9530,6 +9558,7 @@ function transplantAllReady() {
       text: `Transplanted ${seed.name}${seed.variety ? ' (' + seed.variety + ')' : ''} ×${seed.qty || 1} to ${BED_INFO[seed.bed]?.label || 'the garden'}.`,
       weather: null,
     });
+    completeHardenForSeed(seed.name);
   });
   saveDB(db);
   renderReadyToPlant(); renderWeekSprint(); renderSpring(); renderJournal();
@@ -9539,6 +9568,7 @@ function transplantAllReady() {
       db.sowLogs = sowLogsBefore;
       db.bedStatuses = bedStatusesBefore;
       db.journal = journalBefore;
+      db.hardenLogs = hardenLogsBefore;
       saveDB(db);
       renderReadyToPlant(); renderWeekSprint(); renderSpring(); renderJournal();
       if (activeBedKey && db.bedStatuses[activeBedKey]) activeBedStatuses = { ...db.bedStatuses[activeBedKey] };
