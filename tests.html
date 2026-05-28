@@ -681,6 +681,44 @@ function runTests(win) {
     assert('Scenario 32c: bean-bush in GDD table', typeof t['bean-bush'] === 'number');
   }
 
+  // ── Scenario 33-pre: post-transplant tracker reads sowLogs ───────────
+  {
+    const db = T.defaultDB();
+    db.beds = T.defaultBeds();
+    const today = new Date();
+    const fmtDate = (offsetDays) => {
+      const d = new Date(today.getTime() - offsetDays * 86400000);
+      return d.toISOString().slice(0, 10);
+    };
+    db.sowLogs = [
+      {id:'sl-a', name:'Tomato (Cherokee Purple)', bed:'A', method:'transplant', date:fmtDate(3), status:'sprouted', qty:1},
+      {id:'sl-b', name:'Lettuce', bed:'B', method:'direct', date:fmtDate(5), status:'sprouted', qty:1},
+      {id:'sl-c', name:'Pepper', bed:'A', method:'transplant', date:fmtDate(11), status:'sprouted', qty:1},
+      {id:'sl-old', name:'Bok Choy', bed:'B', method:'transplant', date:fmtDate(30), status:'sprouted', qty:1},
+    ];
+    T.setDb(db);
+    const rt = T.getRecentTransplants(21);
+    assertEq('Scenario 33-pre: 2 active transplants within 21d', rt.length, 2);
+    assert('Scenario 33-pre b: sorted newest first',
+      rt[0].daysAgo <= rt[1].daysAgo,
+      'order: ' + rt.map(r=>r.daysAgo).join(','));
+    // Stage classification
+    assertEq('Scenario 33-pre c: day-3 → shock recovery', T.transplantStage({daysAgo:3}).key, 'shock');
+    assertEq('Scenario 33-pre d: day-11 → establishing', T.transplantStage({daysAgo:11}).key, 'establishing');
+    assertEq('Scenario 33-pre e: day-18 → vigorous', T.transplantStage({daysAgo:18}).key, 'vigorous');
+    // Nudges: cutworm collar shows in shock stage, not establishing
+    const young = rt.find(r => r.daysAgo <= 7);
+    const middle = rt.find(r => r.daysAgo >= 8 && r.daysAgo <= 14);
+    assert('Scenario 33-pre f: cutworm collar nudge in shock stage',
+      young ? T.transplantNudges(young).map(n=>n.type).includes('cutworm') : false,
+      'young: ' + (young?young.daysAgo:'none'));
+    assert('Scenario 33-pre g: no cutworm in establishing stage',
+      middle ? !T.transplantNudges(middle).map(n=>n.type).includes('cutworm') : false,
+      'middle: ' + (middle?middle.daysAgo:'none'));
+    assert('Scenario 33-pre h: cage/stake nudge in establishing stage',
+      middle ? T.transplantNudges(middle).map(n=>n.type).includes('support') : false);
+  }
+
   // ── Scenario 33: computeSoilHealth scores reflect data presence ─────
   {
     const emptyDb = T.defaultDB();

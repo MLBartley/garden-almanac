@@ -913,6 +913,16 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <div id="harden-archive-wrap"></div>
       </div>
 
+      <!-- Recently transplanted — first 21 days post-transplant -->
+      <div class="track-section" id="sec-transplants">
+        <div class="section-label" style="display:flex;align-items:center;gap:8px;">
+          <span>🌱 Recently transplanted</span>
+          <span id="sec-transplants-count" style="font-weight:400;opacity:.6;font-family:'Crimson Pro',serif;font-size:.85rem;text-transform:none;letter-spacing:0;"></span>
+        </div>
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px;">Plants moved outside in the last 3 weeks — vulnerable window. Tap a nudge to mark done.</div>
+        <div id="recent-transplants-list"></div>
+      </div>
+
       <!-- Oya refill — shown only in growing season (May–Sep) -->
       <div class="track-section" id="oya-section">
         <div class="section-label" style="display:flex;align-items:center;gap:8px;">
@@ -2877,6 +2887,109 @@ function renderCare(d) {
       });
     }
   }
+  // Post-transplant nudges — surface plant-specific care for plants moved
+  // outside in the last 21 days. Fires whenever there's an active item to
+  // act on (cutworm collar in first 3d, cage by day 12, mulch by 14, etc.)
+  const recentTx = getRecentTransplants(21);
+  if (recentTx.length) {
+    const doneMap = db.transplantNudgeDone || {};
+    let openNudges = 0;
+    let topPlant = null, topNudge = null;
+    recentTx.forEach(t => {
+      transplantNudges(t).forEach(n => {
+        if (n.type === 'water') return; // ambient, not actionable
+        if (doneMap[t.sowLogId]?.[n.type]) return;
+        openNudges++;
+        if (!topPlant) { topPlant = t; topNudge = n; }
+      });
+    });
+    if (openNudges > 0) {
+      const others = openNudges > 1 ? ` +${openNudges - 1} more` : '';
+      tasks.push({
+        cls:'info', icon: topNudge.icon,
+        title:`${topNudge.text}: ${topPlant.plant?.name || topPlant.baseName}`,
+        desc:`Day ${topPlant.daysAgo} since transplant${others}. Tap to review all transplant tasks.`,
+        onclick:`switchViewByName('track');setTimeout(()=>scrollToTrackSection('sec-transplants'),50)`,
+      });
+    }
+  }
+
+  // Bolt-risk alert for cool-season leafy crops when 7d avg high ≥ 75°F.
+  // Bozeman: lettuce/spinach/arugula bolt fast once heat sets in.
+  if (mon >= 5 && mon <= 8 && d?.daily?.temperature_2m_max) {
+    const next7Highs = d.daily.temperature_2m_max.slice(0, 7).filter(Number.isFinite);
+    const avgHi = next7Highs.reduce((s, x) => s + x, 0) / Math.max(1, next7Highs.length);
+    if (avgHi >= 75) {
+      const yr = now.getFullYear();
+      const leafyByCrop = new Map();
+      Object.values(db.bedDesigns || {}).forEach(design => {
+        Object.values(design || {}).forEach(libId => {
+          if (!libId) return;
+          if (getFamily(libId) !== 'leafy') return;
+          const p = PLANT_IDX[libId]; if (!p) return;
+          leafyByCrop.set(libId, p);
+        });
+      });
+      // Skip crops we've already harvested this season
+      const harvestedNames = new Set((db.harvestLog || [])
+        .filter(h => new Date(h.date).getFullYear() === yr)
+        .map(h => (h.crop || '').toLowerCase()));
+      const atRisk = [...leafyByCrop.values()]
+        .filter(p => !harvestedNames.has(p.name.toLowerCase()));
+      if (atRisk.length) {
+        const names = atRisk.slice(0, 3).map(p => `${p.emoji} ${p.name}`).join(', ');
+        const more = atRisk.length > 3 ? ` +${atRisk.length - 3}` : '';
+        tasks.push({
+          cls:'info', icon:'🥬',
+          title:`Bolt risk: ${atRisk.length} cool-season crop${atRisk.length===1?'':'s'}`,
+          desc:`7-day avg ${Math.round(avgHi)}°F. Harvest soon: ${names}${more}.`,
+        });
+      }
+    }
+  }
+
+  // Direct-sow opportunity windows — when soil temp has crossed a crop's
+  // minimum, and we have seed inventory for it, surface the opening with
+  // a countdown to the latest sow date (first-frost minus daysMin).
+  if (mon >= 4 && mon <= 7) {
+    const latestSoil = (db.soilTempLog || [])[0];
+    const soilTempF = latestSoil ? parseFloat(latestSoil.temp) : NaN;
+    const soilAgeDays = latestSoil ? (Date.now() - new Date(latestSoil.date + 'T12:00:00')) / 86400000 : 999;
+    if (Number.isFinite(soilTempF) && soilAgeDays < 7) {
+      const firstFrost = new Date(now.getFullYear(), FIRST_FROST_MONTH, FIRST_FROST_DAY);
+      const openWindows = [];
+      const seenLibIds = new Set();
+      (db.seeds || []).forEach(s => {
+        if (s.skipYear || s.storage === 'live' || s.isGapFiller) return;
+        const libId = seedToLibId(s);
+        if (!libId || seenLibIds.has(libId)) return;
+        const p = PLANT_IDX[libId]; if (!p) return;
+        if (p.sowMethod !== 'direct' && p.sowMethod !== 'both') return;
+        const minSoil = soilTempMin(p);
+        if (soilTempF < minSoil) return; // not warm enough yet
+        const ps = getPlantingStatus(p, wxData);
+        if (!['now','soon'].includes(ps.status)) return;
+        // Days remaining in season to maturity
+        const daysLeft = Math.floor((firstFrost - now) / 86400000);
+        if (daysLeft <= (p.daysMin || 0)) return; // too late
+        const closesIn = daysLeft - (p.daysMin || 0);
+        if (closesIn > 30) return; // not urgent — skip
+        seenLibIds.add(libId);
+        openWindows.push({plant: p, closesIn});
+      });
+      if (openWindows.length) {
+        openWindows.sort((a, b) => a.closesIn - b.closesIn);
+        const names = openWindows.slice(0, 2).map(w => `${w.plant.emoji} ${w.plant.name} (${w.closesIn}d)`).join(', ');
+        const more = openWindows.length > 2 ? ` +${openWindows.length - 2}` : '';
+        tasks.push({
+          cls:'normal', icon:'⏳',
+          title:`Direct-sow window closing: ${openWindows.length}`,
+          desc:`Soil ${Math.round(soilTempF)}°F. Sow soon: ${names}${more}.`,
+        });
+      }
+    }
+  }
+
   if(wind>=20)tasks.push({cls:'urgent',icon:'💨',title:`Wind ${wind} mph`,desc:'Secure cages. Hold off on transplanting.'});
   if(hum>=80&&hi>=65)tasks.push({cls:'info',icon:'🍄',title:'Fungal watch',desc:'Warm + humid. Watch for mildew and blight.'});
   if(hi>=85){
@@ -3274,6 +3387,42 @@ function renderFrostAlert(d) {
       ${actions.map(a => `<div class="frost-action-item">${a}</div>`).join('')}
     </div>` : '';
 
+  // Per-plant frost-protection inventory — surface every recently-transplanted
+  // tender plant when frost is in the next 48h, with a per-plant "covered"
+  // checkbox stored on db.frostCoverings[date][sowLogId] so the user can track
+  // the night-by-night protection plan.
+  let inventoryHtml = '';
+  if (firstFrost.i <= 1) {
+    const recents = getRecentTransplants(21).filter(t => t.plant
+      && (t.plant.frostTol === 'tender' || t.plant.frostTol === 'verytender' || (firstFrost.hard && t.plant.frostTol === 'halfhardy')));
+    if (recents.length) {
+      const frostDateKey = new Date(d.daily.time[firstFrost.actualIdx] + 'T12:00:00').toISOString().slice(0, 10);
+      const coveredMap = (db.frostCoverings || {})[frostDateKey] || {};
+      const rows = recents.map(t => {
+        const checked = coveredMap[t.sowLogId];
+        const bedLabel = (BED_INFO[t.bed] || {}).label || t.bed || '—';
+        const suggestion = t.plant.frostTol === 'verytender'
+          ? 'Wall-o-water or fleece + plastic'
+          : t.plant.sqFt >= 4 ? 'Old sheet or fleece (big footprint)'
+          : t.plant.sqFt >= 1 ? 'Milk jug, bucket, or fleece'
+          : 'Fleece or row cover';
+        return `<label style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:.82rem;cursor:pointer;">
+          <input type="checkbox" ${checked?'checked':''} onchange="toggleFrostCovered('${escAttr(frostDateKey)}','${escAttr(t.sowLogId)}')">
+          <span style="${checked?'text-decoration:line-through;opacity:.55;':''}">
+            <strong>${t.plant.emoji||'🌱'} ${esc(t.baseName)}${t.variety?` <span style="color:var(--muted);font-weight:400;">(${esc(t.variety)})</span>`:''}</strong>
+            <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);"> · ${esc(bedLabel)} · day ${t.daysAgo}</span>
+            <div style="font-size:.75rem;color:var(--muted);margin-left:2px;">${suggestion}</div>
+          </span>
+        </label>`;
+      }).join('');
+      const coveredCount = Object.values(coveredMap).filter(Boolean).length;
+      inventoryHtml = `<div class="frost-actions" style="border-top:1px solid var(--rule);padding-top:9px;margin-top:9px;">
+        <div class="frost-action-title">Vulnerable transplants — cover tonight (${coveredCount}/${recents.length})</div>
+        ${rows}
+      </div>`;
+    }
+  }
+
   banner.style.display = 'block';
   banner.innerHTML = `<div class="frost-banner ${bannerCls}">
     <div class="frost-banner-top">
@@ -3283,7 +3432,16 @@ function renderFrostAlert(d) {
     </div>
     <div class="frost-days">${pillsHtml}</div>
     ${actionsHtml}
+    ${inventoryHtml}
   </div>`;
+}
+
+function toggleFrostCovered(dateKey, sowLogId) {
+  db.frostCoverings = db.frostCoverings || {};
+  db.frostCoverings[dateKey] = db.frostCoverings[dateKey] || {};
+  db.frostCoverings[dateKey][sowLogId] = !db.frostCoverings[dateKey][sowLogId];
+  saveDB(db);
+  if (wxData) renderFrostAlert(wxData);
 }
 
 function renderTodayBar(d) {
@@ -7857,6 +8015,114 @@ function ripenessProjections() {
 }
 
 // ════════════════════════════════════════
+//  POST-TRANSPLANT TRACKER
+// ════════════════════════════════════════
+// Recently-transplanted seedlings need targeted care for 2-3 weeks after
+// going outside. getRecentTransplants() pulls every db.sowLogs entry with
+// method='transplant' in the last `maxDays` days and annotates with bed,
+// plant, days-since, and lib data so the UI / Today tasks can reason about
+// stage and nudges.
+function getRecentTransplants(maxDays = 21) {
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - maxDays * 86400000);
+  return (db.sowLogs || [])
+    .filter(s => s.method === 'transplant' && new Date(s.date) >= cutoff)
+    .map(s => {
+      const dateObj = new Date(s.date + 'T12:00:00');
+      const daysAgo = Math.max(0, Math.floor((now - dateObj) / 86400000));
+      const baseName = (s.name || '').split(' (')[0];
+      const variety = (s.name || '').match(/\(([^)]+)\)/)?.[1] || '';
+      const libId = seedToLibId({name: baseName, variety});
+      const plant = libId ? PLANT_IDX[libId] : null;
+      return {sowLogId: s.id, name: s.name, baseName, variety, bed: s.bed,
+              daysAgo, transplantDate: s.date, libId, plant, qty: s.qty || 1};
+    })
+    .sort((a, b) => a.daysAgo - b.daysAgo);
+}
+
+function transplantStage(t) {
+  if (t.daysAgo <= 7) return {key:'shock', label:'shock recovery', icon:'🩹'};
+  if (t.daysAgo <= 14) return {key:'establishing', label:'establishing', icon:'🌿'};
+  return {key:'vigorous', label:'vigorous', icon:'💪'};
+}
+
+// Returns a list of {type, icon, text} nudges that apply to this transplant
+// at its current age. Each nudge is dismissible per-plant via toggleTransplantNudge.
+const _HEAVY_FEEDER_FAMS = new Set(['nightshade','cucurbit','grass']);
+function transplantNudges(t) {
+  const nudges = [];
+  // Watering frequency (always shown, switches by stage)
+  let waterText = 'Water daily';
+  if (t.daysAgo > 7) waterText = 'Water every other day';
+  if (t.daysAgo > 14) waterText = 'Deep weekly watering';
+  nudges.push({type:'water', icon:'💧', text:waterText});
+  // Cutworm collar — first 3 days
+  if (t.daysAgo <= 3) nudges.push({type:'cutworm', icon:'🪤', text:'Cutworm collar'});
+  // Still frost-tender for tender/very tender crops, first 14 days
+  if (t.daysAgo <= 14 && t.plant
+      && (t.plant.frostTol === 'tender' || t.plant.frostTol === 'verytender')) {
+    nudges.push({type:'frost', icon:'🌡', text:'Still frost-tender'});
+  }
+  // Cage / stake — day 7-12 for larger structural plants
+  if (t.daysAgo >= 7 && t.daysAgo <= 12 && t.plant && t.plant.sqFt >= 1) {
+    nudges.push({type:'support', icon:'⚒', text:'Install cage/stake'});
+  }
+  // Mulch root zone — day 10-14
+  if (t.daysAgo >= 10 && t.daysAgo <= 14) {
+    nudges.push({type:'mulch', icon:'🍂', text:'Mulch root zone'});
+  }
+  // First side-dress for heavy feeders — day 21+
+  if (t.daysAgo >= 21 && t.plant && _HEAVY_FEEDER_FAMS.has(getFamily(t.libId))) {
+    nudges.push({type:'feed', icon:'🥦', text:'First side-dress'});
+  }
+  return nudges;
+}
+
+function toggleTransplantNudge(sowLogId, type) {
+  db.transplantNudgeDone = db.transplantNudgeDone || {};
+  db.transplantNudgeDone[sowLogId] = db.transplantNudgeDone[sowLogId] || {};
+  db.transplantNudgeDone[sowLogId][type] = !db.transplantNudgeDone[sowLogId][type];
+  saveDB(db);
+  renderRecentTransplants();
+}
+
+function renderRecentTransplants() {
+  const el = document.getElementById('recent-transplants-list');
+  if (!el) return;
+  const transplants = getRecentTransplants(21);
+  const countEl = document.getElementById('sec-transplants-count');
+  if (countEl) countEl.textContent = transplants.length ? `${transplants.length} active` : '';
+  if (!transplants.length) {
+    el.innerHTML = `<div style="color:var(--muted);font-size:.82rem;padding:8px 0;">No transplants in the last 21 days.</div>`;
+    return;
+  }
+  const done = db.transplantNudgeDone || {};
+  el.innerHTML = transplants.map(t => {
+    const stage = transplantStage(t);
+    const nudges = transplantNudges(t);
+    const bedLabel = (BED_INFO[t.bed] || {}).label || t.bed || '—';
+    const plantEmoji = t.plant?.emoji || '🌱';
+    const nudgesHtml = nudges.map(n => {
+      const isDone = done[t.sowLogId]?.[n.type];
+      const style = isDone
+        ? 'opacity:.45;text-decoration:line-through;background:#e8e8e8;color:var(--muted);'
+        : '';
+      return `<span class="plant-pill pill-sage" style="cursor:pointer;${style}" onclick="toggleTransplantNudge('${escAttr(t.sowLogId)}','${n.type}')" title="Tap to mark done">${n.icon} ${esc(n.text)}</span>`;
+    }).join(' ');
+    const varietyStr = t.variety ? ` <span style="color:var(--muted);font-weight:400;font-size:.85em;">(${esc(t.variety)})</span>` : '';
+    return `<div style="background:white;border:1px solid var(--rule);border-radius:6px;padding:9px 11px;margin-bottom:6px;">
+      <div style="display:flex;align-items:baseline;gap:6px;">
+        <span style="font-size:1.05rem;">${plantEmoji}</span>
+        <span style="font-weight:600;flex:1;">${esc(t.baseName)}${varietyStr}${t.qty>1?` <span style="color:var(--muted);font-size:.85em;">×${t.qty}</span>`:''}</span>
+        <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">${esc(bedLabel)}</span>
+      </div>
+      <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--moss);margin-top:3px;">${stage.icon} Day ${t.daysAgo} · ${stage.label}</div>
+      <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;">${nudgesHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════
 //  MONTHLY CHECKLISTS — Zone 5b Bozeman
 // ════════════════════════════════════════
 const MONTHLY_TASKS={
@@ -8889,6 +9155,7 @@ function renderSectionIndex() {
   const sections = [
     {id:'sec-germination', label:'🌱 Germ',     count:(db.sowLogs||[]).filter(e=>e.status==='waiting').length, show:true},
     {id:'sec-hardening',   label:'🌿 Hardening',count:(db.hardenLogs||[]).filter(e=>!e.done).length, show:true},
+    {id:'sec-transplants', label:'🌱 New',      count:getRecentTransplants(21).length, show: mo >= 4 && mo <= 7},
     {id:'oya-section',     label:'🏺 Oya',      count:oyaUrgent, show: mo >= 5 && mo <= 9},
     {id:'succ-section',    label:'🔄 Succession',count:succDue, show: mo >= 5 && mo <= 8},
     {id:'gap-filler-section', label:'🪡 Fillers', count:(db.seeds||[]).filter(s=>s.isGapFiller && !s.skipYear).length, show:(db.seeds||[]).some(s=>s.isGapFiller && !s.skipYear)},
@@ -8910,6 +9177,7 @@ function renderSpring(){
   renderSectionIndex();
   renderGermination();
   renderHardening();
+  renderRecentTransplants();
   renderOya();
   renderSuccession();
   renderGapFillers();
@@ -10886,6 +11154,7 @@ if (!TEST_MODE) {
     // Phase 3-5 helpers
     getVarietyData, getFamily, getFamilyHistoryForBed, rotationWarningForBed,
     estimatedHarvest, whyRecommended, computeSoilHealth,
+    getRecentTransplants, transplantStage, transplantNudges,
     // Allow tests to inject a db before calling helpers that read the
     // lexical `db`. Reassign the top-level binding rather than window.db,
     // since `let db` doesn't attach to window in module/script scope.
