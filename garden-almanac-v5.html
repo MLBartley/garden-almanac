@@ -1517,6 +1517,21 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
     </div>
   </div>
 
+  <!-- PERENNIAL ZONE WALKTHROUGH MODAL -->
+  <div class="modal-overlay" id="walkthrough-modal">
+    <div class="modal-sheet" style="max-height:90vh;overflow:hidden;display:flex;flex-direction:column;">
+      <div class="modal-handle"></div>
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;">
+        <div class="modal-title" id="wt-title">🚶 Yard walkthrough</div>
+        <button onclick="closeModal('walkthrough-modal')" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;">×</button>
+      </div>
+      <div id="wt-progress" style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;"></div>
+      <div id="wt-body" style="flex:1;overflow-y:auto;padding-right:2px;"></div>
+      <div id="wt-nav" style="display:flex;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--rule);"></div>
+      <input type="file" id="wt-photo-input" accept="image/*" capture="environment" style="display:none;" onchange="walkthroughOnPhotoSelected(this)">
+    </div>
+  </div>
+
   <!-- HARDENING MODAL -->
   <div class="modal-overlay" id="log-harden-modal">
     <div class="modal-sheet">
@@ -2363,6 +2378,28 @@ function loadDB() {
           });
         });
         d._zonesMigrated=true;
+      }
+      // Enrich zone-plant entries with walkthrough fields (additive).
+      // count: number of individuals at this spot (derived from notes "N tree(s)" if possible)
+      // variety: cultivar / specific identifier
+      // health: good | struggling | dead | unknown
+      // lastObserved: YYYY-MM-DD of most recent confirmation
+      if (!d._zonesEnriched) {
+        Object.values(d.bedZones || {}).forEach(zones => {
+          (zones || []).forEach(z => {
+            if (z.type === 'landmark' || !z.plants) return;
+            z.plants.forEach(e => {
+              if (!('count' in e)) {
+                const m = String(e.notes || '').match(/(\d+)\s*(?:tree|shrub|plant)s?/i);
+                e.count = m ? parseInt(m[1], 10) : 1;
+              }
+              if (!('variety' in e)) e.variety = '';
+              if (!('health' in e)) e.health = 'unknown';
+              if (!('lastObserved' in e)) e.lastObserved = null;
+            });
+          });
+        });
+        d._zonesEnriched = true;
       }
       // Mark seeds too late for 2026 season — auto-skip so they don't clutter auto-suggest
       // Earth Tones Dent Corn: 105d + cross-pollinates sweet corn being grown this year
@@ -4051,6 +4088,11 @@ function renderFreeformBed(bed) {
 
   const emptyMsg = !zones.length ? `<div style="color:var(--muted);font-size:.83rem;padding:10px 0;text-align:center;">No zones yet — add a zone to start organizing this bed.</div>` : '';
 
+  const walkthroughBtn = zones.length ? `<div style="margin-bottom:10px;">
+    <button class="btn-primary" style="width:100%;padding:11px;font-size:.92rem;" onclick="openZoneWalkthrough('${bed.key}')">🚶 Start yard walkthrough</button>
+    <div style="font-size:.74rem;color:var(--muted);margin-top:4px;text-align:center;line-height:1.4;">Visit each zone in order — confirm plants, capture photos, log what changed.</div>
+  </div>` : '';
+
   const addZoneForm = `<div style="background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:12px 13px;margin-bottom:10px;">
     <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;">ADD ZONE</div>
     <div style="display:flex;gap:6px;margin-bottom:6px;">
@@ -4063,7 +4105,7 @@ function renderFreeformBed(bed) {
       style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:6px 10px;font-size:.82rem;outline:none;box-sizing:border-box;">
   </div>`;
 
-  fv.innerHTML = buildYardMap(bed) + noteHtml + seedPanelHtml + addZoneForm + zonesHtml + emptyMsg;
+  fv.innerHTML = buildYardMap(bed) + noteHtml + walkthroughBtn + seedPanelHtml + addZoneForm + zonesHtml + emptyMsg;
 }
 
 function scrollToZone(zoneId) {
@@ -4293,6 +4335,262 @@ function moveZonePlant(bedKey, fromZoneId, plantIdx, toZoneId) {
   to.plants.push(plant);
   saveDB(db);
   renderFreeformBed(db.beds.find(b=>b.key===bedKey));
+}
+
+// ════════════════════════════════════════
+//  PERENNIAL ZONE WALKTHROUGH
+// ════════════════════════════════════════
+// Guides the user zone-by-zone through a perennial bed for in-yard data
+// review. State: _walkthrough = {bedKey, idx, editingPlantIdx}.
+let _walkthrough = null;
+
+function openZoneWalkthrough(bedKey) {
+  _walkthrough = { bedKey, idx: 0, editingPlantIdx: null };
+  openModal('walkthrough-modal');
+  renderWalkthroughStep();
+}
+
+function walkthroughGoTo(idx) {
+  if (!_walkthrough) return;
+  const zones = (db.bedZones || {})[_walkthrough.bedKey] || [];
+  if (idx < 0 || idx >= zones.length) return;
+  _walkthrough.idx = idx;
+  _walkthrough.editingPlantIdx = null;
+  renderWalkthroughStep();
+}
+
+function walkthroughNext() {
+  if (!_walkthrough) return;
+  const zones = (db.bedZones || {})[_walkthrough.bedKey] || [];
+  if (_walkthrough.idx >= zones.length - 1) {
+    closeModal('walkthrough-modal');
+    showToast({msg: '✅ Walkthrough complete — all zones reviewed.', duration: 5000});
+    _walkthrough = null;
+    if (typeof renderFreeformBed === 'function') {
+      const bed = db.beds.find(b => b.key === 'P');
+      if (bed) renderFreeformBed(bed);
+    }
+    return;
+  }
+  walkthroughGoTo(_walkthrough.idx + 1);
+}
+
+function walkthroughPrev() {
+  if (!_walkthrough) return;
+  walkthroughGoTo(_walkthrough.idx - 1);
+}
+
+// Stamps lastObserved + health on every plant in the current zone, then
+// advances. Treats the zone as "confirmed as-is" — fastest path through.
+function walkthroughConfirmZone() {
+  if (!_walkthrough) return;
+  const zones = (db.bedZones || {})[_walkthrough.bedKey] || [];
+  const z = zones[_walkthrough.idx];
+  if (!z) return;
+  if (z.type !== 'landmark' && z.plants) {
+    const today = new Date().toISOString().slice(0, 10);
+    z.plants.forEach(e => {
+      e.lastObserved = today;
+      if (e.health === 'unknown') e.health = 'good';
+    });
+  }
+  z.lastWalkedDate = new Date().toISOString().slice(0, 10);
+  saveDB(db);
+  walkthroughNext();
+}
+
+async function walkthroughCapturePhoto() {
+  document.getElementById('wt-photo-input')?.click();
+}
+async function walkthroughOnPhotoSelected(input) {
+  if (!_walkthrough) return;
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const zones = (db.bedZones || {})[_walkthrough.bedKey] || [];
+  const z = zones[_walkthrough.idx];
+  if (!z) return;
+  try {
+    // Store with plantId='zone-<id>' so it reuses the existing photo store
+    await addPlantPhoto('zone-' + z.id, file, '');
+    input.value = '';
+    renderWalkthroughStep();
+    showToast({msg: '📸 Photo saved for ' + (z.name || z.id), duration: 4000});
+  } catch (e) {
+    alert('Could not save photo: ' + e.message);
+  }
+}
+
+function walkthroughEditPlant(idx) {
+  if (!_walkthrough) return;
+  _walkthrough.editingPlantIdx = _walkthrough.editingPlantIdx === idx ? null : idx;
+  renderWalkthroughStep();
+}
+
+function walkthroughUpdatePlantField(idx, field, value) {
+  if (!_walkthrough) return;
+  const zones = (db.bedZones || {})[_walkthrough.bedKey] || [];
+  const z = zones[_walkthrough.idx];
+  if (!z || !z.plants || !z.plants[idx]) return;
+  z.plants[idx][field] = value;
+  z.plants[idx].lastObserved = new Date().toISOString().slice(0, 10);
+  saveDB(db);
+}
+
+function walkthroughRemovePlant(idx) {
+  if (!_walkthrough) return;
+  const zones = (db.bedZones || {})[_walkthrough.bedKey] || [];
+  const z = zones[_walkthrough.idx];
+  if (!z || !z.plants) return;
+  const dbPlant = db.plants.find(p => p.id === z.plants[idx].plantId);
+  const name = dbPlant?.common || 'this plant';
+  if (!confirm(`Remove ${name} from ${z.name}?`)) return;
+  z.plants.splice(idx, 1);
+  saveDB(db);
+  _walkthrough.editingPlantIdx = null;
+  renderWalkthroughStep();
+}
+
+function walkthroughAddPlant() {
+  if (!_walkthrough) return;
+  const z = (db.bedZones || {})[_walkthrough.bedKey]?.[_walkthrough.idx];
+  if (!z) return;
+  const nameEl = document.getElementById('wt-add-name');
+  const varietyEl = document.getElementById('wt-add-variety');
+  const countEl = document.getElementById('wt-add-count');
+  const name = nameEl?.value.trim();
+  if (!name) return;
+  const variety = varietyEl?.value.trim() || '';
+  const count = Math.max(1, parseInt(countEl?.value, 10) || 1);
+  // Match against PLANT_LIB by name for an emoji + library link
+  const libMatch = PLANT_LIB.find(p => p.name.toLowerCase() === name.toLowerCase());
+  let dbPlant = db.plants.find(p => (p.common || '').toLowerCase() === name.toLowerCase());
+  if (!dbPlant) {
+    dbPlant = {
+      id: 'p-z-' + Date.now(),
+      common: name, emoji: libMatch?.emoji || '🌿',
+      category: 'native', location: '',
+      status: 'established', added: new Date().toISOString().slice(0, 7),
+      notes: '', bloom: '', bloomEnd: '', latin: '',
+    };
+    db.plants.push(dbPlant);
+  }
+  z.plants = z.plants || [];
+  z.plants.push({
+    plantId: dbPlant.id, status: 'established', notes: '',
+    variety, count, health: 'good',
+    lastObserved: new Date().toISOString().slice(0, 10),
+  });
+  saveDB(db);
+  renderWalkthroughStep();
+}
+
+async function renderWalkthroughStep() {
+  if (!_walkthrough) return;
+  const bedKey = _walkthrough.bedKey;
+  const bed = db.beds.find(b => b.key === bedKey);
+  const zones = (db.bedZones || {})[bedKey] || [];
+  const z = zones[_walkthrough.idx];
+  if (!z) return;
+  const totalZones = zones.length;
+  const isLast = _walkthrough.idx === totalZones - 1;
+  const isLandmark = z.type === 'landmark';
+
+  document.getElementById('wt-title').innerHTML = `${z.emoji || '🌿'} ${esc(z.name)}`;
+  document.getElementById('wt-progress').textContent = `Zone ${_walkthrough.idx + 1} of ${totalZones}${z.lastWalkedDate ? ' · last walked ' + z.lastWalkedDate : ''}`;
+
+  let body = '';
+  if (z.notes) {
+    body += `<div style="background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:9px 11px;margin-bottom:10px;font-size:.82rem;line-height:1.45;color:var(--muted);">${esc(z.notes)}</div>`;
+  }
+  if (isLandmark) {
+    body += `<div style="text-align:center;padding:18px;color:var(--muted);font-size:.85rem;">📍 Landmark — no plants to track here. Tap Next to continue.</div>`;
+  } else {
+    const plants = z.plants || [];
+    if (plants.length) {
+      body += plants.map((e, i) => {
+        const dbp = db.plants.find(p => p.id === e.plantId) || {common: '?', emoji: '🌿'};
+        const isEditing = _walkthrough.editingPlantIdx === i;
+        const healthEmoji = {good:'✅', struggling:'⚠️', dead:'💀', unknown:'❓'}[e.health || 'unknown'];
+        const obs = e.lastObserved ? `seen ${e.lastObserved}` : 'not yet confirmed';
+        if (!isEditing) {
+          return `<div style="background:white;border:1px solid var(--rule);border-radius:6px;padding:9px 11px;margin-bottom:6px;">
+            <div style="display:flex;align-items:baseline;gap:7px;">
+              <span style="font-size:1.1rem;">${dbp.emoji || '🌿'}</span>
+              <span style="font-weight:600;flex:1;">${esc(dbp.common)}${e.variety?` <span style="font-weight:400;color:var(--muted);font-size:.85em;">(${esc(e.variety)})</span>`:''}${e.count > 1?` <span style="color:var(--muted);font-size:.85em;">×${e.count}</span>`:''}</span>
+              <span style="font-size:.95rem;" title="${e.health}">${healthEmoji}</span>
+            </div>
+            <div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-top:3px;">${obs}${e.notes?' · ' + esc(e.notes):''}</div>
+            <div style="display:flex;gap:5px;margin-top:6px;">
+              <button class="btn-sm" style="font-size:.72rem;padding:4px 8px;" onclick="walkthroughEditPlant(${i})">✏️ Edit</button>
+              <button class="btn-sm" style="font-size:.72rem;padding:4px 8px;color:#a04030;" onclick="walkthroughRemovePlant(${i})">✗ Gone</button>
+            </div>
+          </div>`;
+        }
+        // Editing form
+        return `<div style="background:#fffbeb;border:1px solid #e8d080;border-radius:6px;padding:10px 12px;margin-bottom:6px;">
+          <div style="font-weight:600;margin-bottom:6px;">${dbp.emoji || '🌿'} ${esc(dbp.common)} — edit</div>
+          <label style="display:block;font-family:'Space Mono',monospace;font-size:7px;letter-spacing:.07em;color:var(--muted);margin-bottom:2px;">VARIETY / CULTIVAR</label>
+          <input value="${esc(e.variety || '')}" placeholder="e.g. Honeycrisp" oninput="walkthroughUpdatePlantField(${i},'variety',this.value)" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:5px 8px;font-size:.85rem;box-sizing:border-box;margin-bottom:7px;">
+          <div style="display:flex;gap:7px;margin-bottom:7px;">
+            <div style="flex:1;">
+              <label style="display:block;font-family:'Space Mono',monospace;font-size:7px;letter-spacing:.07em;color:var(--muted);margin-bottom:2px;">COUNT</label>
+              <input type="number" min="1" value="${e.count || 1}" onchange="walkthroughUpdatePlantField(${i},'count',Math.max(1,parseInt(this.value,10)||1))" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:5px 8px;font-size:.85rem;box-sizing:border-box;">
+            </div>
+            <div style="flex:2;">
+              <label style="display:block;font-family:'Space Mono',monospace;font-size:7px;letter-spacing:.07em;color:var(--muted);margin-bottom:2px;">HEALTH</label>
+              <select onchange="walkthroughUpdatePlantField(${i},'health',this.value)" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:5px 8px;font-size:.85rem;background:white;box-sizing:border-box;">
+                <option value="good"${e.health==='good'?' selected':''}>✅ Good</option>
+                <option value="struggling"${e.health==='struggling'?' selected':''}>⚠️ Struggling</option>
+                <option value="dead"${e.health==='dead'?' selected':''}>💀 Dead</option>
+                <option value="unknown"${e.health==='unknown'?' selected':''}>❓ Unknown</option>
+              </select>
+            </div>
+          </div>
+          <label style="display:block;font-family:'Space Mono',monospace;font-size:7px;letter-spacing:.07em;color:var(--muted);margin-bottom:2px;">NOTES</label>
+          <input value="${esc(e.notes || '')}" placeholder="e.g. north tree leaning, eastern one flowering" oninput="walkthroughUpdatePlantField(${i},'notes',this.value)" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:5px 8px;font-size:.85rem;box-sizing:border-box;margin-bottom:7px;">
+          <button class="btn-sm" style="width:100%;" onclick="walkthroughEditPlant(${i})">✓ Done editing</button>
+        </div>`;
+      }).join('');
+    } else {
+      body += `<div style="background:var(--surface);border:1px dashed var(--rule);border-radius:6px;padding:14px;text-align:center;color:var(--muted);font-size:.85rem;margin-bottom:10px;">No plants recorded for this zone yet.</div>`;
+    }
+    // Add plant block
+    body += `<div style="background:white;border:1px solid var(--rule);border-radius:6px;padding:10px 12px;margin-bottom:10px;">
+      <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:var(--muted);margin-bottom:6px;">+ ADD PLANT</div>
+      <input id="wt-add-name" type="text" placeholder="Plant name (autocompletes from library)" list="wt-add-lib" style="width:100%;border:1px solid var(--rule);border-radius:4px;padding:6px 9px;font-size:.85rem;box-sizing:border-box;margin-bottom:5px;">
+      <datalist id="wt-add-lib">${PLANT_LIB.map(p => `<option value="${esc(p.name)}">`).join('')}</datalist>
+      <div style="display:flex;gap:5px;margin-bottom:5px;">
+        <input id="wt-add-variety" type="text" placeholder="Variety (optional)" style="flex:2;border:1px solid var(--rule);border-radius:4px;padding:6px 9px;font-size:.85rem;box-sizing:border-box;">
+        <input id="wt-add-count" type="number" min="1" value="1" placeholder="Count" style="flex:1;border:1px solid var(--rule);border-radius:4px;padding:6px 9px;font-size:.85rem;box-sizing:border-box;">
+      </div>
+      <button class="btn-sm" style="width:100%;" onclick="walkthroughAddPlant()">+ Add to ${esc(z.name)}</button>
+    </div>`;
+    // Photo gallery for this zone
+    try {
+      const photos = await photoListForPlant('zone-' + z.id);
+      if (photos.length) {
+        body += `<div style="background:white;border:1px solid var(--rule);border-radius:6px;padding:9px 11px;margin-bottom:10px;">
+          <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:var(--muted);margin-bottom:6px;">📷 ZONE PHOTOS (${photos.length})</div>
+          <div style="display:flex;gap:6px;overflow-x:auto;">
+            ${photos.map(ph => `<img src="${ph.dataUrl}" style="width:80px;height:80px;object-fit:cover;border-radius:4px;flex-shrink:0;" alt="">`).join('')}
+          </div>
+        </div>`;
+      }
+    } catch (_) { /* photo store unavailable — non-fatal */ }
+  }
+  document.getElementById('wt-body').innerHTML = body;
+
+  // Navigation footer
+  const navParts = [];
+  if (_walkthrough.idx > 0) {
+    navParts.push(`<button class="btn-sm" style="flex:1;padding:9px;" onclick="walkthroughPrev()">← Prev</button>`);
+  }
+  if (!isLandmark) {
+    navParts.push(`<button class="btn-sm" style="flex:1;padding:9px;" onclick="walkthroughCapturePhoto()">📷 Photo</button>`);
+  }
+  navParts.push(`<button class="btn-sm" style="flex:1;padding:9px;color:var(--muted);" onclick="walkthroughNext()">⊘ Skip</button>`);
+  navParts.push(`<button class="btn-primary" style="flex:2;padding:9px;" onclick="walkthroughConfirmZone()">${isLast ? '✓ Finish' : '✓ Confirm & next →'}</button>`);
+  document.getElementById('wt-nav').innerHTML = navParts.join('');
 }
 
 function addZone(bedKey) {
