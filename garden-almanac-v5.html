@@ -2427,6 +2427,55 @@ function loadDB() {
             history:[],current:[]});
         }
       });
+      // One-time migration: add 4 five-gallon + 1 three-gallon wooden box
+      // containers, each holding a single plant (Serrano, 2× Poblano, mint,
+      // and rosemary in the 3-gal). Place + lock them, then clear peppers,
+      // mint, and rosemary from the main/design beds since they now live here.
+      if (!d._woodenBoxesAdded) {
+        const BOXES = [
+          {key:'W1', name:'Serrano Box',   dims:'5-gal box', plant:'pepper',   variety:'Serrano'},
+          {key:'W2', name:'Poblano Box 1', dims:'5-gal box', plant:'pepper',   variety:'Poblano'},
+          {key:'W3', name:'Poblano Box 2', dims:'5-gal box', plant:'pepper',   variety:'Poblano'},
+          {key:'W4', name:'Mint Box',      dims:'5-gal box', plant:'mint',     variety:''},
+          {key:'W5', name:'Rosemary Box',  dims:'3-gal box', plant:'rosemary', variety:''},
+        ];
+        d.bedDesigns = d.bedDesigns || {};
+        d.bedStatuses = d.bedStatuses || {};
+        d.lockedBeds = d.lockedBeds || [];
+        BOXES.forEach(box => {
+          const plantName = (PLANT_IDX[box.plant] || {}).name || box.plant;
+          if (!d.beds.find(b => b.key === box.key)) {
+            d.beds.push({
+              id:'bed'+box.key, key:box.key, name:box.name, dims:box.dims,
+              cols:1, rows:1, type:'bag', oya:0, shade:'full',
+              theme:(box.variety ? box.variety + ' ' : '') + plantName,
+              notes:'Wooden '+box.dims+' container, single plant, full sun. '
+                + (box.variety ? box.variety + ' ' : '') + plantName + ' planted individually.',
+              history:[], current:[],
+            });
+          }
+          // Single cell, already in the ground → status 'planted'
+          d.bedDesigns[box.key] = {0: box.plant};
+          d.bedStatuses[box.key] = {0: 'planted'};
+          // Lock so auto-suggest never overwrites these fixed containers
+          if (!d.lockedBeds.includes(box.key)) d.lockedBeds.push(box.key);
+        });
+        // Clear peppers, mint, rosemary from every other (non-box) bed design
+        const boxKeys = new Set(BOXES.map(b => b.key));
+        const clearLibs = new Set(['pepper','mint','rosemary']);
+        Object.keys(d.bedDesigns).forEach(bedKey => {
+          if (boxKeys.has(bedKey)) return;
+          const design = d.bedDesigns[bedKey] || {};
+          const statuses = d.bedStatuses[bedKey] || {};
+          Object.keys(design).forEach(i => {
+            if (clearLibs.has(design[i])) { delete design[i]; delete statuses[i]; }
+          });
+        });
+        // Reassign the Serrano pepper live start to its box
+        const serrano = (d.seeds || []).find(s => s.id === 'seed-af-04');
+        if (serrano) serrano.bed = 'W1';
+        d._woodenBoxesAdded = true;
+      }
       // Additive migration: add Herb Bed (H) and Perennial Beds (P) if not present
       if(!d.beds.find(b=>b.key==='H'))
         d.beds.push({id:'bedH',key:'H',name:'Herb Bed',dims:'10×4 ft',cols:10,rows:4,type:'herb',
@@ -2843,6 +2892,26 @@ function defaultBeds() {
     {id:'bedC1',key:'C1',name:'Bag C',dims:'25-gal bag',cols:2,rows:2,type:'bag',
      theme:'Overwinter container',oya:0,shade:'full',
      notes:'25-gallon cloth grow bag, south end of Bed C. Full sun. For tender perennials needing overwintering indoors. Move inside before Oct 1.',
+     history:[],current:[]},
+    {id:'bedW1',key:'W1',name:'Serrano Box',dims:'5-gal box',cols:1,rows:1,type:'bag',
+     theme:'Serrano Pepper',oya:0,shade:'full',
+     notes:'Wooden 5-gal box container, single plant, full sun. Serrano pepper planted individually.',
+     history:[],current:[]},
+    {id:'bedW2',key:'W2',name:'Poblano Box 1',dims:'5-gal box',cols:1,rows:1,type:'bag',
+     theme:'Poblano Pepper',oya:0,shade:'full',
+     notes:'Wooden 5-gal box container, single plant, full sun. Poblano pepper planted individually.',
+     history:[],current:[]},
+    {id:'bedW3',key:'W3',name:'Poblano Box 2',dims:'5-gal box',cols:1,rows:1,type:'bag',
+     theme:'Poblano Pepper',oya:0,shade:'full',
+     notes:'Wooden 5-gal box container, single plant, full sun. Poblano pepper planted individually.',
+     history:[],current:[]},
+    {id:'bedW4',key:'W4',name:'Mint Box',dims:'5-gal box',cols:1,rows:1,type:'bag',
+     theme:'Mint',oya:0,shade:'full',
+     notes:'Wooden 5-gal box container, single plant, full sun. Mint planted individually (contained — keeps it from spreading).',
+     history:[],current:[]},
+    {id:'bedW5',key:'W5',name:'Rosemary Box',dims:'3-gal box',cols:1,rows:1,type:'bag',
+     theme:'Rosemary',oya:0,shade:'full',
+     notes:'Wooden 3-gal box container, single plant, full sun. Rosemary planted individually.',
      history:[],current:[]},
     {id:'bedH',key:'H',name:'Herb Bed',dims:'10×4 ft',cols:10,rows:4,type:'herb',
      theme:'Perennial Herb Bed',oya:0,shade:'full',
@@ -7239,7 +7308,7 @@ function seedViabilityWarn(seed) {
   if (age >= max - 1) return 'watch';
   return null;
 }
-const BED_INFO={A:{label:'Bed A',cls:'bed-a-tag',emoji:'🍅'},B:{label:'Bed B',cls:'bed-b-tag',emoji:'🥦'},C:{label:'Bed C',cls:'bed-c-tag',emoji:'🥒'},D:{label:'Bed D',cls:'bed-d-tag',emoji:'🌿'},A1:{label:'Bag A',cls:'bed-a-tag',emoji:'🫙'},B1:{label:'Bag B',cls:'bed-b-tag',emoji:'🫙'},C1:{label:'Bag C',cls:'bed-c-tag',emoji:'🫙'},H:{label:'Herb Bed',cls:'bed-h-tag',emoji:'🌿'},P:{label:'Perennial Beds',cls:'bed-p-tag',emoji:'🌸'},any:{label:'Unassigned',cls:'bed-any-tag',emoji:'📦'}};
+const BED_INFO={A:{label:'Bed A',cls:'bed-a-tag',emoji:'🍅'},B:{label:'Bed B',cls:'bed-b-tag',emoji:'🥦'},C:{label:'Bed C',cls:'bed-c-tag',emoji:'🥒'},D:{label:'Bed D',cls:'bed-d-tag',emoji:'🌿'},A1:{label:'Bag A',cls:'bed-a-tag',emoji:'🫙'},B1:{label:'Bag B',cls:'bed-b-tag',emoji:'🫙'},C1:{label:'Bag C',cls:'bed-c-tag',emoji:'🫙'},H:{label:'Herb Bed',cls:'bed-h-tag',emoji:'🌿'},P:{label:'Perennial Beds',cls:'bed-p-tag',emoji:'🌸'},W1:{label:'Serrano Box',cls:'bed-a-tag',emoji:'🫑'},W2:{label:'Poblano Box 1',cls:'bed-a-tag',emoji:'🫑'},W3:{label:'Poblano Box 2',cls:'bed-a-tag',emoji:'🫑'},W4:{label:'Mint Box',cls:'bed-d-tag',emoji:'🌿'},W5:{label:'Rosemary Box',cls:'bed-d-tag',emoji:'🌿'},any:{label:'Unassigned',cls:'bed-any-tag',emoji:'📦'}};
 const STORAGE_INFO={fridge:{label:'Fridge',cls:'store-fridge',icon:'🧊'},freezer:{label:'Freezer',cls:'store-freezer',icon:'❄️'},cool:{label:'Cool dark',cls:'store-cool',icon:'🏠'},ambient:{label:'Shelf',cls:'store-ambient',icon:'📦'},live:{label:'Plant soon',cls:'store-live',icon:'🌱'}};
 function toggleStorageGuide(){
   const g=document.getElementById('storage-guide');
