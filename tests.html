@@ -719,6 +719,26 @@ function runTests(win) {
       middle ? T.transplantNudges(middle).map(n=>n.type).includes('support') : false);
   }
 
+  // ── Scenario 33-care: care + harvest metadata merged onto plants ────
+  {
+    const veg = T.PLANT_LIB.filter(p => p.cat === 'veg');
+    const withCare = veg.filter(p => T.PLANT_IDX[p.id].care);
+    const withHarvest = veg.filter(p => T.PLANT_IDX[p.id].harvest);
+    assert('Scenario 33-care: every veg plant has a care string',
+      withCare.length === veg.length,
+      `${withCare.length}/${veg.length} have care`);
+    assert('Scenario 33-care b: every veg plant has a harvest string',
+      withHarvest.length === veg.length,
+      `${withHarvest.length}/${veg.length} have harvest`);
+    // Spot-check a couple resolve through PLANT_IDX
+    assert('Scenario 33-care c: tomato-ind harvest mentions picking',
+      /pick/i.test(T.PLANT_IDX['tomato-ind'].harvest));
+    assert('Scenario 33-care d: zucchini care mentions daily check',
+      /daily|day/i.test(T.PLANT_IDX['zucchini'].care));
+    assert('Scenario 33-care e: PLANT_CARE_META keys all exist in PLANT_IDX',
+      Object.keys(T.PLANT_CARE_META).every(id => !!T.PLANT_IDX[id]));
+  }
+
   // ── Scenario 33: computeSoilHealth scores reflect data presence ─────
   {
     const emptyDb = T.defaultDB();

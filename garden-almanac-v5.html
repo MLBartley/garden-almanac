@@ -2021,13 +2021,187 @@ const PLANT_DESIGN_META = {
   'nasturtium':       {height:'ground', filler:true},
 };
 
-// Index by id, merging in design metadata
+// ═══ CARE + HARVEST LIBRARY ═══
+// Action-oriented care reminders and harvest cues, layered onto PLANT_LIB.
+// `care` = the recurring maintenance that matters most (water/feed/prune/
+// support/pest). `harvest` = when to pick, the visual/tactile ripeness cue,
+// and picking cadence. Tuned for Bozeman / Zone 5b. Keyed by plant id.
+const PLANT_CARE_META = {
+  // ── TOMATOES / NIGHTSHADE
+  'tomato-ind': {
+    care:'Deep-water 1–2×/week at the base (never the leaves) to prevent blight; prune suckers weekly and keep tied to the cage; side-dress with compost or fish emulsion at first flowering, then monthly.',
+    harvest:'Pick when fully colored and giving slightly to a gentle squeeze — every 2–3 days at peak. Before the first hard frost (~Sept 20), pick all full-size green fruit and ripen indoors.'},
+  'tomato-det': {
+    care:'Stake once early; minimal pruning (don\'t remove suckers — you\'d cut your yield). Keep water steady to avoid blossom-end rot and cracking.',
+    harvest:'Fruit ripens in a concentrated 2–3 week window — pick fully colored and slightly soft. Great for a single big sauce/canning batch.'},
+  'tomatillo': {
+    care:'Needs 2+ plants for pollination; cage at transplant — it sprawls hard. Moderate, even water.',
+    harvest:'Ready when the papery husk fills out and splits and the fruit is firm and bright; fully ripe fruit drops to the ground on its own. Pick when husk is tight-to-just-splitting for salsa verde.'},
+  'pepper': {
+    care:'Keep warm and evenly moist; black plastic mulch boosts soil heat. Support branches once fruit is heavy; feed lightly — too much N gives leaves, not fruit.',
+    harvest:'Pick green at full size, or leave on for full color (sweeter, more vitamin C). Frequent early picking pushes the plant to set more. Cut with scissors — stems snap easily.'},
+  'eggplant': {
+    care:'Warmest spot you have + wall-o-water early; consistent water; stake the plant. Soil must stay 65°F+ to set fruit.',
+    harvest:'Pick when skin is glossy and firm and fruit is full-size for the variety — before the skin dulls (dull = overripe, bitter, seedy). Cut, don\'t pull.'},
+  'potato': {
+    care:'Hill soil up over the stems as they grow (keeps tubers covered and unexposed); even water through flowering; stop watering once tops die back.',
+    harvest:'New potatoes: dig gently ~2 weeks after flowering. Storage crop: wait until tops die back, then wait 2 more weeks, dig on a dry day, and cure 1–2 weeks in the dark before storing.'},
+  // ── BRASSICAS
+  'brassica-broc': {
+    care:'Row cover from transplant to block flea beetles and cabbage worms; steady water; feed with high-N compost mid-growth.',
+    harvest:'Cut the central head while the buds are still tight and dark green — before any yellow flowers show. Leave the plant: side shoots keep producing smaller heads for weeks.'},
+  'brassica-kale': {
+    care:'Pick regularly to keep it productive; watch for aphids and cabbage worms; mulch to keep roots cool.',
+    harvest:'Harvest outer leaves once they\'re hand-sized, leaving the central growing point. Flavor turns sweeter after frost — one of the last crops standing in Bozeman.'},
+  'bok-choy': {
+    care:'Keep soil consistently moist and shaded in heat (Bed D is ideal); flea-beetle watch. Bolts fast when hot.',
+    harvest:'Cut the whole head at the base at any size, or take outer leaves as needed. Harvest before it bolts — baby heads are ready in ~30 days.'},
+  'brussels-sprouts': {
+    care:'Stake tall stalks; strip yellowing lower leaves as sprouts form; steady water + feeding all season.',
+    harvest:'Pick sprouts bottom-up once firm and ~1" across — flavor sweetens dramatically after the first hard frost. Topping the plant ~3 weeks before final harvest evens out the sprouts.'},
+  'kohlrabi': {
+    care:'Even moisture for tender bulbs; thin early so bulbs have room.',
+    harvest:'Harvest when the bulb is 2–3" (tennis-ball size) — larger gets woody and fibrous. Slice the stem at the base.'},
+  'cabbage': {
+    care:'Row cover against cabbage worm; keep water even — irregular watering splits heads. Feed mid-growth.',
+    harvest:'Cut when the head feels firm and solid under a squeeze, before it splits. Leave a few outer leaves on. Fall crop (transplant Aug 15) heads up more reliably in Bozeman.'},
+  'cauliflower': {
+    care:'Blanch by tying outer leaves over the curd once fist-sized; steady water + feed; row cover.',
+    harvest:'Cut while the curd is 6–8", tight, and still white/creamy — before it starts to "rice" (separate into grains) or loosen.'},
+  'turnip': {
+    care:'Thin to spacing; keep moisture even for tender roots; quick spring or fall crop.',
+    harvest:'Pull roots at 2–3" (golf-to-tennis-ball) — bigger turns woody. Greens are good young. Roots sweeten after a fall frost.'},
+  // ── ROOTS
+  'carrot': {
+    care:'Keep the surface constantly moist until germination (the slowest step); thin to 3" early; never let soil dry out and re-wet hard (causes splitting).',
+    harvest:'Pull when shoulders reach ~½–¾" (brush soil aside to peek). Sweeter after a light frost; you can mulch heavily and leave them in the ground to dig as needed.'},
+  'beet': {
+    care:'Thin to 4" (each "seed" is a cluster); keep water even to avoid woody, zonate roots.',
+    harvest:'Best at 1.5–3" — larger gets tough and woody. Pick greens young anytime. Twist tops off (don\'t cut) to keep roots from bleeding.'},
+  'parsnip': {
+    care:'Use fresh seed only (viability dies after 1 year); keep moist for the long germination; thin to spacing.',
+    harvest:'Leave in the ground through a hard frost — cold converts starch to sugar. Dig late fall, or mulch heavily and harvest through winter into spring.'},
+  'radish': {
+    care:'Thin to 3"; keep moisture even; fast turnover — re-sow the space.',
+    harvest:'Pull promptly at golf-ball / full size — left too long they split and turn pithy and hot.'},
+  'onion': {
+    care:'Keep weed-free and evenly watered while bulbing; stop watering once tops start to fall.',
+    harvest:'Pull scallions anytime. For storage bulbs: harvest when the tops flop over and brown, then cure 2–3 weeks somewhere dry and airy before storing.'},
+  'garlic': {
+    care:'Mulch over winter; cut scapes in June (redirects energy to the bulb — and they\'re a bonus crop); stop watering ~2 weeks before harvest.',
+    harvest:'Dig when the lower 3–4 leaves have browned but 5–6 up top are still green (usually July). Cure 3–4 weeks in shade before trimming and storing.'},
+  'leek': {
+    care:'Mound/hill soil around the stems through the season to blanch the white shanks; keep steadily watered.',
+    harvest:'Dig once stems are pencil-thick or larger. Very cold-hardy — mulch and harvest into winter as needed.'},
+  // ── CUCURBITS
+  'zucchini': {
+    care:'Check daily at peak; deep-water at the base; scout for powdery mildew, squash bugs, and vine borers.',
+    harvest:'Pick at 6–8" while tender — check every day, fruit balloons overnight. Oversized fruit gets seedy and tells the plant to stop producing.'},
+  'cucumber': {
+    care:'Trellis to save space and reduce disease; keep water consistent (drought stress makes them bitter); cucumber-beetle watch.',
+    harvest:'Pick at slicing size before any yellowing, every 1–2 days — steady picking keeps the vine producing. A single missed yellow cuke slows the whole plant.'},
+  'squash-winter': {
+    care:'Let vines sprawl outside the bed; deep-water early, then ease off as fruit matures; scout vine borers and squash bugs.',
+    harvest:'Harvest when the rind is hard (can\'t dent with a thumbnail) and the stem is corky — before a hard frost. Cure 10–14 days in a warm spot to sweeten and store.'},
+  // ── LEGUMES / CORN
+  'bean-bush': {
+    care:'Don\'t handle or pick when foliage is wet (spreads disease); moderate water; no extra nitrogen (they fix their own).',
+    harvest:'Pick snap beans when pods are pencil-thick and firm, before the seeds bulge — every 2–3 days. Frequent picking keeps new pods coming.'},
+  'pea': {
+    care:'Trellis from the start; keep cool and moist; they\'re done by midsummer heat — follow with a warm-season crop.',
+    harvest:'Snap/snow peas: pick when pods are plump and glossy but still flat-ish. Shell peas: when pods are rounded and filled. Pick daily at peak to extend the season.'},
+  'corn': {
+    care:'Plant in a block (9+) for wind pollination; deep-water at tasseling and silking (critical for fill); side-dress nitrogen when knee-high.',
+    harvest:'Ready ~3 weeks after silks appear, when silks are brown/dry and a punctured kernel runs milky (not clear, not doughy). Pick in the morning and eat or process fast — sugar turns to starch within hours.'},
+  // ── LEAFY GREENS
+  'lettuce': {
+    care:'Keep soil consistently moist; shade from taller neighbors extends the season; succession-sow every 2–3 weeks.',
+    harvest:'Cut-and-come-again: take outer leaves and let the center regrow, or cut the whole head before it bolts. Harvest in the cool morning for the crispest leaves.'},
+  'spinach': {
+    care:'Keep cool and moist; harvest promptly — it bolts fast in heat and lengthening days. Sow again in late August for a fall crop.',
+    harvest:'Pick outer leaves at 3–4", or cut the whole plant at the base before a seed stalk forms. Once it bolts the leaves turn bitter.'},
+  'arugula': {
+    care:'Succession-sow every 3 weeks; flea-beetle watch; bolts and sharpens in heat.',
+    harvest:'Cut leaves at 2–4" — young leaves are mild, older and heat-stressed leaves get peppery. Cut-and-come-again for several flushes.'},
+  'chard': {
+    care:'Pick outer stalks regularly to keep the center producing; steady water. One of the longest-season crops — tolerates heat and light frost.',
+    harvest:'Cut outer stalks at 8–10" continuously all season, leaving the inner growing point. The more you cut, the more it makes.'},
+  // ── LONG-SEASON
+  'celery': {
+    care:'Never let it dry out — constant moisture is the whole game; mulch heavily; feed often. Mound soil or wrap to blanch.',
+    harvest:'Take outer stalks once they\'re pencil-thick or larger, anytime, or cut the whole head at the base. Stalks are sweeter and less stringy when blanched.'},
+  'fennel': {
+    care:'Mound soil around the base to blanch the bulb; keep isolated (allelopathic); even water to prevent bolting.',
+    harvest:'Cut the bulb at the base when it\'s golf-ball-to-fist sized, before it bolts — it regrows fronds for seasoning. Let some go to seed for harvest when brown.'},
+  // ── GRAINS
+  'quinoa': {
+    care:'Thin to spacing; may need support when 4–6 ft tall; low water once established.',
+    harvest:'Harvest when seeds rub off the head easily and the heads are dry and papery — beat a rain if you can (wet mature heads sprout on the stalk). Rinse seeds well to remove bitter saponins.'},
+  'barley': {
+    care:'Very low maintenance. Doubles as a cover crop — sow dense and till under before seed sets.',
+    harvest:'For grain: cut when heads droop, turn golden, and the grain is firm and dry. As a cover crop, terminate before it sets seed.'},
+  // ── ANNUAL CULINARY HERBS
+  'basil': {
+    care:'Pinch often and keep warm; even water; extremely frost-tender — bring in or cover below 40°F.',
+    harvest:'Once 6"+, pinch the top set of leaves just above a leaf pair to force branching — never strip more than ⅓ at once. Pinch off flower buds the moment they appear to keep leaves coming.'},
+  'cilantro': {
+    care:'Succession-sow monthly; keep cool — it bolts fast in heat. Bolt-resistant varieties (Calypso, Jantar) last longer.',
+    harvest:'Snip outer leaves at 6", or cut the whole plant before it bolts. Let some bolt and dry on the plant to harvest coriander seed.'},
+  'dill': {
+    care:'Support tall stalks; let some self-seed for next year — attracts swallowtails and beneficial wasps.',
+    harvest:'Snip fronds anytime once the plant is established. For pickling, cut the flower/seed heads when the seeds turn brown.'},
+  'parsley': {
+    care:'Keep evenly moist; slow to germinate (start indoors). Biennial — self-seeds in mild years.',
+    harvest:'Cut outer stems at the base once the plant is established, working inward — the more you cut, the more it produces. Leaves are good all season into frost.'},
+  // ── PERENNIAL HERBS
+  'chives': {
+    care:'Divide every 2–3 years in spring; edible flowers deter aphids.',
+    harvest:'Snip leaves to 1–2" above the base anytime — they regrow. Harvest flowers when freshly open.'},
+  'thyme': {
+    care:'Very drought-tolerant once established; trim lightly after flowering to keep it tidy.',
+    harvest:'Snip sprigs anytime; flavor peaks just before flowering. Cut in the morning after dew dries.'},
+  'oregano': {
+    care:'Spreads — keep contained; trim to control and to encourage fresh growth.',
+    harvest:'Snip stems above a leaf node — flavor is strongest just before the flowers open.'},
+  'sage': {
+    care:'Very hardy in Zone 5b; prune out woody growth in spring; harvest lightly the first year.',
+    harvest:'Pick leaves anytime; flavor is best before flowering. Cut stems rather than stripping leaves.'},
+  'rosemary': {
+    care:'Marginally hardy — overwinter indoors or mulch the crown; needs sharp drainage.',
+    harvest:'Snip sprigs as needed year-round; never take more than ⅓ of the plant at once.'},
+  'mint': {
+    care:'Invasive — always contain in a buried pot or dedicated bed; cut back hard to keep it bushy.',
+    harvest:'Pick leaves anytime; best flavor just before flowering. Cut whole stems to encourage branching.'},
+  'sorrel': {
+    care:'Remove flower stalks as they form to keep leaves coming; very cold-hardy.',
+    harvest:'Pick young outer leaves spring through fall — one of the first greens up each spring. Older leaves get tough and extra-tart.'},
+  // ── EDIBLE FLOWERS / COMPANIONS
+  'marigold': {
+    care:'Deadhead spent blooms to keep flowering; plant as a border.',
+    harvest:'Deadhead regularly — removing spent flowers keeps new ones coming all season.'},
+  'nasturtium': {
+    care:'Plant at bed edges as an aphid trap crop; tolerates poor soil (rich soil = leaves, few flowers).',
+    harvest:'Pick leaves and flowers young for a peppery salad addition; harvest green seed pods to pickle as "poor man\'s capers".'},
+  'borage': {
+    care:'Self-seeds aggressively — pull volunteers you don\'t want. Deters tomato hornworm.',
+    harvest:'Pick the star-shaped flowers fresh for salads and drinks; young leaves have a cucumber flavor.'},
+  'calendula': {
+    care:'Deadhead to extend bloom; handles light frost.',
+    harvest:'Pick fully-open flower heads in the morning; pull the petals for salads, teas, or salves and the plant reblooms.'},
+};
+
+// Index by id, merging in design + care/harvest metadata
 const PLANT_IDX = {};
 PLANT_LIB.forEach(p => {
   const meta = PLANT_DESIGN_META[p.id] || {};
   if (meta.height && !p.height) p.height = meta.height;
   if (meta.filler && p.filler === undefined) p.filler = true;
   if (!p.height) p.height = 'med'; // sensible default
+  const care = PLANT_CARE_META[p.id];
+  if (care) {
+    if (care.care && !p.care) p.care = care.care;
+    if (care.harvest && !p.harvest) p.harvest = care.harvest;
+  }
   PLANT_IDX[p.id] = p;
 });
 
@@ -2947,6 +3121,45 @@ function renderCare(d) {
         title:`${topNudge.text}: ${topPlant.plant?.name || topPlant.baseName}`,
         desc:`Day ${topPlant.daysAgo} since transplant${others}. Tap to review all transplant tasks.`,
         onclick:`switchViewByName('track');setTimeout(()=>scrollToTrackSection('sec-transplants'),50)`,
+      });
+    }
+  }
+
+  // Harvest-window reminders — for any crop sown/transplanted this season
+  // whose days-since-planting has reached ~90% of its days-to-maturity,
+  // surface the plant-specific harvest cue. Dedup by crop; skip crops with
+  // a harvest already logged this season.
+  {
+    const yr = now.getFullYear();
+    const harvestedThisYear = new Set((db.harvestLog || [])
+      .filter(h => new Date(h.date).getFullYear() === yr)
+      .map(h => (h.crop || '').toLowerCase().split(' (')[0]));
+    const seenCrops = new Set();
+    const ready = [];
+    (db.sowLogs || []).forEach(s => {
+      if (new Date(s.date).getFullYear() !== yr) return;
+      const baseName = (s.name || '').split(' (')[0];
+      const libId = seedToLibId({name: baseName, variety: (s.name||'').match(/\(([^)]+)\)/)?.[1] || ''});
+      const plant = libId ? PLANT_IDX[libId] : null;
+      if (!plant || !plant.daysMin || !plant.harvest) return;
+      if (seenCrops.has(libId)) return;
+      if (harvestedThisYear.has(baseName.toLowerCase())) return;
+      const daysSince = Math.floor((now - new Date(s.date + 'T12:00:00')) / 86400000);
+      // Transplants already had ~5-7 wks indoors; direct sow counts from sow date.
+      const effectiveDays = s.method === 'transplant' ? daysSince + 35 : daysSince;
+      if (effectiveDays >= plant.daysMin * 0.9) {
+        seenCrops.add(libId);
+        ready.push({plant, harvest: plant.harvest});
+      }
+    });
+    if (ready.length) {
+      const top = ready[0];
+      const others = ready.length > 1 ? ` (+${ready.length - 1} more ready)` : '';
+      tasks.push({
+        cls:'normal', icon:'🧺',
+        title:`Harvest window open: ${top.plant.name}${others}`,
+        desc: top.harvest,
+        onclick:`switchViewByName('track');setTimeout(()=>scrollToTrackSection('sec-harvest'),50)`,
       });
     }
   }
@@ -6266,11 +6479,15 @@ function showSqTooltip(plantId, status, anchorEl) {
   if (plant.sowMethod) lines.push(`<div class="sq-tt-line"><span class="ttk">🌱</span><span>${esc(plant.sowMethod === 'transplant' ? 'Start indoors / transplant' : plant.sowMethod === 'direct' ? 'Direct sow' : plant.sowMethod)}</span></div>`);
   if (goodIds.length)  lines.push(`<div class="sq-tt-line"><span class="ttk">✓</span><span>With ${esc(goodIds.join(', '))}</span></div>`);
   if (badIds.length)   lines.push(`<div class="sq-tt-line" style="color:#ffb0b0;"><span class="ttk">✗</span><span>Not with ${esc(badIds.join(', '))}</span></div>`);
+  const careHtml = plant.care ? `<div class="sq-tt-notes"><span class="ttk">💧</span> ${esc(plant.care)}</div>` : '';
+  const harvestHtml = plant.harvest ? `<div class="sq-tt-notes"><span class="ttk">🧺</span> ${esc(plant.harvest)}</div>` : '';
   const notesHtml = plant.notes ? `<div class="sq-tt-notes">${esc(plant.notes)}</div>` : '';
   tt.innerHTML = `
     <div class="sq-tt-name">${plant.emoji || ''} ${esc(plant.name)}</div>
     <div class="sq-tt-meta">${esc(STATUS_TT_LABEL[status] || status || 'planned')}${plant.cat ? ' · ' + esc(plant.cat) : ''}</div>
     ${lines.join('')}
+    ${careHtml}
+    ${harvestHtml}
     ${notesHtml}
   `;
   tt.style.display = 'block';
@@ -10335,7 +10552,7 @@ function renderWeekSprint() {
   }).forEach(s=>{
     seenSow.add(s.name.toLowerCase());
     const bed=BED_INFO[s.bed]||BED_INFO.any;
-    items.push({icon:PLANT_IDX[seedToLibId(s)]?.emoji||'🫘',text:`Direct sow ${s.name} in ${bed.label}`,badge:'SOW',cls:'ws-sow'});
+    items.push({icon:PLANT_IDX[seedToLibId(s)]?.emoji||'🫘',text:`Direct sow ${s.name}`,badge:'SOW',cls:'ws-sow',sowSeedId:s.id});
   });
   // 3. Succession crops due within 7 days
   SUCCESSION_CROPS.filter(c=>{
@@ -10359,7 +10576,108 @@ function renderWeekSprint() {
   });
   if (!items.length) { el.innerHTML=''; return; }
   const dateStr=now.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-  el.innerHTML=`<div class="week-sprint"><div class="ws-header"><span>THIS WEEK IN THE GARDEN</span><span style="opacity:.6;">${dateStr}</span></div>${items.slice(0,6).map(i=>`<div class="ws-item"><div class="ws-icon">${i.icon}</div><div class="ws-text">${i.text}</div><div class="ws-badge ${i.cls}">${i.badge}</div></div>`).join('')}</div>`;
+  el.innerHTML=`<div class="week-sprint"><div class="ws-header"><span>THIS WEEK IN THE GARDEN</span><span style="opacity:.6;">${dateStr}</span></div>${items.slice(0,6).map(i=>{
+    const badge = i.sowSeedId
+      ? `<button class="ws-badge ${i.cls}" style="cursor:pointer;border:none;font-family:inherit;" onclick="openSowModal('${escAttr(i.sowSeedId)}')">${i.badge} →</button>`
+      : `<div class="ws-badge ${i.cls}">${i.badge}</div>`;
+    return `<div class="ws-item"><div class="ws-icon">${i.icon}</div><div class="ws-text">${i.text}</div>${badge}</div>`;
+  }).join('')}</div>`;
+}
+
+// Bed-picker for logging a direct sow from the Today week-sprint. Asks which
+// bed (prefilled to the seed's assigned bed or its best-fit bed) plus date
+// and quantity, then writes a direct-sow entry to db.sowLogs.
+function openSowModal(seedId) {
+  const s = (db.seeds || []).find(x => x.id === seedId);
+  if (!s) return;
+  const libId = seedToLibId(s);
+  const plant = libId ? PLANT_IDX[libId] : null;
+  const bestBeds = new Set(plant?.bestBeds || []);
+  // Empty-cell counts per non-perennial bed
+  const bedOpts = (db.beds || [])
+    .filter(b => b.type !== 'perennial' && b.type !== 'herb')
+    .map(b => {
+      const cap = (b.cols || 0) * (b.rows || 0);
+      const d = (db.bedDesigns || {})[b.key] || {};
+      let empty = 0; for (let i = 0; i < cap; i++) if (!d[i]) empty++;
+      return { key: b.key, label: BED_INFO[b.key]?.label || b.name || b.key, empty, fit: bestBeds.has(b.key) };
+    })
+    .sort((a, b) => (b.fit ? 1 : 0) - (a.fit ? 1 : 0) || b.empty - a.empty);
+  // Default selected bed: the seed's assigned bed, else the top best-fit bed
+  const defaultBed = (s.bed && s.bed !== 'any') ? s.bed : (bedOpts[0]?.key || 'A');
+  const today = new Date().toISOString().slice(0, 10);
+  let modal = document.getElementById('sow-bed-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'sow-bed-modal';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `<div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;">
+      <div class="modal-title">${plant?.emoji || '🌱'} Sow ${esc(s.name)}</div>
+      <button onclick="closeModal('sow-bed-modal')" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;">×</button>
+    </div>
+    <div style="font-size:.8rem;color:var(--muted);margin-bottom:12px;">${plant?.harvest ? '🧺 ' + esc(plant.harvest) : 'Log a direct sow and track it on the Track tab.'}</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div>
+        <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.07em;color:var(--muted);margin-bottom:3px;">WHICH BED?</div>
+        <select id="sow-bed-select" style="width:100%;border:1px solid var(--rule);border-radius:6px;padding:9px 10px;font-size:.95rem;background:white;">
+          ${bedOpts.map(o => `<option value="${escAttr(o.key)}"${o.key === defaultBed ? ' selected' : ''}>${esc(o.label)}${o.fit ? ' ★' : ''} — ${o.empty} empty cell${o.empty === 1 ? '' : 's'}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <div style="flex:2;">
+          <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.07em;color:var(--muted);margin-bottom:3px;">DATE SOWN</div>
+          <input type="date" id="sow-date" value="${today}" style="width:100%;border:1px solid var(--rule);border-radius:6px;padding:8px 10px;font-size:.9rem;box-sizing:border-box;">
+        </div>
+        <div style="flex:1;">
+          <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.07em;color:var(--muted);margin-bottom:3px;">QTY</div>
+          <input type="number" id="sow-qty" min="1" value="${s.qty || 1}" style="width:100%;border:1px solid var(--rule);border-radius:6px;padding:8px 10px;font-size:.9rem;box-sizing:border-box;">
+        </div>
+      </div>
+    </div>
+    <button class="btn-primary" style="width:100%;padding:11px;margin-top:14px;" onclick="confirmSowFromModal('${escAttr(seedId)}')">🌱 Log sow</button>
+    <button class="btn-sm" style="width:100%;padding:10px;margin-top:6px;" onclick="closeModal('sow-bed-modal')">Cancel</button>
+  </div>`;
+  openModal('sow-bed-modal');
+}
+
+function confirmSowFromModal(seedId) {
+  const s = (db.seeds || []).find(x => x.id === seedId);
+  if (!s) { closeModal('sow-bed-modal'); return; }
+  const bed = document.getElementById('sow-bed-select')?.value || 'A';
+  const date = document.getElementById('sow-date')?.value || new Date().toISOString().slice(0, 10);
+  const qty = Math.max(1, parseInt(document.getElementById('sow-qty')?.value, 10) || 1);
+  const gd = germDaysForPlant(s.name);
+  db.sowLogs = db.sowLogs || [];
+  db.sowLogs.unshift({
+    id: 'sl' + Date.now(),
+    name: s.name + (s.variety && !s.variety.startsWith('(') ? ' (' + s.variety + ')' : ''),
+    method: 'direct',
+    bed,
+    date,
+    germDays: gd || 10,
+    notes: 'Sown from Today',
+    status: 'waiting',
+    statusDate: null,
+    qty,
+  });
+  db.journal = db.journal || [];
+  db.journal.unshift({
+    id: 'j' + Date.now(),
+    date: new Date().toISOString(),
+    mood: '🌱', tags: ['seeded', 'planted'],
+    text: `Direct sowed ${s.name} ×${qty} in ${BED_INFO[bed]?.label || bed}.`,
+    weather: null,
+  });
+  saveDB(db);
+  closeModal('sow-bed-modal');
+  renderWeekSprint();
+  if (typeof renderSpring === 'function') renderSpring();
+  if (typeof renderJournal === 'function') renderJournal();
+  showToast({ msg: `🌱 Logged ${s.name} sown → ${BED_INFO[bed]?.label || bed}`, duration: 7000 });
 }
 
 // ════════════════════════════════════════
@@ -11446,7 +11764,7 @@ if (!TEST_MODE) {
     computeAutoPopulate, seedToLibId, fillRecommendedPass, placeThreeSisters,
     defaultSeedPlantCount, seedPacketPlantCount, seedPacketSquares, liveStartSquares,
     plantBlockDims, seedTooLateReason,
-    PLANT_IDX, PLANT_LIB, BED_INFO, FAMILY_MAP, PLANT_VARIETIES, GDD_TO_HARVEST, BOZEMAN_PESTS,
+    PLANT_IDX, PLANT_LIB, BED_INFO, FAMILY_MAP, PLANT_VARIETIES, GDD_TO_HARVEST, BOZEMAN_PESTS, PLANT_CARE_META,
     defaultDB, defaultBeds, defaultSeeds, defaultPlants,
     esc, escAttr,
     // Phase 3-5 helpers
