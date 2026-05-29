@@ -1085,7 +1085,8 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       <div class="plant-view-toggle">
         <button class="pvt-btn active" id="pvt-list" onclick="setPlantView('list',this)">List</button>
         <button class="pvt-btn" id="pvt-compact" onclick="setPlantView('compact',this)">Compact</button>
-        <button class="pvt-btn" id="pvt-bloom" onclick="setPlantView('bloom',this)">Bloom calendar</button>
+        <button class="pvt-btn" id="pvt-bloom" onclick="setPlantView('bloom',this)">Bloom</button>
+        <button class="pvt-btn" id="pvt-garden" onclick="setPlantView('garden',this)">Garden</button>
       </div>
       <div id="plant-quick-filters" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;"></div>
       <div class="plant-loc-filter" id="plant-loc-filter"></div>
@@ -1100,6 +1101,8 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       <div id="plant-bloom-mode" style="display:none;">
         <div id="bloom-calendar"></div>
       </div>
+      <!-- garden plants reference mode (veg/herb/flower library, care + harvest) -->
+      <div id="plant-garden-mode" style="display:none;"></div>
     </div>
 
     <!-- YEAR -->
@@ -8311,10 +8314,14 @@ function setPlantView(mode,btn){
   document.querySelectorAll('#view-plants .pvt-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   const isListLike = mode==='list' || mode==='compact';
+  const isGarden = mode==='garden';
   document.getElementById('plant-list-mode').style.display=isListLike?'':'none';
-  document.getElementById('plant-bloom-mode').style.display=isListLike?'none':'';
+  document.getElementById('plant-bloom-mode').style.display=mode==='bloom'?'':'none';
+  document.getElementById('plant-garden-mode').style.display=isGarden?'':'none';
   document.getElementById('plant-loc-filter').style.display=isListLike?'':'none';
-  document.getElementById('plant-search-sort').style.display=isListLike?'':'none';
+  document.getElementById('plant-quick-filters').style.display=isListLike?'':'none';
+  // Search box stays available for list, compact, and the garden reference.
+  document.getElementById('plant-search-sort').style.display=(isListLike||isGarden)?'':'none';
   // Toggle compact-list class on the list container so the same plantCard
   // markup renders as a denser row when mode === 'compact'.
   document.getElementById('plant-list-mode').classList.toggle('plant-list-compact', mode === 'compact');
@@ -8323,6 +8330,61 @@ function setPlantView(mode,btn){
 function setLocFilter(loc,btn){
   plantLocFilter=loc;
   renderPlants();
+}
+
+// Garden-plants reference: the full veg/herb/flower/cover library with
+// care + harvest cues and timing, grouped by category. Honors the search
+// box; flags plants currently in beds or in seed inventory.
+function renderGardenPlantsLibrary(){
+  const cont = document.getElementById('plant-garden-mode');
+  if(!cont) return;
+  const q = (plantSearchQuery||'').toLowerCase();
+  const plantedIds = new Set();
+  Object.values(db.bedDesigns||{}).forEach(des=>Object.values(des||{}).forEach(id=>{ if(id) plantedIds.add(id); }));
+  const inventoryIds = new Set((db.seeds||[]).filter(s=>!s.skipYear).map(s=>seedToLibId(s)).filter(Boolean));
+  const cats = [
+    {key:'veg', label:'Vegetables'},
+    {key:'herb', label:'Herbs'},
+    {key:'flower', label:'Flowers'},
+    {key:'cover', label:'Cover crops'},
+  ];
+  const sowLabel = {direct:'Direct sow', transplant:'Transplant', both:'Direct or transplant'};
+  const frostLabel = {hardy:'Frost hardy', halfhardy:'Half-hardy', tender:'Tender', verytender:'Very tender'};
+  let html = '', shown = 0;
+  cats.forEach(cat=>{
+    let plants = PLANT_LIB.filter(p=>p.cat===cat.key);
+    if(q) plants = plants.filter(p=>
+      (p.name||'').toLowerCase().includes(q) || (p.care||'').toLowerCase().includes(q)
+      || (p.harvest||'').toLowerCase().includes(q) || (p.notes||'').toLowerCase().includes(q));
+    if(!plants.length) return;
+    plants.sort((a,b)=>a.name.localeCompare(b.name));
+    html += `<div class="section-label">${cat.label} <span style="font-weight:400;color:var(--muted);font-family:'Crimson Pro',serif;font-size:.85rem;text-transform:none;letter-spacing:0;">${plants.length}</span></div>`;
+    html += plants.map(p=>{
+      shown++;
+      const days = p.daysMin>0 ? `⏱ ${p.daysMin}–${p.daysMax}d` : '♻ perennial';
+      const badge = plantedIds.has(p.id)
+        ? '<span class="plant-pill" style="background:#e2f0e4;color:#2a6a2a;">✓ in beds</span>'
+        : (inventoryIds.has(p.id) ? '<span class="plant-pill pill-gold">🌾 in inventory</span>' : '');
+      const facts = [days, p.spacing, sowLabel[p.sowMethod]||p.sowMethod, frostLabel[p.frostTol]||''].filter(Boolean);
+      return `<div style="background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-bottom:8px;">
+        <div style="display:flex;align-items:baseline;gap:7px;">
+          <span style="font-size:1.1rem;">${p.emoji||'🌿'}</span>
+          <span style="font-weight:600;flex:1;">${esc(p.name)}</span>
+          ${badge}
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px;">
+          ${facts.map(f=>`<span class="plant-pill pill-ink">${esc(f)}</span>`).join('')}
+        </div>
+        ${p.harvest?`<div style="margin-top:7px;font-size:.82rem;line-height:1.45;"><span style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.06em;color:var(--moss);">🧺 WHEN TO HARVEST</span><br>${esc(p.harvest)}</div>`:''}
+        ${p.care?`<div style="margin-top:6px;font-size:.82rem;line-height:1.45;color:var(--muted);"><span style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.06em;color:var(--sky);">💧 CARE</span><br>${esc(p.care)}</div>`:''}
+      </div>`;
+    }).join('');
+  });
+  if(!shown) html = `<div style="color:var(--muted);font-size:.85rem;padding:18px;text-align:center;">No garden plants match "${esc(plantSearchQuery)}".</div>`;
+  cont.innerHTML = html;
+  const total = PLANT_LIB.filter(p=>['veg','herb','flower','cover'].includes(p.cat)).length;
+  const statsEl = document.getElementById('plant-stats-bar');
+  if(statsEl) statsEl.innerHTML = `<span>${total} garden plants · care &amp; harvest reference</span>`;
 }
 function expandPlantNotes(id){
   const el=document.getElementById('pn-'+id);if(!el)return;
@@ -8390,6 +8452,7 @@ function deletePlant(id){
   showToast({msg:`Removed "${removed.common||removed.name||'plant'}"`,action:()=>{db.plants.splice(idx,0,removed);saveDB(db);renderPlants();}});
 }
 function renderPlants(){
+  if(plantViewMode==='garden'){ renderGardenPlantsLibrary(); return; }
   renderPlantQuickFilters();
   const zoneNames=new Set(Object.values(db.bedZones||{}).flatMap(zones=>(zones||[]).filter(z=>z.type!=='landmark').map(z=>z.name)));
   const locs=['All',...new Set([
