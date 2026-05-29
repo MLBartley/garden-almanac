@@ -766,6 +766,25 @@ function runTests(win) {
       Object.keys(T.PLANT_CARE_META).every(id => !!T.PLANT_IDX[id]));
   }
 
+  // ── Scenario 33-bloom: bloom ranges widen long bloomers safely ──────
+  {
+    const plants = [
+      {common:'Echinacea', bloom:'July'},                 // → September
+      {common:'Black-Eyed Susan', bloom:'July'},          // → September
+      {common:'Apple', bloom:'May'},                      // no entry → stays single
+      {common:'Lavender', bloom:'July'},                  // → August
+      {common:'Yarrow', bloom:'June', bloomEnd:'October'},// user-set → preserved
+      {common:'Mystery', bloom:''},                       // no start → skipped
+    ];
+    T.applyBloomRanges(plants);
+    assertEq('Scenario 33-bloom: Echinacea widened to September', plants[0].bloomEnd, 'September');
+    assertEq('Scenario 33-bloom b: Black-Eyed Susan → September', plants[1].bloomEnd, 'September');
+    assert('Scenario 33-bloom c: Apple stays single-month (no bloomEnd)', !plants[2].bloomEnd);
+    assertEq('Scenario 33-bloom d: Lavender → August', plants[3].bloomEnd, 'August');
+    assertEq('Scenario 33-bloom e: user-set range preserved', plants[4].bloomEnd, 'October');
+    assert('Scenario 33-bloom f: no-start plant skipped', !plants[5].bloomEnd);
+  }
+
   // ── Scenario 33: computeSoilHealth scores reflect data presence ─────
   {
     const emptyDb = T.defaultDB();

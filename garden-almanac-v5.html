@@ -2570,6 +2570,13 @@ function loadDB() {
           history:[],current:[]});
       if(!d.bedHistory)d.bedHistory={};
       if(!d.amendments)d.amendments=[];
+      // One-time: widen single-month bloom entries to realistic multi-month
+      // ranges for long-blooming perennials (fruit trees / ephemerals left
+      // as-is). Only fills missing bloomEnd, so user-set ranges are kept.
+      if(!d._bloomRangesV1){
+        applyBloomRanges(d.plants||[]);
+        d._bloomRangesV1=true;
+      }
       // One-time: record the May 2026 spring top-dress (50/50 compost +
       // topsoil) the user applied to all beds, so soil-health reflects it.
       if(!d._springAmend2026){
@@ -2737,8 +2744,46 @@ function loadDB() {
   }
 }
 function saveDB(db) { localStorage.setItem(DB_KEY, JSON.stringify(db)); }
+// Bloom-end months for plants that bloom multiple months — keyed by a
+// lowercase substring of the common name. Fruit trees, wind-pollinated
+// trees, and spring ephemerals are intentionally omitted (they really do
+// bloom ~1 month). Used to widen single-month entries in the bloom visual.
+const BLOOM_RANGES = {
+  // culinary / herb perennials
+  'lavender':'August', 'culinary sage':'July', 'fennel':'August', 'chives':'July',
+  'oregano':'September', 'thyme':'August',
+  // long-blooming natives & flowers
+  'echinacea':'September', 'cutleaf coneflower':'September', 'black-eyed susan':'September',
+  'blanket flower':'September', 'yarrow':'August', 'goldenrod':'September',
+  'anise hyssop':'September', 'mountain mint':'September', 'shrubby cinquefoil':'September',
+  'colorado 4':'September', 'nodding onion':'August', 'showy milkweed':'July',
+  'columbine':'June', 'rocky mountain iris':'June', 'yucca':'July', 'lead plant':'July',
+  'prairie clover':'August', 'gayfeather':'September', 'globemallow':'August',
+  'sulphur buckwheat':'August', 'sticky geranium':'July', 'roundleaf allium':'July',
+  'blue flax':'July', 'wild strawberry':'June', 'serviceberry':'May', 'golden currant':'May',
+  'elderberry':'July', 'rabbitbrush':'October', 'palmer':'July', 'penstemon':'July',
+  'wild bergamot':'August', 'bergamot':'August', 'mock orange':'July',
+};
+// Set bloomEnd on plants whose bloom spans multiple months, only where the
+// user hasn't already specified one (or it equals the start). Skips entries
+// whose computed end isn't after the start. Mutates and returns the array.
+function applyBloomRanges(plants) {
+  const order = ['March','April','May','June','July','August','September','October'];
+  const idx = m => order.indexOf(m);
+  (plants || []).forEach(p => {
+    if (!p || !p.bloom || idx(p.bloom) < 0) return;       // no valid start month
+    if (p.bloomEnd && p.bloomEnd !== p.bloom) return;     // user already set a range
+    const name = (p.common || '').toLowerCase();
+    const key = Object.keys(BLOOM_RANGES).find(k => name.includes(k));
+    if (!key) return;
+    const end = BLOOM_RANGES[key];
+    if (idx(end) > idx(p.bloom)) p.bloomEnd = end;
+  });
+  return plants;
+}
+
 function defaultDB() {
-  return { schemaVersion:SCHEMA_VERSION, journal:[], plants:defaultPlants(), beds:defaultBeds(), seeds:defaultSeeds(), bedDesigns:{}, bedStatuses:{},
+  return { schemaVersion:SCHEMA_VERSION, journal:[], plants:applyBloomRanges(defaultPlants()), beds:defaultBeds(), seeds:defaultSeeds(), bedDesigns:{}, bedStatuses:{},
     sowLogs:[], hardenLogs:[], oyaLogs:{}, harvestLog:[], plantingList:[], settings:{},
     bedHistory:{}, amendments:[], compostLog:[], wishlist:[], seedSaving:[], checklists:{},
     rainfallLog:[], soilTempLog:[], gddLog:[], seasonReview:{}, lockedBeds:[], bedPlantList:{},
@@ -12308,6 +12353,7 @@ if (!TEST_MODE) {
     estimatedHarvest, whyRecommended, computeSoilHealth,
     getRecentTransplants, transplantStage, transplantNudges,
     getSeasonPhase, isActiveSeason, getReadyToHarvest, countSowOpportunities,
+    applyBloomRanges, BLOOM_RANGES,
     // Allow tests to inject a db before calling helpers that read the
     // lexical `db`. Reassign the top-level binding rather than window.db,
     // since `let db` doesn't attach to window in module/script scope.
