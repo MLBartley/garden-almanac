@@ -11504,6 +11504,16 @@ function logSoilTemp(){
   saveDB(db);document.getElementById('soil-temp').value='';document.getElementById('soil-date').value=todaySoil;renderSoilLog();
 }
 function deleteSoilEntry(id){db.soilTempLog=(db.soilTempLog||[]).filter(e=>e.id!==id);saveDB(db);renderSoilLog();}
+// Format a log entry's stored date — works for both date-only
+// ('YYYY-MM-DD') and full-ISO datetime strings. Avoids the "Invalid Date"
+// that came from appending 'T12:00' to a string that already had a time,
+// and avoids timezone day-shift on bare dates.
+function fmtLogDate(s) {
+  if (!s) return '';
+  const str = String(s);
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(str) ? new Date(str + 'T12:00:00') : new Date(str);
+  return isNaN(d) ? '' : d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+}
 function renderGDD(){
   const el=document.getElementById('gdd-display');if(!el)return;
   const yr=new Date().getFullYear();
@@ -11518,7 +11528,7 @@ function renderGDD(){
     return`<span class="gdd-stone ${cls}">${ms.emoji} ${ms.gdd} ${ms.label}</span>`;
   }).join('');
   const autoTag = `<span style="font-family:'Space Mono',monospace;font-size:7px;letter-spacing:.06em;color:var(--moss);background:#e2f0e4;padding:1px 4px;border-radius:3px;margin-left:4px;" title="Auto-logged from forecast">AUTO</span>`;
-  const recentHtml=log.slice(0,8).map(e=>`<div class="clim-log-row"><span class="clim-badge clb-gdd">GDD</span><span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">${new Date(e.date+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>${e.auto?autoTag:''}<span style="flex:1;text-align:right;font-size:.88rem;">+${e.gdd} <span style="font-size:.75rem;color:var(--muted);">(${e.hi}°/${e.lo}°)</span></span><button onclick="deleteGDDEntry('${e.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:1px 5px;">✕</button></div>`).join('');
+  const recentHtml=log.slice(0,8).map(e=>`<div class="clim-log-row"><span class="clim-badge clb-gdd">GDD</span><span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">${fmtLogDate(e.date)}</span>${e.auto?autoTag:''}<span style="flex:1;text-align:right;font-size:.88rem;">+${e.gdd} <span style="font-size:.75rem;color:var(--muted);">(${e.hi}°/${e.lo}°)</span></span><button onclick="deleteGDDEntry('${e.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:1px 5px;">✕</button></div>`).join('');
   // Per-plant ripeness projections from sowLogs + GDD
   const projections = ripenessProjections();
   const projHtml = projections.length ? `<div style="margin-top:8px;border-top:1px solid var(--rule);padding-top:8px;">
