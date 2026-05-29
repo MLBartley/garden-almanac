@@ -747,13 +747,18 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
     <!-- GARDEN (Design + Seeds + Bed History) -->
     <div class="view" id="view-garden">
       <div class="plant-view-toggle" style="margin-top:4px;">
-        <button class="pvt-btn active" onclick="setGardenTab('design',this)">Design</button>
+        <button class="pvt-btn active" onclick="setGardenTab('beds',this)">Beds</button>
         <button class="pvt-btn" onclick="setGardenTab('seeds',this)">Seeds</button>
-        <button class="pvt-btn" onclick="setGardenTab('beds',this)">Bed History</button>
+        <button class="pvt-btn" onclick="setGardenTab('history',this)">History</button>
       </div>
 
-      <!-- ── DESIGN SUB-TAB ── -->
+      <!-- ── BEDS OVERVIEW (season-adaptive landing) ── -->
+      <div id="garden-overview" style="display:none;"></div>
+
+      <!-- ── DESIGN / EDITOR SUB-TAB ── -->
       <div id="garden-design">
+        <!-- Back to overview -->
+        <button onclick="showBedsOverview()" style="background:none;border:none;color:var(--moss);font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.06em;cursor:pointer;padding:4px 0 8px;display:flex;align-items:center;gap:5px;">← ALL BEDS</button>
         <!-- Bed selector -->
         <div class="bed-select-row" id="bed-select-row"></div>
 
@@ -872,7 +877,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       </div><!-- end #garden-seeds -->
 
       <!-- ── BED HISTORY SUB-TAB ── -->
-      <div id="garden-beds" style="display:none;">
+      <div id="garden-history" style="display:none;">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-top:4px;">
           <button class="btn-sm" onclick="stepHistYear(-1)">‹</button>
           <span id="hist-year-label" style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;flex:1;text-align:center;"></span>
@@ -882,7 +887,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <div id="hist-content"></div>
         <div class="section-label" style="cursor:pointer;" onclick="toggleRotationGuide(this)">Crop rotation guide <span id="rot-guide-arrow" style="font-size:.7rem;opacity:.6;">▾</span></div>
         <div id="rotation-guide" style="display:none;"></div>
-      </div><!-- end #garden-beds -->
+      </div><!-- end #garden-history -->
 
     </div><!-- end #view-garden -->
 
@@ -3928,6 +3933,85 @@ function buildBedSelector() {
 function initDesignTab() {
   buildBedSelector();
   renderDesign();
+}
+
+// ── BEDS OVERVIEW — at-a-glance card per bed (season-adaptive landing) ──
+function renderGardenOverview() {
+  const el = document.getElementById('garden-overview');
+  if (!el) return;
+  const phase = getSeasonPhase();
+  const phaseLabel = {preseason:'Pre-season', planting:'Planting season', fullswing:'Full swing', harvest:'Harvest season', winddown:'Winding down'}[phase] || '';
+  // Ready-to-harvest grouped by bed
+  const readyByBed = {};
+  getReadyToHarvest().forEach(r => { if (r.bed) (readyByBed[r.bed] = readyByBed[r.bed] || []).push(r); });
+  const month = new Date().getMonth() + 1;
+  const pestsThisMonth = (typeof BOZEMAN_PESTS !== 'undefined' ? BOZEMAN_PESTS : []).filter(p => p.months.includes(month));
+
+  function card(b) {
+    const info = BED_INFO[b.key] || {};
+    const emoji = info.emoji || '🛏';
+    const name = b.name || info.label || b.key;
+    const flags = [];
+    let bodyLine, fillPct = null, fillLabel = '';
+    if (b.type === 'perennial') {
+      const zones = (db.bedZones || {})[b.key] || [];
+      const plants = zones.flatMap(z => z.plants || []);
+      const sample = plants.slice(0, 6).map(e => { const p = (db.plants || []).find(x => x.id === e.plantId); return p?.emoji || e.emoji || '🌿'; }).join(' ');
+      bodyLine = plants.length ? sample : 'No plants recorded yet';
+      fillLabel = `${zones.length} zone${zones.length === 1 ? '' : 's'} · ${plants.length} plant${plants.length === 1 ? '' : 's'}`;
+    } else {
+      const design = (db.bedDesigns || {})[b.key] || {};
+      const statuses = (db.bedStatuses || {})[b.key] || {};
+      const cap = (b.cols || 0) * (b.rows || 0);
+      const plantedCount = Object.keys(design).filter(i => statuses[i] === 'planted').length;
+      const occupied = Object.keys(design).filter(i => design[i] && statuses[i] !== 'suggested').length;
+      const uniq = [...new Set(Object.keys(design).filter(i => statuses[i] !== 'suggested').map(i => design[i]).filter(Boolean))];
+      bodyLine = uniq.length
+        ? uniq.slice(0, 4).map(id => { const p = PLANT_IDX[id]; return p ? `${p.emoji} ${p.name.split(' (')[0]}` : ''; }).filter(Boolean).join(' · ')
+        : 'Empty — tap to plan';
+      fillPct = cap ? Math.round((occupied / cap) * 100) : null;
+      fillLabel = cap > 1 ? `${plantedCount}/${cap} planted` : (occupied ? 'planted' : 'empty');
+      // Flags
+      const rb = readyByBed[b.key];
+      if (rb && rb.length) flags.push({t:`🧺 ${rb.length} ready`, c:'#2a6a2a'});
+      if (!b.type) { const sh = computeSoilHealth(b.key); const c = sh.score >= 75 ? '#6b8f71' : sh.score >= 50 ? '#c4922a' : '#c47a7a'; flags.push({t:`🌿 ${sh.score}`, c}); }
+      const fams = new Set(uniq.map(id => getFamily(id)).filter(f => f && f !== 'other'));
+      const hot = pestsThisMonth.find(p => p.families.some(f => fams.has(f)));
+      if (hot) flags.push({t:`⚠ ${hot.name}`, c:'#a04030'});
+      if ((db.lockedBeds || []).includes(b.key)) flags.push({t:'🔒', c:'var(--muted)'});
+    }
+    const fillBar = fillPct != null ? `<div style="height:4px;background:var(--surface);border-radius:2px;overflow:hidden;margin-top:6px;"><div style="width:${fillPct}%;height:100%;background:#9fc9a0;"></div></div>` : '';
+    const flagsHtml = flags.length ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;font-family:'Space Mono',monospace;font-size:8px;">${flags.map(f => `<span style="color:${f.c};">${f.t}</span>`).join('')}</div>` : '';
+    return `<div onclick="openBedFromOverview('${escAttr(b.key)}')" style="background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-bottom:8px;cursor:pointer;">
+      <div style="display:flex;align-items:baseline;gap:7px;">
+        <span style="font-size:1.05rem;">${emoji}</span>
+        <span style="font-weight:600;flex:1;">${esc(name)}</span>
+        <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);">${esc(fillLabel)}</span>
+        <span style="color:var(--muted);">›</span>
+      </div>
+      <div style="font-size:.82rem;color:var(--muted);margin-top:3px;line-height:1.4;">${esc(bodyLine)}</div>
+      ${fillBar}
+      ${flagsHtml}
+    </div>`;
+  }
+
+  const beds = db.beds || [];
+  const gardenBeds = beds.filter(b => !b.type);
+  const containers = beds.filter(b => b.type === 'bag');
+  const perennialHerb = beds.filter(b => b.type === 'herb' || b.type === 'perennial');
+  const section = (label, list) => list.length
+    ? `<div class="section-label">${label}</div>${list.map(card).join('')}` : '';
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin:6px 0 4px;">
+      <div style="font-size:1rem;font-weight:600;">Your beds</div>
+      <span style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.08em;color:var(--moss);">${phaseLabel.toUpperCase()}</span>
+    </div>
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:10px;">Tap a bed to view or edit its plan.</div>
+    ${section('Garden beds', gardenBeds)}
+    ${section('Containers', containers)}
+    ${section('Perennial &amp; herb', perennialHerb)}
+  `;
 }
 
 function selectBed(key, btn) {
@@ -10061,17 +10145,44 @@ function setTrackTab(tab,btn){
   if(tab==='plan'){populateVegDatalist();renderPlanList();renderRecommendations();}
   if(tab==='compost') renderCompost();
 }
-let gardenTab='design';
+let gardenTab='beds';
+// Within the Beds tab: 'overview' = at-a-glance bed cards (default in
+// full-swing/harvest), 'editor' = the per-bed design view (default in
+// planting season). Tapping a card → editor; "← All beds" → overview.
+let bedsMode='overview';
 function setGardenTab(tab,btn){
   gardenTab=tab;
   document.querySelectorAll('#view-garden .pvt-btn').forEach(b=>b.classList.remove('active'));
   if(btn)btn.classList.add('active');
   else{const t=document.querySelector(`#view-garden .pvt-btn[onclick*="'${tab}'"]`);if(t)t.classList.add('active');}
-  document.getElementById('garden-design').style.display=tab==='design'?'':'none';
-  document.getElementById('garden-seeds').style.display=tab==='seeds'?'':'none';
-  document.getElementById('garden-beds').style.display=tab==='beds'?'':'none';
+  applyGardenTabVisibility();
+  if(tab==='beds'){ if(bedsMode==='overview') renderGardenOverview(); else { buildBedSelector(); renderDesign(); } }
   if(tab==='seeds') renderSeeds();
-  if(tab==='beds') renderBedHistory();
+  if(tab==='history') renderBedHistory();
+}
+function applyGardenTabVisibility(){
+  const onBeds = gardenTab==='beds';
+  document.getElementById('garden-overview').style.display = (onBeds && bedsMode==='overview') ? '' : 'none';
+  document.getElementById('garden-design').style.display   = (onBeds && bedsMode==='editor')   ? '' : 'none';
+  document.getElementById('garden-seeds').style.display    = gardenTab==='seeds' ? '' : 'none';
+  document.getElementById('garden-history').style.display  = gardenTab==='history' ? '' : 'none';
+}
+// Show the at-a-glance overview (called by the "← All beds" back button).
+function showBedsOverview(){
+  gardenTab='beds'; bedsMode='overview';
+  applyGardenTabVisibility();
+  renderGardenOverview();
+  document.getElementById('scroll-area').scrollTop=0;
+}
+// Drill into a specific bed's editor from an overview card.
+function openBedFromOverview(key){
+  gardenTab='beds'; bedsMode='editor'; activeBedKey=key;
+  activeBedDesign = (db.bedDesigns&&db.bedDesigns[key]) ? {...db.bedDesigns[key]} : {};
+  activeBedStatuses = (db.bedStatuses&&db.bedStatuses[key]) ? {...db.bedStatuses[key]} : {};
+  applyGardenTabVisibility();
+  buildBedSelector();
+  renderDesign();
+  document.getElementById('scroll-area').scrollTop=0;
 }
 // Switch to the Seeds sub-tab and filter to Unassigned so users can act on
 // the inventory-overview's "View unassigned" link.
@@ -10081,16 +10192,14 @@ function goToUnassignedSeeds(){
   if(btn)filterSeeds('any',btn);
 }
 function renderCurrentGardenTab(){
-  ['design','seeds','beds'].forEach(t=>{
-    const el=document.getElementById('garden-'+t);
-    if(el)el.style.display=t===gardenTab?'':'none';
-  });
+  applyGardenTabVisibility();
   document.querySelectorAll('#view-garden .pvt-btn').forEach((b,i)=>{
-    const tabs=['design','seeds','beds'];
+    const tabs=['beds','seeds','history'];
     b.classList.toggle('active',tabs[i]===gardenTab);
   });
+  if(gardenTab==='beds'){ if(bedsMode==='overview') renderGardenOverview(); else { buildBedSelector(); renderDesign(); } }
   if(gardenTab==='seeds') renderSeeds();
-  if(gardenTab==='beds') renderBedHistory();
+  if(gardenTab==='history') renderBedHistory();
 }
 function populateVegDatalist(){
   const dl=document.getElementById('veg-datalist');
@@ -10241,13 +10350,9 @@ function pushToDesign(bedKey){
   db.bedDesigns[bedKey]=design;
   saveDB(db);
   const navBtn=document.querySelector('[onclick*="\'garden\'"]');
-  gardenTab='design';
+  gardenTab='beds'; bedsMode='editor';
   if(navBtn)switchView('garden',navBtn);
-  setTimeout(()=>{
-    const bedBtns=document.querySelectorAll('.bed-sel-btn');
-    const idx=['A','B','C','D'].indexOf(bedKey);
-    if(bedBtns[idx])selectBed(bedKey,bedBtns[idx]);
-  },60);
+  setTimeout(()=>openBedFromOverview(bedKey),60);
 }
 
 // ════════════════════════════════════════
@@ -10533,7 +10638,12 @@ function switchView(id,btn){
   document.getElementById('scroll-area').scrollTop=0;
   const tbar=document.getElementById('today-bar');
   if(tbar){tbar.style.opacity=id==='today'?'0':'';tbar.style.pointerEvents=id==='today'?'none':'';}
-  if(id==='garden'){initDesignTab();renderCurrentGardenTab();}
+  if(id==='garden'){
+    // Season-adaptive landing: overview in full-swing/harvest, editor in
+    // planting season. Only auto-set when arriving on the Beds tab fresh.
+    if(gardenTab==='beds') bedsMode = isActiveSeason() ? 'overview' : 'editor';
+    renderCurrentGardenTab();
+  }
   if(id==='track'){renderSpring();populateVegDatalist();if(trackTab==='compost')renderCompost();}
   if(id==='plants') renderPlants();
   if(id==='year') renderYear();
