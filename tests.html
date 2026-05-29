@@ -719,6 +719,33 @@ function runTests(win) {
       middle ? T.transplantNudges(middle).map(n=>n.type).includes('support') : false);
   }
 
+  // ── Scenario 33-season: season phase + ready-to-harvest board ───────
+  {
+    assertEq('Scenario 33-season: Feb → preseason', T.getSeasonPhase(new Date(2026,1,15)), 'preseason');
+    assertEq('Scenario 33-season b: May → planting', T.getSeasonPhase(new Date(2026,4,15)), 'planting');
+    assertEq('Scenario 33-season c: July → fullswing', T.getSeasonPhase(new Date(2026,6,15)), 'fullswing');
+    assertEq('Scenario 33-season d: Sept → harvest', T.getSeasonPhase(new Date(2026,8,15)), 'harvest');
+    assertEq('Scenario 33-season e: Nov → winddown', T.getSeasonPhase(new Date(2026,10,15)), 'winddown');
+    assert('Scenario 33-season f: July is active season', T.isActiveSeason(new Date(2026,6,1)));
+    assert('Scenario 33-season g: March is not active season', !T.isActiveSeason(new Date(2026,2,1)));
+
+    // Ready-to-harvest: a radish sown 30d ago (25-35d crop) should be ready
+    const db2 = T.defaultDB();
+    db2.beds = T.defaultBeds();
+    const fmt = off => new Date(Date.now() - off*86400000).toISOString().slice(0,10);
+    db2.sowLogs = [
+      {id:'sl-r', name:'Radish', bed:'B', method:'direct', date:fmt(30), status:'sprouted', qty:1},
+      {id:'sl-c', name:'Carrot', bed:'B', method:'direct', date:fmt(5), status:'waiting', qty:1},
+    ];
+    db2.harvestLog = [];
+    T.setDb(db2);
+    const ready = T.getReadyToHarvest();
+    const radish = ready.find(r => r.libId === 'radish');
+    assert('Scenario 33-season h: radish at 30d is in harvest board', !!radish, 'ready: ' + ready.map(r=>r.libId).join(','));
+    assert('Scenario 33-season i: young carrot not in board', !ready.find(r => r.libId === 'carrot'));
+    assert('Scenario 33-season j: ready entry carries harvest cue', radish && /pull|golf|size/i.test(radish.plant.harvest));
+  }
+
   // ── Scenario 33-care: care + harvest metadata merged onto plants ────
   {
     const veg = T.PLANT_LIB.filter(p => p.cat === 'veg');

@@ -98,6 +98,17 @@ html,body{height:100%;overflow:hidden;font-family:'Crimson Pro',Georgia,serif;ba
 .ws-do{background:rgba(126,200,126,.25);color:#9fc9a0;}
 .ws-soon{background:rgba(196,146,42,.22);color:#c4922a;}
 .ws-sow{background:rgba(91,143,168,.22);color:#8bbfd8;}
+.daily-round{background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:6px 12px 11px;}
+.dr-sec-label{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin:11px 0 3px;}
+.dr-sec-label:first-child{margin-top:4px;}
+.dr-row{display:flex;align-items:flex-start;gap:9px;padding:7px 0;border-top:1px solid var(--rule);cursor:pointer;}
+.dr-row:first-of-type{border-top:none;}
+.dr-ic{font-size:1.05rem;flex-shrink:0;line-height:1.3;}
+.dr-txt{flex:1;min-width:0;font-size:.86rem;line-height:1.4;}
+.dr-sub{color:var(--muted);font-size:.78rem;}
+.dr-btn{flex-shrink:0;align-self:center;background:#2a6a2a;color:white;border:none;border-radius:8px;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.04em;padding:5px 12px;cursor:pointer;}
+.dr-go{flex-shrink:0;align-self:center;color:var(--muted);font-size:1.1rem;}
+.dr-empty{color:var(--muted);font-size:.8rem;padding:6px 0;}
 /* ── YEAR TAB ── */
 .cl-month-hd{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--moss);padding:10px 0 5px;border-top:1px solid var(--rule);margin-top:4px;}
 .cl-month-hd:first-child{border-top:none;margin-top:0;padding-top:2px;}
@@ -714,6 +725,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <div class="section-label" style="margin-top:0;">Today's care</div>
         <div id="care-list"></div>
       </div>
+      <div id="daily-round-wrap"></div>
       <div id="multi-day-wrap"></div>
       <div id="pest-scout-wrap"></div>
       <div id="week-sprint-wrap"></div>
@@ -2952,6 +2964,7 @@ async function loadWeather() {
     document.getElementById('wx-hilo').textContent=hi+'/'+lo+'°';
     renderForecast(d);
     renderCare(d);
+    renderDailyRound(d);
     renderFrostAlert(d);
     renderTodayBar(d);
     renderDesign(); // refresh timing with weather
@@ -2960,7 +2973,10 @@ async function loadWeather() {
     // Best-effort: pull last 7 days of observed weather and auto-append
     // GDD / rainfall / extreme events for any date not already logged.
     autoLogWeather().catch(() => {});
-  } catch { document.getElementById('wx-desc').textContent='Weather unavailable'; }
+  } catch {
+    document.getElementById('wx-desc').textContent='Weather unavailable';
+    renderDailyRound(); // still show the round (minus the weather-driven water line)
+  }
 }
 
 // ════════════════════════════════════════
@@ -8599,6 +8615,183 @@ function ripenessProjections() {
 }
 
 // ════════════════════════════════════════
+//  SEASON PHASE + DAILY ROUND
+// ════════════════════════════════════════
+// Coarse season phase from month + Bozeman frost calendar. Drives Today's
+// layout: in full-swing/harvest we lead with the consolidated Daily Round
+// and demote the spring planting widgets.
+function getSeasonPhase(date = new Date()) {
+  const m = date.getMonth() + 1;
+  if (m <= 3) return 'preseason';
+  if (m === 4 || m === 5) return 'planting';
+  if (m === 6 || m === 7) return 'fullswing';
+  if (m === 8 || m === 9) return 'harvest';
+  return 'winddown';
+}
+function isActiveSeason(date = new Date()) {
+  const p = getSeasonPhase(date);
+  return p === 'fullswing' || p === 'harvest';
+}
+
+// Crops currently in (or just entering) their harvest window. Combines
+// sow/transplant logs with days-to-maturity and per-plant harvest cues,
+// plus the most recent harvest date so cut-and-come-again crops show
+// "last picked Nd ago". Dedups by plant.
+function getReadyToHarvest() {
+  const now = new Date();
+  const yr = now.getFullYear();
+  const seen = new Set();
+  const out = [];
+  const lastHarvest = {};
+  (db.harvestLog || []).forEach(h => {
+    if (new Date(h.date).getFullYear() !== yr) return;
+    const k = (h.crop || '').toLowerCase().split(' (')[0];
+    if (!lastHarvest[k] || new Date(h.date) > new Date(lastHarvest[k])) lastHarvest[k] = h.date;
+  });
+  (db.sowLogs || []).forEach(s => {
+    if (new Date(s.date).getFullYear() !== yr) return;
+    const baseName = (s.name || '').split(' (')[0];
+    const variety = (s.name || '').match(/\(([^)]+)\)/)?.[1] || '';
+    const libId = seedToLibId({name: baseName, variety});
+    const plant = libId ? PLANT_IDX[libId] : null;
+    if (!plant || !plant.daysMin || !plant.harvest) return;
+    if (seen.has(libId)) return;
+    const daysSince = Math.floor((now - new Date(s.date + 'T12:00:00')) / 86400000);
+    const effectiveDays = s.method === 'transplant' ? daysSince + 35 : daysSince;
+    if (effectiveDays < plant.daysMin * 0.9) return;
+    seen.add(libId);
+    const lastDate = lastHarvest[baseName.toLowerCase()];
+    const daysSinceHarvest = lastDate ? Math.floor((now - new Date(lastDate + 'T12:00:00')) / 86400000) : null;
+    out.push({
+      libId, plant, bed: s.bed, baseName, variety,
+      daysSinceHarvest, ready: effectiveDays >= plant.daysMin,
+    });
+  });
+  // In-window crops first, then those just entering
+  return out.sort((a, b) => (b.ready ? 1 : 0) - (a.ready ? 1 : 0));
+}
+
+// Open the harvest modal pre-filled for a crop (one-tap logging from the
+// Daily Round). Maps box/herb beds the modal doesn't list to 'other'.
+function openHarvestFor(crop, bed) {
+  openModal('log-harvest-modal');
+  const today = new Date().toISOString().slice(0, 10);
+  const dEl = document.getElementById('hv-date'); if (dEl) dEl.value = today;
+  const cEl = document.getElementById('hv-crop'); if (cEl) cEl.value = crop || '';
+  const bEl = document.getElementById('hv-bed');
+  if (bEl && bed) {
+    const has = [...bEl.options].some(o => o.value === bed);
+    bEl.value = has ? bed : 'other';
+  }
+  const qEl = document.getElementById('hv-qty'); if (qEl) { qEl.value = ''; setTimeout(() => qEl.focus(), 120); }
+}
+
+// Count of "what to sow now" across the three scattered sources —
+// succession crops due, gap fillers ready, and open direct-sow windows.
+function countSowOpportunities() {
+  const now = new Date(); const yr = now.getFullYear();
+  let count = 0;
+  count += SUCCESSION_CROPS.filter(c => {
+    const key = 'succ_' + c.name.toLowerCase().replace(/\s+/g, '_');
+    const last = db.oyaLogs?.[key]; if (!last) return false;
+    return c.intervalDays - Math.round((Date.now() - new Date(last)) / 86400000) <= 7;
+  }).length;
+  count += (db.seeds || []).filter(s => {
+    if (!s.isGapFiller || s.skipYear) return false;
+    const plant = PLANT_IDX[seedToLibId(s)];
+    if (!plant) return false;
+    const ps = getPlantingStatus(plant, wxData);
+    return ps && (ps.status === 'now' || ps.status === 'indoor') && !seedTooLateReason(s);
+  }).length;
+  const directLogged = new Set((db.sowLogs || []).filter(e => e.method === 'direct' && String(e.date).startsWith(yr)).map(e => e.name.toLowerCase().split(' (')[0]));
+  const seen = new Set();
+  count += (db.seeds || []).filter(s => {
+    if (s.storage === 'live' || s.skipYear || s.isGapFiller) return false;
+    const plant = PLANT_IDX[seedToLibId(s)];
+    if (!plant || plant.sowMethod !== 'direct') return false;
+    const k = s.name.toLowerCase();
+    if (directLogged.has(k) || seen.has(k)) return false;
+    if (now < _startWindowDate(plant, yr)) return false;
+    seen.add(k);
+    return true;
+  }).length;
+  return count;
+}
+
+// Consolidated in-yard "Daily Round" for full-swing/harvest phases:
+// Water → Harvest → Scout → Sow, each actionable in place. Empty outside
+// the active season so spring keeps its planting-focused layout.
+function renderDailyRound(d) {
+  const el = document.getElementById('daily-round-wrap');
+  if (!el) return;
+  if (!isActiveSeason()) { el.innerHTML = ''; return; }
+  const phase = getSeasonPhase();
+  // 1. Water
+  let waterLine = '';
+  if (d?.current) {
+    const rec = computeWateringRec({
+      rainToday: d.daily?.precipitation_sum?.[0] || 0,
+      rainChance: d.daily?.precipitation_probability_max?.[0] || 0,
+      hiToday: Math.round(d.daily?.temperature_2m_max?.[0] || 70),
+      fcastRainProb: (d.daily?.precipitation_probability_max || []).slice(0, 3),
+    });
+    waterLine = `<div class="dr-row" onclick="switchViewByName('track');setTimeout(()=>scrollToTrackSection('oya-section'),60)">
+      <span class="dr-ic">${rec.icon}</span>
+      <span class="dr-txt"><strong>${esc(rec.title)}</strong><br><span class="dr-sub">${esc(rec.desc)}</span></span>
+      <span class="dr-go">›</span></div>`;
+  }
+  // 2. Harvest
+  const ready = getReadyToHarvest();
+  const harvestBlock = ready.length
+    ? ready.slice(0, 6).map(r => {
+        const cropLabel = r.baseName + (r.variety ? ' (' + r.variety + ')' : '');
+        const since = r.daysSinceHarvest != null ? `last picked ${r.daysSinceHarvest}d ago`
+          : (r.ready ? 'ready now' : 'entering window');
+        return `<div class="dr-row">
+          <span class="dr-ic">${r.plant.emoji || '🧺'}</span>
+          <span class="dr-txt"><strong>${esc(r.baseName)}</strong> <span class="dr-sub">· ${esc(since)}</span><br><span class="dr-sub">${esc(r.plant.harvest)}</span></span>
+          <button class="dr-btn" onclick="event.stopPropagation();openHarvestFor('${escAttr(cropLabel)}','${escAttr(r.bed || '')}')">Log</button></div>`;
+      }).join('')
+    : `<div class="dr-empty">Nothing in its harvest window yet — check back as crops mature.</div>`;
+  // 3. Scout
+  const month = new Date().getMonth() + 1;
+  const plantedFamilies = new Set();
+  Object.values(db.bedDesigns || {}).forEach(des => Object.values(des || {}).forEach(id => { if (id) { const f = getFamily(id); if (f) plantedFamilies.add(f); } }));
+  const pests = (typeof BOZEMAN_PESTS !== 'undefined' ? BOZEMAN_PESTS : []).filter(p => p.months.includes(month));
+  const hotPests = pests.filter(p => p.families.some(f => plantedFamilies.has(f)));
+  let scoutLine = '';
+  if (pests.length) {
+    const names = (hotPests.length ? hotPests : pests).slice(0, 3).map(p => p.emoji + ' ' + p.name).join(', ');
+    scoutLine = `<div class="dr-row" onclick="switchToTodayPests()">
+      <span class="dr-ic">🔍</span>
+      <span class="dr-txt"><strong>${pests.length} pest${pests.length === 1 ? '' : 's'} active this month</strong>${hotPests.length ? ` <span class="dr-sub">· ${hotPests.length} targeting your beds</span>` : ''}<br><span class="dr-sub">${esc(names)}</span></span>
+      <span class="dr-go">›</span></div>`;
+  }
+  // 4. Sow now
+  const sowCount = countSowOpportunities();
+  const sowLine = sowCount > 0
+    ? `<div class="dr-row" onclick="switchViewByName('track');setTimeout(()=>scrollToTrackSection('succ-section'),60)">
+        <span class="dr-ic">🌱</span>
+        <span class="dr-txt"><strong>${sowCount} sowing opportunit${sowCount === 1 ? 'y' : 'ies'}</strong><br><span class="dr-sub">Succession, gap-fillers, and open direct-sow windows</span></span>
+        <span class="dr-go">›</span></div>`
+    : '';
+  el.innerHTML = `
+    <div class="section-label" style="margin-top:14px;">🧺 Daily round — ${phase === 'harvest' ? 'harvest season' : 'full swing'}</div>
+    <div class="daily-round">
+      <div class="dr-sec-label">💧 Water</div>
+      ${waterLine || '<div class="dr-empty">No watering signal.</div>'}
+      <div class="dr-sec-label">🧺 Ready to harvest</div>
+      ${harvestBlock}
+      ${scoutLine ? '<div class="dr-sec-label">🔍 Scout</div>' + scoutLine : ''}
+      ${sowLine ? '<div class="dr-sec-label">🌱 Sow now</div>' + sowLine : ''}
+    </div>`;
+}
+function switchToTodayPests() {
+  const el = document.getElementById('pest-scout-wrap');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ════════════════════════════════════════
 //  POST-TRANSPLANT TRACKER
 // ════════════════════════════════════════
 // Recently-transplanted seedlings need targeted care for 2-3 weeks after
@@ -9635,6 +9828,10 @@ function renderTransplantLog() {
 
 // ── SPRING WIDGET on Today screen ──
 function renderSpringWidget() {
+  // In full-swing/harvest the Daily Round supersedes this spring-oriented
+  // season tracker — keep Today focused, don't double up.
+  const swEl = document.getElementById('spring-widget-wrap');
+  if (isActiveSeason()) { if (swEl) swEl.innerHTML = ''; return; }
   const now = Date.now();
   const items = [];
 
@@ -10150,6 +10347,7 @@ function saveHarvest(){
   document.getElementById('hv-crop').value='';
   document.getElementById('hv-qty').value='';
   renderHarvestLog();
+  if (wxData) renderDailyRound(wxData); // refresh "last picked" on the board
 }
 function deleteHarvest(id){
   const arr=db.harvestLog||[];
@@ -11840,6 +12038,7 @@ if (!TEST_MODE) {
     getVarietyData, getFamily, getFamilyHistoryForBed, rotationWarningForBed,
     estimatedHarvest, whyRecommended, computeSoilHealth,
     getRecentTransplants, transplantStage, transplantNudges,
+    getSeasonPhase, isActiveSeason, getReadyToHarvest, countSowOpportunities,
     // Allow tests to inject a db before calling helpers that read the
     // lexical `db`. Reassign the top-level binding rather than window.db,
     // since `let db` doesn't attach to window in module/script scope.
