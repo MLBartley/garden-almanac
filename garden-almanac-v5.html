@@ -2514,6 +2514,14 @@ function loadDB() {
           history:[],current:[]});
       if(!d.bedHistory)d.bedHistory={};
       if(!d.amendments)d.amendments=[];
+      // One-time: record the May 2026 spring top-dress (50/50 compost +
+      // topsoil) the user applied to all beds, so soil-health reflects it.
+      if(!d._springAmend2026){
+        d.amendments.unshift({id:'am-spring-2026', bed:'all', type:'Compost',
+          amount:'50/50 compost + topsoil, ~2" top-dress', date:'2026-05-15T12:00:00.000Z',
+          notes:'Spring top-dress of all beds'});
+        d._springAmend2026=true;
+      }
       if(!d.compostLog)d.compostLog=[];
       if(!d.wishlist)d.wishlist=[];
       if(!d.seedSaving)d.seedSaving=[];
@@ -11538,58 +11546,53 @@ function computeSoilHealth(bedKey) {
   const now = Date.now();
   const dayMs = 86400000;
   const profile = (db.bedSoilProfiles || {})[bedKey] || {};
-  const beds = db.beds || [];
-  const bed = beds.find(b => b.key === bedKey);
-  // Amendment cadence (25 pts) — when was anything added to this bed last?
   const bedAmends = (db.amendments || []).filter(a => a.bed === bedKey || a.bed === 'all');
-  const lastAmend = bedAmends[0]; // amendments list is unshift-ordered (newest first)
-  let amendScore = 0, amendNote;
-  if (lastAmend) {
-    const daysSince = Math.floor((now - new Date(lastAmend.date)) / dayMs);
-    if (daysSince <= 180) { amendScore = 25; amendNote = `Last amended ${daysSince}d ago — current.`; }
-    else if (daysSince <= 365) { amendScore = 15; amendNote = `Last amended ${daysSince}d ago — due soon.`; }
-    else { amendScore = 5; amendNote = `Last amended ${daysSince}d ago — overdue.`; }
-  } else amendNote = 'No amendments logged yet.';
-  factors.push({name:'Amendment cadence', score:amendScore, max:25, note:amendNote});
-  // Organic matter — compost or worm castings in last 12 months (15 pts)
-  const omAmend = bedAmends.find(a => {
-    const t = (a.type || '').toLowerCase();
-    return (t.includes('compost') || t.includes('worm') || t.includes('manure'))
-      && (now - new Date(a.date)) / dayMs <= 365;
-  });
-  factors.push({name:'Organic matter (12mo)', score: omAmend ? 15 : 0, max:15,
-    note: omAmend ? `${omAmend.type} added.` : 'No compost / worm castings logged in past year.'});
-  // Mulch coverage (15 pts) — soil-profile mulch field set
+  // ── Organic matter & amendment recency (50 pts) — the dominant real
+  // signal. A bed freshly topped with compost should max this. Compost/
+  // manure/worm castings score higher than a generic amendment (lime, etc.).
+  const isOM = a => { const t = (a.type || '').toLowerCase(); return t.includes('compost') || t.includes('worm') || t.includes('manure') || t.includes('top soil') || t.includes('topsoil'); };
+  const omAmend = bedAmends.filter(isOM).sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+  const anyAmend = bedAmends.slice().sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+  let omScore = 0, omNote = 'No amendments logged. Log spring compost / top-dressing.';
+  if (omAmend) {
+    const days = Math.floor((now - new Date(omAmend.date)) / dayMs);
+    if (days <= 180) { omScore = 50; omNote = `${omAmend.type} added ${days}d ago — rich, current.`; }
+    else if (days <= 365) { omScore = 28; omNote = `${omAmend.type} ${days}d ago — top-dress again this season.`; }
+    else { omScore = 12; omNote = `Last organic matter ${days}d ago — overdue.`; }
+  } else if (anyAmend) {
+    const days = Math.floor((now - new Date(anyAmend.date)) / dayMs);
+    if (days <= 180) { omScore = 35; omNote = `${anyAmend.type} ${days}d ago — add compost for organic matter.`; }
+    else if (days <= 365) { omScore = 18; omNote = `${anyAmend.type} ${days}d ago — due for compost.`; }
+    else { omScore = 8; omNote = `Last amended ${days}d ago — overdue.`; }
+  }
+  factors.push({name:'Organic matter & amendments', score:omScore, max:50, note:omNote});
+  // ── Rotation hygiene (25 pts)
+  const currentLibIds = [...new Set(Object.values(db.bedDesigns?.[bedKey] || {}).filter(Boolean))];
+  const warns = currentLibIds.map(id => rotationWarningForBed(bedKey, id)).filter(Boolean);
+  const hardConflicts = warns.filter(w => w.severity === 'hard');
+  const softConflicts = warns.filter(w => w.severity === 'soft');
+  let rotScore = 25, rotNote = currentLibIds.length ? 'No conflicts.' : 'No plants placed yet.';
+  if (hardConflicts.length) { rotScore = 0; rotNote = `${hardConflicts.length} hard conflict${hardConflicts.length===1?'':'s'} (2+ consecutive years same family).`; }
+  else if (softConflicts.length) { rotScore = 13; rotNote = `${softConflicts.length} soft conflict${softConflicts.length===1?'':'s'} (family was here last year).`; }
+  factors.push({name:'Rotation hygiene', score:rotScore, max:25, note:rotNote});
+  // ── Mulch coverage (15 pts)
   factors.push({name:'Mulch coverage', score: profile.mulch ? 15 : 0, max:15,
-    note: profile.mulch ? `Currently ${profile.mulch}.` : 'No mulch on record.'});
-  // pH on file (10 pts) — let user know to test if missing
-  factors.push({name:'pH on file', score: profile.ph ? 10 : 0, max:10,
-    note: profile.ph ? `pH ${profile.ph}.` : 'No pH test on file. Test every 2–3 years.'});
-  // Cover crop history (20 pts) — cover family in past 2 bedHistory entries
-  let coverScore = 0, coverNote = 'No cover crops in past 2 seasons.';
+    note: profile.mulch ? `Currently ${profile.mulch}.` : 'No mulch on record — mulch holds moisture + feeds soil life.'});
+  // ── Cover crop history (5 pts bonus) — cover family in past 2 seasons
+  let coverScore = 0, coverNote = 'No cover crops in past 2 seasons (optional).';
   const yr = new Date().getFullYear();
   for (let y = yr - 1; y >= yr - 2; y--) {
     const snap = (db.bedHistory || {})[y];
     if (!snap || !snap[bedKey]) continue;
     const ids = Object.keys(snap[bedKey].plants || {});
     if (ids.some(id => (PLANT_IDX[id]?.cat || '').includes('cover'))) {
-      coverScore = 20;
-      coverNote = `Cover crop grown in ${y}.`;
-      break;
+      coverScore = 5; coverNote = `Cover crop grown in ${y}.`; break;
     }
   }
-  factors.push({name:'Cover crop history', score:coverScore, max:20, note:coverNote});
-  // Rotation hygiene (15 pts) — no hard conflicts in current plan
-  const currentLibIds = [...new Set(Object.values(db.bedDesigns?.[bedKey] || {}).filter(Boolean))];
-  const hardConflicts = currentLibIds.map(id => rotationWarningForBed(bedKey, id))
-    .filter(w => w && w.severity === 'hard');
-  const softConflicts = currentLibIds.map(id => rotationWarningForBed(bedKey, id))
-    .filter(w => w && w.severity === 'soft');
-  let rotScore = 15, rotNote = 'No conflicts.';
-  if (hardConflicts.length) { rotScore = 0; rotNote = `${hardConflicts.length} hard conflict${hardConflicts.length===1?'':'s'} (2+ consecutive years same family).`; }
-  else if (softConflicts.length) { rotScore = 8; rotNote = `${softConflicts.length} soft conflict${softConflicts.length===1?'':'s'} (family was here last year).`; }
-  else if (!currentLibIds.length) { rotScore = 15; rotNote = 'No plants placed yet.'; }
-  factors.push({name:'Rotation hygiene', score:rotScore, max:15, note:rotNote});
+  factors.push({name:'Cover crop history', score:coverScore, max:5, note:coverNote});
+  // ── pH on file (5 pts bonus) — a tracking nudge, not a soil-quality measure
+  factors.push({name:'pH on file', score: profile.ph ? 5 : 0, max:5,
+    note: profile.ph ? `pH ${profile.ph}.` : 'No pH test on file (optional — test every 2–3 years).'});
   const total = factors.reduce((s, f) => s + f.score, 0);
   const max = factors.reduce((s, f) => s + f.max, 0);
   return {bedKey, score: Math.round((total / max) * 100), factors, totalPts: total, maxPts: max};

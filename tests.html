@@ -780,8 +780,8 @@ function runTests(win) {
       lowScore.score < 40,
       'expected <40, got ' + lowScore.score);
     assert('Scenario 33b: factor breakdown present',
-      lowScore.factors.length === 6,
-      'expected 6 factors, got ' + lowScore.factors.length);
+      lowScore.factors.length === 5,
+      'expected 5 factors, got ' + lowScore.factors.length);
 
     // Now load up a well-tended bed
     const goodDb = T.defaultDB();
@@ -798,6 +798,26 @@ function runTests(win) {
     assert('Scenario 33c: well-tended bed → high score (>80)',
       highScore.score > 80,
       'expected >80, got ' + highScore.score);
+
+    // The reported case: a fresh bed top-dressed with compost (logged via a
+    // bed:'all' amendment) + plants placed, no conflict → should read "good".
+    const freshDb = T.defaultDB();
+    freshDb.beds = T.defaultBeds();
+    freshDb.amendments = [
+      {id:'am-spring', bed:'all', type:'Compost', amount:'50/50 compost + topsoil', date: new Date().toISOString()},
+    ];
+    freshDb.bedSoilProfiles = {};
+    freshDb.bedHistory = {};
+    freshDb.bedDesigns = {A: {0:'tomato-ind', 1:'basil'}};
+    T.setDb(freshDb);
+    const fresh = T.computeSoilHealth('A');
+    assert('Scenario 33d: fresh compost bed reads ≥75 (not "low")',
+      fresh.score >= 75,
+      'expected ≥75, got ' + fresh.score);
+    const omFactor = fresh.factors.find(f => /organic/i.test(f.name));
+    assert('Scenario 33e: organic-matter factor maxed by recent compost',
+      omFactor && omFactor.score === omFactor.max,
+      'om: ' + JSON.stringify(omFactor));
   }
 
   finish();
