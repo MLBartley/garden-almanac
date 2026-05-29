@@ -2210,6 +2210,59 @@ const PLANT_CARE_META = {
     harvest:'Pick fully-open flower heads in the morning; pull the petals for salads, teas, or salves and the plant reblooms.'},
 };
 
+// ═══ PERENNIAL EDIBLES REFERENCE ═══
+// Fruit, berries, nuts, and perennial vegetables/herbs that aren't in the
+// annual PLANT_LIB but live in the yard (db.plants edibles + perennial
+// zones). Care + harvest tuned for Bozeman / Zone 5b. `aliases` lets the
+// "you have this" matcher catch naming variants.
+const PERENNIAL_CARE = [
+  {name:'Apple', emoji:'🍎', type:'fruit tree', aliases:['apple','crabapple'],
+   care:'Prune in late winter while dormant. Thin fruit to 6–8" apart in June for larger apples. Protect bloom from late frost; most need a second variety nearby to cross-pollinate. Watch for codling moth.',
+   harvest:'Late Aug–Sept. Ripe when fruit lifts and twists off the spur easily and the seeds inside are brown — taste-test, color alone can mislead.'},
+  {name:'Sour Cherry', emoji:'🍒', type:'fruit tree', aliases:['sour cherry','cherry','montmorency'],
+   care:'Self-fertile. Prune right after harvest or in late winter. Protect April–May bloom from frost — the critical risk in Bozeman. Scout cherry sawfly ("slugs") in June.',
+   harvest:'Mid-July. Pick when deep red and slightly soft, pulling with the stem. Net against birds a week ahead — they strip a tree fast.'},
+  {name:'Plum', emoji:'🟣', type:'fruit tree', aliases:['plum','american plum'],
+   care:'Needs a compatible pollinator partner. Thin fruit to 4–6". Prune in dry late winter (wet cuts invite silver-leaf and black knot). Remove any black-knot galls on sight.',
+   harvest:'Aug–Sept. Ripe when fully colored, slightly soft to a gentle squeeze, and the fruit gives a little at the stem. American plums ripen tart — good for jam.'},
+  {name:'Chokecherry', emoji:'🍒', type:'fruit shrub', aliases:['chokecherry'],
+   care:'Tough native — minimal care. Suckers aggressively; cut suckers to control spread. Very cold-hardy.',
+   harvest:'August, when berries turn deep purple-black. Astringent raw — cook into jelly or syrup. ⚠ Pits and leaves are toxic; use flesh only.'},
+  {name:'Hazelnut', emoji:'🌰', type:'nut shrub', aliases:['hazelnut','filbert'],
+   care:'Plant 2+ for cross-pollination (catkins shed pollen in late winter). Prune suckers to keep it as a tree or let it bush. Low-maintenance once established.',
+   harvest:'September. Pick when husks brown and nuts drop or twist out easily. Race the squirrels. Cure in a dry spot 2–4 weeks before storing.'},
+  {name:'Raspberry', emoji:'🫐', type:'cane berry', aliases:['raspberry'],
+   care:'Summer-bearing: cut spent floricanes (this year\'s fruiting canes) to the ground after harvest, keep 4–6 strong primocanes per foot. Consistent water during fruiting — uneven moisture = crumbly berries. Tip primocanes at 4–5 ft.',
+   harvest:'July–Aug. Pick when the berry pulls free cleanly, leaving the white core behind. Pick every 2–3 days; ripe fruit spoils fast.'},
+  {name:'Strawberry', emoji:'🍓', type:'ground berry', aliases:['strawberry'],
+   care:'Mulch with straw to keep fruit off soil. Pinch first-year flowers/runners to build crowns. Renew the bed every ~3 years. Net against birds.',
+   harvest:'June–July. Pick fully red including the shoulders, with the green cap on. Harvest every 1–2 days in the cool morning.'},
+  {name:'Asparagus', emoji:'🌿', type:'perennial veg', aliases:['asparagus','purple asparagus'],
+   care:'Don\'t harvest the first 2 years — let the crowns establish. Let summer ferns grow all season to feed the roots; cut them down after frost. Top-dress compost in spring; keep weed-free.',
+   harvest:'Late April–June. Snap spears at 6–8" while tips are tight, before they fern out. Stop cutting after ~6–8 weeks so the plant can recharge.'},
+  {name:'Elderberry', emoji:'🫐', type:'fruit shrub', aliases:['elderberry'],
+   care:'Plant 2 varieties for good pollination. Prune out old canes (3+ yr) in late winter. Vigorous and hardy.',
+   harvest:'Late Aug–Sept. Cut whole cymes when berries are deep purple-black and the cluster droops. ⚠ Cook before eating — raw berries and stems are toxic.'},
+  {name:'Thimbleberry', emoji:'🍓', type:'cane berry', aliases:['thimbleberry'],
+   care:'Native, shade-tolerant, spreads by rhizome — give it room or contain it. Essentially no care needed.',
+   harvest:'July–Aug. Berries are soft and fragile — ripe when they slip off the core with a light touch. Eat fresh; they don\'t keep.'},
+  {name:'Rhubarb', emoji:'🌿', type:'perennial veg', aliases:['rhubarb'],
+   care:'Heavy feeder — top-dress compost each spring. Don\'t harvest year 1. Divide every 5–6 years. Remove flower stalks as they appear.',
+   harvest:'May–June. Pull (don\'t cut) outer stalks when 10–15" long; stop by early July to let the plant recover. ⚠ Stalks only — leaves are toxic.'},
+  {name:'Currant / Gooseberry', emoji:'🫐', type:'fruit shrub', aliases:['currant','gooseberry'],
+   care:'Prune to an open center in late winter; renew oldest wood. Tolerates part shade and cool sites well — good for Bozeman. Mulch to keep roots cool.',
+   harvest:'July. Currants: pick whole strigs when berries are fully colored. Gooseberries: when soft and slightly translucent (slightly under-ripe is better for cooking).'},
+  {name:'Grape', emoji:'🍇', type:'fruit vine', aliases:['grape'],
+   care:'Prune hard in late winter — most fruit forms on last year\'s wood, so leave only a few renewal canes. Train to a wire; thin clusters for size. Pick a short-season hardy variety (e.g. Valiant, Frontenac) for Zone 5b.',
+   harvest:'September. Taste-test — sugar does NOT rise after picking. Cut whole clusters when uniformly colored and sweet.'},
+  {name:'Lavender', emoji:'💜', type:'perennial herb', aliases:['lavender'],
+   care:'Needs sharp drainage + full sun (wet winter soil kills it). Prune by 1/3 in spring as new growth shows — never cut into old woody stems. Mulch the crown for winter; Munstead/Hidcote are hardiest here.',
+   harvest:'Cut stems for drying when the lowest flowers on the spike just open, in the morning after dew dries — that\'s peak fragrance.'},
+  {name:'French Tarragon', emoji:'🌿', type:'perennial herb', aliases:['tarragon','french tarragon'],
+   care:'Propagate by division only (never seed — that\'s flavorless Russian tarragon). Divide every 2–3 years in spring to keep it vigorous. Cut back if it bolts; mulch before first frost.',
+   harvest:'Snip sprigs through summer; flavor peaks just before flowering. Preserve by freezing or infusing in vinegar — dried tarragon loses most of its punch.'},
+];
+
 // Index by id, merging in design + care/harvest metadata
 const PLANT_IDX = {};
 PLANT_LIB.forEach(p => {
@@ -8380,9 +8433,49 @@ function renderGardenPlantsLibrary(){
       </div>`;
     }).join('');
   });
+  // ── Perennial edibles & fruit (not in the annual library) ──
+  // "Owned" = anything in the plant inventory or the perennial zones, so we
+  // can flag what's already in the yard.
+  const ownedNames = new Set();
+  (db.plants||[]).forEach(p=>{ if(p.common) ownedNames.add(p.common.toLowerCase()); });
+  Object.values(db.bedZones||{}).forEach(zones=>(zones||[]).forEach(z=>{
+    (z.plants||[]).forEach(e=>{
+      const pl=(db.plants||[]).find(x=>x.id===e.plantId);
+      const nm=(pl?.common||e.name||'').toLowerCase();
+      if(nm) ownedNames.add(nm);
+    });
+  }));
+  const ownsPerennial = entry => entry.aliases.some(a =>
+    [...ownedNames].some(n => n.includes(a) || a.includes(n)));
+  let perennials = PERENNIAL_CARE.slice();
+  if(q) perennials = perennials.filter(e=>
+    e.name.toLowerCase().includes(q) || (e.type||'').toLowerCase().includes(q)
+    || (e.care||'').toLowerCase().includes(q) || (e.harvest||'').toLowerCase().includes(q));
+  if(perennials.length){
+    perennials.sort((a,b)=>a.name.localeCompare(b.name));
+    html += `<div class="section-label">Perennial edibles &amp; fruit <span style="font-weight:400;color:var(--muted);font-family:'Crimson Pro',serif;font-size:.85rem;text-transform:none;letter-spacing:0;">${perennials.length}</span></div>`;
+    html += perennials.map(e=>{
+      shown++;
+      const badge = ownsPerennial(e) ? '<span class="plant-pill" style="background:#e2f0e4;color:#2a6a2a;">✓ in yard</span>' : '';
+      return `<div style="background:white;border:1px solid var(--rule);border-radius:var(--radius);padding:11px 13px;margin-bottom:8px;">
+        <div style="display:flex;align-items:baseline;gap:7px;">
+          <span style="font-size:1.1rem;">${e.emoji||'🌿'}</span>
+          <span style="font-weight:600;flex:1;">${esc(e.name)}</span>
+          ${badge}
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px;">
+          <span class="plant-pill pill-ink">♻ perennial</span>
+          <span class="plant-pill pill-ink">${esc(e.type)}</span>
+        </div>
+        ${e.harvest?`<div style="margin-top:7px;font-size:.82rem;line-height:1.45;"><span style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.06em;color:var(--moss);">🧺 WHEN TO HARVEST</span><br>${esc(e.harvest)}</div>`:''}
+        ${e.care?`<div style="margin-top:6px;font-size:.82rem;line-height:1.45;color:var(--muted);"><span style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.06em;color:var(--sky);">💧 CARE</span><br>${esc(e.care)}</div>`:''}
+      </div>`;
+    }).join('');
+  }
+
   if(!shown) html = `<div style="color:var(--muted);font-size:.85rem;padding:18px;text-align:center;">No garden plants match "${esc(plantSearchQuery)}".</div>`;
   cont.innerHTML = html;
-  const total = PLANT_LIB.filter(p=>['veg','herb','flower','cover'].includes(p.cat)).length;
+  const total = PLANT_LIB.filter(p=>['veg','herb','flower','cover'].includes(p.cat)).length + PERENNIAL_CARE.length;
   const statsEl = document.getElementById('plant-stats-bar');
   if(statsEl) statsEl.innerHTML = `<span>${total} garden plants · care &amp; harvest reference</span>`;
 }
