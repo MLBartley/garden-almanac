@@ -1263,7 +1263,11 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
             <option value="">Select bed…</option>
             <option value="A">Bed A</option><option value="B">Bed B</option>
             <option value="C">Bed C</option><option value="D">Bed D</option>
+            <option value="H">Herb Bed</option><option value="P">Perennial Beds</option>
             <option value="A1">Bag A</option><option value="B1">Bag B</option><option value="C1">Bag C</option>
+            <option value="W1">Serrano Box</option><option value="W2">Poblano Box 1</option>
+            <option value="W3">Poblano Box 2</option><option value="W4">Mint Box</option>
+            <option value="W5">Rosemary Box</option>
             <option value="all">All beds</option>
           </select>
         </div>
@@ -3373,6 +3377,25 @@ function renderCare(d) {
         title:`Harvest window open: ${top.plant.name}${others}`,
         desc: top.harvest,
         onclick:`switchViewByName('track');setTimeout(()=>scrollToTrackSection('sec-harvest'),50)`,
+      });
+    }
+  }
+
+  // Feeding due — heavy/moderate feeders past their schedule.
+  {
+    const feeds = getFeedingNeeded();
+    if (feeds.length) {
+      const top = feeds[0];
+      const cropLabel = top.baseName + (top.variety ? ` (${top.variety})` : '');
+      const bedLabel = (BED_INFO[top.bed]||{}).label || top.bed || '';
+      const others = feeds.length > 1 ? ` +${feeds.length-1} more` : '';
+      const overdue = top.daysOverdue > 0 ? ` — ${top.daysOverdue}d overdue` : '';
+      const suggestType = top.status === 'first' ? 'Compost' : 'Compost';
+      tasks.push({
+        cls: top.daysOverdue >= 7 ? 'info' : 'normal', icon:'🥦',
+        title:`Feed ${cropLabel}${overdue}${others}`,
+        desc: `${bedLabel}: ${top.note}`,
+        onclick:`openAmendmentFor('${escAttr(top.bed||'')}','${suggestType}')`,
       });
     }
   }
@@ -8978,6 +9001,151 @@ function getReadyToHarvest() {
   return out.sort((a, b) => (b.ready ? 1 : 0) - (a.ready ? 1 : 0));
 }
 
+// ═══ FEEDING SCHEDULE ═══
+// Per-plant feeding cadence keyed by libId. `firstFeed` = days after
+// planting for the first side-dress (0 = never — light feeders / N-fixers).
+// `interval` = days between subsequent feeds (0 = one-and-done). `note` is
+// what to apply. `feeder` classifies for quick lookups elsewhere.
+const FEEDING_SCHEDULE = {
+  // Heavy feeders — nightshade fruits
+  'tomato-ind':    {firstFeed:21, interval:28, feeder:'heavy',   note:'Compost or fish emulsion at first flowering, then every 4 weeks through August.'},
+  'tomato-det':    {firstFeed:21, interval:28, feeder:'heavy',   note:'Compost or fish emulsion at first flowering; determinate types need less N — stop by early Aug.'},
+  'tomatillo':     {firstFeed:21, interval:28, feeder:'heavy',   note:'Same cadence as tomato — compost or fish emulsion.'},
+  'pepper':        {firstFeed:28, interval:28, feeder:'moderate',note:'Light monthly feed starting at first flower — too much N gives leaves, not fruit. Kelp meal is a safe choice.'},
+  'eggplant':      {firstFeed:28, interval:28, feeder:'heavy',   note:'Consistent feed to keep flowering — kelp meal or fish emulsion.'},
+  'potato':        {firstFeed:28, interval:28, feeder:'heavy',   note:'Side-dress compost or blood meal at hilling, again 4 weeks later; stop when tops start to die.'},
+  // Brassicas
+  'brassica-broc': {firstFeed:21, interval:28, feeder:'heavy',   note:'High-N compost or blood meal mid-growth and again as heads form.'},
+  'cabbage':       {firstFeed:21, interval:28, feeder:'heavy',   note:'Feed mid-growth for firm heads.'},
+  'cauliflower':   {firstFeed:21, interval:28, feeder:'heavy',   note:'Steady compost feed; blanch curds when fist-sized.'},
+  'brussels-sprouts': {firstFeed:28, interval:35, feeder:'heavy',note:'Feed monthly until sprouts firm up in fall.'},
+  'brassica-kale': {firstFeed:28, interval:35, feeder:'moderate',note:'Light monthly feed keeps outer leaves productive all season.'},
+  'bok-choy':      {firstFeed:21, interval:0,  feeder:'moderate',note:'One compost side-dress mid-growth — short crop.'},
+  // Cucurbits
+  'zucchini':      {firstFeed:28, interval:28, feeder:'heavy',   note:'Fish emulsion or compost — heavy fruit set drains soil fast.'},
+  'cucumber':      {firstFeed:28, interval:28, feeder:'heavy',   note:'Monthly compost while producing.'},
+  'squash-winter': {firstFeed:28, interval:35, feeder:'heavy',   note:'Compost mid-summer; ease off as fruit sizes up so rinds harden.'},
+  // Corn / grass
+  'corn':          {firstFeed:35, interval:0,  feeder:'heavy',   note:'One heavy N side-dress (blood meal or fish emulsion) when knee-high — no repeat needed.'},
+  // Long-season
+  'celery':        {firstFeed:21, interval:21, feeder:'heavy',   note:'Feed every 3 weeks — celery is a very heavy N feeder that also demands constant moisture.'},
+  // Alliums (moderate)
+  'onion':         {firstFeed:28, interval:28, feeder:'moderate',note:'Feed monthly through mid-summer, then stop as tops flop over.'},
+  'garlic':        {firstFeed:14, interval:0,  feeder:'moderate',note:'Top-dress compost when shoots emerge in early spring; stop by early May.'},
+  // N fixers — do not feed
+  'bean-bush':     {firstFeed:0,  interval:0,  feeder:'none',    note:'Beans fix their own N. Extra N = leafy growth and few pods.'},
+  'pea':           {firstFeed:0,  interval:0,  feeder:'none',    note:'Peas fix N. Skip feeding.'},
+  // Light / leafy — skip
+  'lettuce':       {firstFeed:0,  interval:0,  feeder:'light',   note:'Light feeder — a compost top-dress is optional if soil is rich.'},
+  'spinach':       {firstFeed:0,  interval:0,  feeder:'light',   note:'Light feeder.'},
+  'arugula':       {firstFeed:0,  interval:0,  feeder:'light',   note:'Fast turnover — no feed needed.'},
+  'chard':         {firstFeed:28, interval:35, feeder:'moderate',note:'Light monthly feed keeps outer stalks coming all season.'},
+  // Roots — no N (encourages tops, not roots)
+  'carrot':        {firstFeed:0,  interval:0,  feeder:'light',   note:'Skip N-heavy feeds — encourages tops, not roots.'},
+  'beet':          {firstFeed:0,  interval:0,  feeder:'light',   note:'Skip N-heavy feeds.'},
+  'radish':        {firstFeed:0,  interval:0,  feeder:'light',   note:'Too fast to bother feeding.'},
+};
+
+// Amendment types that count as a "feed" (organic matter + N sources).
+const FEED_AMENDMENT_KEYWORDS = ['compost','worm','manure','fertiliz','blood','kelp','fish','emulsion'];
+function isFeedAmendment(a) {
+  const t = (a?.type || '').toLowerCase();
+  return FEED_AMENDMENT_KEYWORDS.some(k => t.includes(k));
+}
+
+// Returns an array of {plant, bed, baseName, variety, daysSincePlant,
+// daysSinceFeed, daysOverdue, note, status:'first'|'repeat', emoji, sowLogId}
+// for crops currently due for a feed. Dedups by (libId, bed) — takes the
+// most recent sow per combo. Skips if we're within 4 weeks of first frost
+// (stop feeding, let plants harden off).
+function getFeedingNeeded() {
+  const now = new Date();
+  const yr = now.getFullYear();
+  const firstFrost = new Date(yr, FIRST_FROST_MONTH, FIRST_FROST_DAY);
+  if (now.getTime() > firstFrost.getTime() - 28 * 86400000) return [];
+  // Latest feed date per bed (from amendment log)
+  const bedLastFed = {};
+  (db.amendments || []).forEach(a => {
+    if (!isFeedAmendment(a)) return;
+    const d = new Date(a.date); if (isNaN(d)) return;
+    const b = a.bed || 'any';
+    if (!bedLastFed[b] || d > bedLastFed[b]) bedLastFed[b] = d;
+  });
+  const allLastFed = bedLastFed['all'];
+  const lastFedForBed = (bed) => {
+    const bd = bedLastFed[bed];
+    if (bd && allLastFed) return bd > allLastFed ? bd : allLastFed;
+    return bd || allLastFed || null;
+  };
+  // Group this-year sowLogs by (libId, bed) → most recent
+  const groups = new Map();
+  (db.sowLogs || []).forEach(s => {
+    if (new Date(s.date).getFullYear() !== yr) return;
+    const baseName = (s.name || '').split(' (')[0];
+    const variety = (s.name || '').match(/\(([^)]+)\)/)?.[1] || '';
+    const libId = seedToLibId({ name: baseName, variety });
+    if (!libId) return;
+    const sched = FEEDING_SCHEDULE[libId];
+    if (!sched || sched.feeder === 'none' || sched.feeder === 'light') return;
+    if (!sched.firstFeed && !sched.interval) return;
+    const key = libId + '::' + (s.bed || 'any');
+    const cur = groups.get(key);
+    if (!cur || new Date(s.date) > new Date(cur.date)) groups.set(key, s);
+  });
+  const out = [];
+  groups.forEach(s => {
+    const baseName = (s.name || '').split(' (')[0];
+    const variety = (s.name || '').match(/\(([^)]+)\)/)?.[1] || '';
+    const libId = seedToLibId({ name: baseName, variety });
+    const plant = PLANT_IDX[libId];
+    const sched = FEEDING_SCHEDULE[libId];
+    if (!plant || !sched) return;
+    const daysSincePlant = Math.floor((now - new Date(s.date + 'T12:00:00')) / 86400000);
+    // Skip if plant is essentially done (past daysMax + 14d grace)
+    const effectiveDays = s.method === 'transplant' ? daysSincePlant + 35 : daysSincePlant;
+    if (plant.daysMax && effectiveDays > plant.daysMax + 14) return;
+    const lastFed = lastFedForBed(s.bed);
+    const item = {
+      libId, plant, bed: s.bed, baseName, variety,
+      daysSincePlant, note: sched.note,
+      emoji: plant.emoji || '🥦', sowLogId: s.id,
+    };
+    if (!lastFed) {
+      if (sched.firstFeed > 0 && daysSincePlant >= sched.firstFeed) {
+        item.status = 'first';
+        item.daysOverdue = daysSincePlant - sched.firstFeed;
+        out.push(item);
+      }
+    } else if (sched.interval > 0) {
+      const daysSinceFeed = Math.floor((now - lastFed) / 86400000);
+      if (daysSinceFeed >= sched.interval) {
+        item.status = 'repeat';
+        item.daysSinceFeed = daysSinceFeed;
+        item.daysOverdue = daysSinceFeed - sched.interval;
+        out.push(item);
+      }
+    }
+  });
+  return out.sort((a, b) => (b.daysOverdue || 0) - (a.daysOverdue || 0));
+}
+
+// Open the amendment modal pre-filled for a bed + suggested type.
+function openAmendmentFor(bed, type) {
+  openModal('amendment-modal');
+  const bedEl = document.getElementById('am-bed');
+  if (bedEl && bed) {
+    const has = [...bedEl.options].some(o => o.value === bed);
+    bedEl.value = has ? bed : '';
+  }
+  const typeEl = document.getElementById('am-type');
+  if (typeEl && type) {
+    const has = [...typeEl.options].some(o => o.value === type || o.text === type);
+    if (has) typeEl.value = [...typeEl.options].find(o => o.value === type || o.text === type)?.value;
+  }
+  const amountEl = document.getElementById('am-amount'); if (amountEl) amountEl.value = '';
+  const notesEl = document.getElementById('am-notes'); if (notesEl) notesEl.value = '';
+}
+
 // Open the harvest modal pre-filled for a crop (one-tap logging from the
 // Daily Round). Maps box/herb beds the modal doesn't list to 'other'.
 function openHarvestFor(crop, bed) {
@@ -9074,7 +9242,22 @@ function renderDailyRound(d) {
       <span class="dr-txt"><strong>${pests.length} pest${pests.length === 1 ? '' : 's'} active this month</strong>${hotPests.length ? ` <span class="dr-sub">· ${hotPests.length} targeting your beds</span>` : ''}<br><span class="dr-sub">${esc(names)}</span></span>
       <span class="dr-go">›</span></div>`;
   }
-  // 4. Sow now
+  // 4. Feed — heavy/moderate feeders past their schedule.
+  const feeds = getFeedingNeeded();
+  const feedBlock = feeds.length
+    ? feeds.slice(0, 5).map(f => {
+        const cropLabel = f.baseName + (f.variety ? ` (${f.variety})` : '');
+        const bedLbl = (BED_INFO[f.bed]||{}).label || f.bed || '—';
+        const status = f.status === 'first'
+          ? `first feed · day ${f.daysSincePlant}${f.daysOverdue>0?` (${f.daysOverdue}d overdue)`:''}`
+          : `${f.daysSinceFeed}d since last feed${f.daysOverdue>0?` (${f.daysOverdue}d overdue)`:''}`;
+        return `<div class="dr-row">
+          <span class="dr-ic">${f.emoji}</span>
+          <span class="dr-txt"><strong>${esc(cropLabel)}</strong> <span class="dr-sub">· ${esc(bedLbl)} · ${esc(status)}</span><br><span class="dr-sub">${esc(f.note)}</span></span>
+          <button class="dr-btn" onclick="event.stopPropagation();openAmendmentFor('${escAttr(f.bed||'')}','Compost')">Log</button></div>`;
+      }).join('')
+    : '';
+  // 5. Sow now
   const sowCount = countSowOpportunities();
   const sowLine = sowCount > 0
     ? `<div class="dr-row" onclick="switchViewByName('track');setTimeout(()=>scrollToTrackSection('succ-section'),60)">
@@ -9089,6 +9272,7 @@ function renderDailyRound(d) {
       ${waterLine || '<div class="dr-empty">No watering signal.</div>'}
       <div class="dr-sec-label">🧺 Ready to harvest</div>
       ${harvestBlock}
+      ${feedBlock ? '<div class="dr-sec-label">🥦 Feed</div>' + feedBlock : ''}
       ${scoutLine ? '<div class="dr-sec-label">🔍 Scout</div>' + scoutLine : ''}
       ${sowLine ? '<div class="dr-sec-label">🌱 Sow now</div>' + sowLine : ''}
     </div>`;
@@ -10873,6 +11057,15 @@ function buildEmailDigest(){
       if (p.frostTol === 'tender' || p.frostTol === 'verytender') tenderOutside.push(p.name);
     });
   });
+  // Feeding needed — heavy/moderate feeders past their schedule
+  const feedsNeeded = (typeof getFeedingNeeded === 'function' ? getFeedingNeeded() : [])
+    .slice(0, 6)
+    .map(f => ({
+      name: f.baseName, variety: f.variety || '', bed: f.bed,
+      emoji: f.emoji, note: f.note, status: f.status,
+      daysSincePlant: f.daysSincePlant, daysSinceFeed: f.daysSinceFeed || null,
+      daysOverdue: f.daysOverdue || 0,
+    }));
   return {
     seasonPhase: phase, activeSeason: isActiveSeason(now),
     monthName: now.toLocaleString('en-US', { month: 'long' }),
@@ -10880,6 +11073,7 @@ function buildEmailDigest(){
     sowOpportunityCount: countSowOpportunities(),
     monthPests, recentEvents, recentHarvest, recentSows,
     lowSoilBeds, tenderOutside: [...new Set(tenderOutside)],
+    feedsNeeded,
   };
 }
 
@@ -12144,6 +12338,7 @@ function saveAmendment(){
   saveDB(db);closeModal('amendment-modal');
   ['am-amount','am-notes'].forEach(f=>{const el=document.getElementById(f);if(el)el.value='';});
   renderCompost();
+  if (wxData) renderDailyRound(wxData); // refresh feed status immediately
 }
 function deleteAmendment(id){
   const arr=db.amendments||[];
@@ -12559,6 +12754,7 @@ if (!TEST_MODE) {
     getRecentTransplants, transplantStage, transplantNudges,
     getSeasonPhase, isActiveSeason, getReadyToHarvest, countSowOpportunities,
     applyBloomRanges, BLOOM_RANGES,
+    FEEDING_SCHEDULE, getFeedingNeeded, isFeedAmendment,
     // Allow tests to inject a db before calling helpers that read the
     // lexical `db`. Reassign the top-level binding rather than window.db,
     // since `let db` doesn't attach to window in module/script scope.

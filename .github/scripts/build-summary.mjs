@@ -155,6 +155,19 @@ function sowCard(digest) {
   `, '#c4922a');
 }
 
+function feedCard(digest) {
+  const feeds = digest?.feedsNeeded || [];
+  if (!feeds.length) return '';
+  const inner = feeds.map(f => {
+    const cropLabel = f.name + (f.variety ? ` (${f.variety})` : '');
+    const status = f.status === 'first'
+      ? `first feed · day ${f.daysSincePlant}${f.daysOverdue>0?` (${f.daysOverdue}d overdue)`:''}`
+      : `${f.daysSinceFeed}d since last feed${f.daysOverdue>0?` (${f.daysOverdue}d overdue)`:''}`;
+    return row(f.emoji, cropLabel, `${bedLabel(f.bed)} · ${status}<br><i>${f.note}</i>`);
+  }).join('');
+  return card('🥦 Feed', inner, '#c4922a');
+}
+
 function pestCard(digest) {
   const pests = (digest?.monthPests || []).slice(0, 3);
   if (!pests.length) return '';
@@ -226,7 +239,7 @@ async function send(subject, html) {
   let body, subject;
   if (mode === 'daily') {
     body = weatherCard(wx) + frostCard(wx, digest) + readyCard(digest)
-      + transplantCard(digest) + sowCard(digest) + pestCard(digest) + soilCard(digest);
+      + transplantCard(digest) + feedCard(digest) + sowCard(digest) + pestCard(digest) + soilCard(digest);
     const title = `🌱 Today in the garden — ${digest.monthName || ''}`;
     subject = `Garden ${shortDate(new Date())} · ${Math.round(wx.daily.temperature_2m_max[0])}/${Math.round(wx.daily.temperature_2m_min[0])}°`;
     body = shell(title, body, ageStr);

@@ -538,14 +538,13 @@ function runTests(win) {
   // ── Scenario 19: seedTooLateReason flags packets past their window ──
   // Live starts and perennials/cover crops are never "too late".
   {
-    // Today (test environment): 2026-05-20 per the system date
     assert('Scenario 19: live starts are never too late',
       seedTooLateReason({storage:'live', name:'Tomato'}) === null);
 
-    // Tomato sown today: transplant-only, daysMin ~60–70. From May 20 to first
-    // frost (~Sept 20) is ~123 days. Needs 60+28=88 days — fits, not late.
-    assert('Scenario 19: tomato seed in May is not too late',
-      seedTooLateReason({storage:'cool', name:'Tomato'}) === null);
+    // Radish is 25-35d direct-sow — fits any month in the active season.
+    // Use it so this test isn't date-fragile.
+    assert('Scenario 19: fast-cycle seed (radish) is never too late in-season',
+      seedTooLateReason({storage:'cool', name:'Radish'}) === null);
 
     // A long-day-to-maturity transplant crop would be too late. Use a fake
     // plant via temporary lib injection — fall back to checking via the live
@@ -764,6 +763,64 @@ function runTests(win) {
       /daily|day/i.test(T.PLANT_IDX['zucchini'].care));
     assert('Scenario 33-care e: PLANT_CARE_META keys all exist in PLANT_IDX',
       Object.keys(T.PLANT_CARE_META).every(id => !!T.PLANT_IDX[id]));
+  }
+
+  // ── Scenario 33-feed: feeding schedule fires when overdue ───────────
+  {
+    const yr = new Date().getFullYear();
+    const fmt = off => new Date(Date.now() - off*86400000).toISOString().slice(0,10);
+    // Case A: tomato transplanted 25 days ago in Bed A, never fed → needs first feed
+    const dbA = T.defaultDB();
+    dbA.beds = T.defaultBeds();
+    dbA.sowLogs = [
+      {id:'sl-t', name:'Tomato (Sungold)', bed:'A', method:'transplant', date:fmt(25), status:'sprouted', qty:1},
+    ];
+    dbA.amendments = [];
+    T.setDb(dbA);
+    const needA = T.getFeedingNeeded();
+    const tomato = needA.find(n => n.libId === 'tomato-ind');
+    assert('Scenario 33-feed: day-25 tomato flagged for first feed',
+      tomato && tomato.status === 'first',
+      'got: ' + JSON.stringify(needA.map(n=>({l:n.libId,s:n.status}))));
+
+    // Case B: same tomato but bed was fed 10 days ago → not due yet
+    const dbB = T.defaultDB();
+    dbB.beds = T.defaultBeds();
+    dbB.sowLogs = dbA.sowLogs;
+    dbB.amendments = [{id:'am1', bed:'A', type:'Compost', amount:'', date: new Date(Date.now() - 10*86400000).toISOString()}];
+    T.setDb(dbB);
+    const needB = T.getFeedingNeeded();
+    assert('Scenario 33-feed b: recently-fed tomato not flagged',
+      !needB.find(n => n.libId === 'tomato-ind'),
+      'got: ' + JSON.stringify(needB.map(n=>n.libId)));
+
+    // Case C: same tomato, bed fed 35 days ago → repeat feed due
+    const dbC = T.defaultDB();
+    dbC.beds = T.defaultBeds();
+    dbC.sowLogs = dbA.sowLogs;
+    dbC.amendments = [{id:'am2', bed:'A', type:'Compost', amount:'', date: new Date(Date.now() - 35*86400000).toISOString()}];
+    T.setDb(dbC);
+    const needC = T.getFeedingNeeded();
+    const repeat = needC.find(n => n.libId === 'tomato-ind');
+    assert('Scenario 33-feed c: 35d-old feed triggers repeat',
+      repeat && repeat.status === 'repeat' && repeat.daysSinceFeed >= 28,
+      'got: ' + JSON.stringify(repeat));
+
+    // Case D: bean is a fixer, never flagged
+    const dbD = T.defaultDB();
+    dbD.beds = T.defaultBeds();
+    dbD.sowLogs = [{id:'sl-b', name:'Bean', bed:'C', method:'direct', date:fmt(40), status:'sprouted', qty:1}];
+    dbD.amendments = [];
+    T.setDb(dbD);
+    const needD = T.getFeedingNeeded();
+    assert('Scenario 33-feed d: beans (N-fixer) not flagged',
+      !needD.find(n => n.libId === 'bean-bush'));
+
+    // isFeedAmendment classification
+    assert('Scenario 33-feed e: compost is a feed', T.isFeedAmendment({type:'Compost'}));
+    assert('Scenario 33-feed f: fish emulsion is a feed', T.isFeedAmendment({type:'Fish emulsion'}));
+    assert('Scenario 33-feed g: lime is NOT a feed', !T.isFeedAmendment({type:'Lime'}));
+    assert('Scenario 33-feed h: mulch is NOT a feed', !T.isFeedAmendment({type:'Mulch'}));
   }
 
   // ── Scenario 33-bloom: bloom ranges widen long bloomers safely ──────
