@@ -3708,9 +3708,17 @@ function renderCare(d) {
   });
   const careWrap = document.getElementById('care-wrap');
   if (careWrap) careWrap.style.display = tasks.length ? '' : 'none';
-  document.getElementById('care-list').innerHTML = tasks.map(t=>
-    `<div class="care-task ${t.cls}"${t.onclick?` onclick="${t.onclick}" style="cursor:pointer;"`:''}><div class="care-icon">${t.icon}</div><div class="care-body"><div class="care-title">${t.title}${t.onclick?` <span style="font-size:.7rem;opacity:.55;">→</span>`:''}</div><div class="care-desc">${t.desc}</div></div></div>`
-  ).join('');
+  // In active season the Daily Round covers most non-urgent signals, so
+  // fold the "normal / info" tasks behind a chip and keep urgents visible.
+  const foldRest = (typeof isActiveSeason === 'function' && isActiveSeason());
+  const urgent = tasks.filter(t => t.cls === 'urgent');
+  const rest = tasks.filter(t => t.cls !== 'urgent');
+  const taskHtml = t => `<div class="care-task ${t.cls}"${t.onclick?` onclick="${t.onclick}" style="cursor:pointer;"`:''}><div class="care-icon">${t.icon}</div><div class="care-body"><div class="care-title">${t.title}${t.onclick?` <span style="font-size:.7rem;opacity:.55;">→</span>`:''}</div><div class="care-desc">${t.desc}</div></div></div>`;
+  const restLabel = rest.length + ' more care ' + (rest.length === 1 ? 'item' : 'items');
+  const restHtml = !rest.length ? '' : (foldRest
+    ? `<button id="care-rest-toggle" onclick="toggleCareRest()" style="width:100%;padding:7px;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.06em;color:var(--muted);background:none;border:1px dashed var(--rule);border-radius:6px;cursor:pointer;margin-top:6px;">+ ${esc(restLabel)}</button><div id="care-rest" style="display:none;margin-top:6px;">${rest.map(taskHtml).join('')}</div>`
+    : rest.map(taskHtml).join(''));
+  document.getElementById('care-list').innerHTML = urgent.map(taskHtml).join('') + restHtml;
   renderMultiDayPlan(d);
 }
 
@@ -8525,6 +8533,16 @@ function addFromNativeLibrary(idx) {
   showToast({msg:`Added ${entry.common} as Planned — tap Edit to refine details`});
 }
 
+function toggleCareRest() {
+  const b = document.getElementById('care-rest');
+  const t = document.getElementById('care-rest-toggle');
+  if (!b || !t) return;
+  const open = b.style.display !== 'none';
+  b.style.display = open ? 'none' : '';
+  const count = b.children.length;
+  const label = count + ' more care ' + (count === 1 ? 'item' : 'items');
+  t.textContent = (open ? '+ ' : '− ') + label;
+}
 function markPruned(id) {
   const p = db.plants.find(p => p.id === id);
   if (!p) return;
@@ -10672,10 +10690,19 @@ const VEG_TO_LIB={
 };
 
 let trackTab='season';
+// Pick the Track sub-tab that matches the current phase: preseason/winddown
+// → wishlist (planning is the point); planting/fullswing/harvest → season
+// (active-season activity). Compost is year-round; never a default.
+function defaultTrackTabForSeason() {
+  if (typeof getSeasonPhase !== 'function') return 'season';
+  const p = getSeasonPhase();
+  return (p === 'preseason' || p === 'winddown') ? 'plan' : 'season';
+}
 function setTrackTab(tab,btn){
   trackTab=tab;
   document.querySelectorAll('#view-track .pvt-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
+  if(btn) btn.classList.add('active');
+  else { const t = document.querySelector(`#view-track .pvt-btn[onclick*="'${tab}'"]`); if(t) t.classList.add('active'); }
   document.getElementById('track-season').style.display=tab==='season'?'':'none';
   document.getElementById('track-plan').style.display=tab==='plan'?'':'none';
   document.getElementById('track-compost').style.display=tab==='compost'?'':'none';
@@ -11368,8 +11395,32 @@ function switchView(id,btn){
     if(gardenTab==='beds') bedsMode = isActiveSeason() ? 'overview' : 'editor';
     renderCurrentGardenTab();
   }
-  if(id==='track'){renderSpring();populateVegDatalist();if(trackTab==='compost')renderCompost();}
-  if(id==='plants') renderPlants();
+  if(id==='track'){
+    // First entry per session: pick sub-tab by season phase.
+    if (!switchView._trackEntered) {
+      switchView._trackEntered = true;
+      const want = defaultTrackTabForSeason();
+      if (want !== trackTab) setTrackTab(want, null);
+    }
+    renderSpring();populateVegDatalist();
+    if(trackTab==='compost')renderCompost();
+    if(trackTab==='plan'){renderPlanList();renderRecommendations();}
+  }
+  if(id==='plants') {
+    // First entry per session: pick view mode by season phase.
+    // Bloom mode is what you want when things are actually blooming
+    // (May–Sept); other times default to List.
+    if (!switchView._plantsEntered) {
+      switchView._plantsEntered = true;
+      const m = new Date().getMonth() + 1;
+      const wantMode = (m >= 5 && m <= 9) ? 'bloom' : 'list';
+      if (wantMode !== plantViewMode) {
+        const btn = document.getElementById('pvt-' + wantMode);
+        if (btn) setPlantView(wantMode, btn);
+      }
+    }
+    renderPlants();
+  }
   if(id==='year') renderYear();
 }
 function openModal(id){
@@ -11638,6 +11689,9 @@ function startHardeningFromSeed(seedId) {
 
 function renderWeekSprint() {
   const el=document.getElementById('week-sprint-wrap'); if (!el) return;
+  // In active season the Daily Round already covers sow/transplant/succession
+  // signals — hide the sprint entirely to avoid double-listing.
+  if (typeof isActiveSeason === 'function' && isActiveSeason()) { el.innerHTML=''; return; }
   const now=new Date(); const yr=now.getFullYear();
   const items=[];
   // 1. Live starts ready to transplant but not yet logged
@@ -12114,6 +12168,16 @@ function renderSoilLog(){
 //  YEAR TAB
 // ════════════════════════════════════════
 let activeYearTab='almanac';
+// Pick the Year sub-tab that matches the current phase: winter/preseason →
+// checklist (planning + next-year prep); planting → plan (calendar);
+// fullswing/harvest → climate (GDD, rain, soil temps).
+function defaultYearTabForSeason() {
+  if (typeof getSeasonPhase !== 'function') return 'almanac';
+  const p = getSeasonPhase();
+  if (p === 'preseason' || p === 'winddown') return 'checklist';
+  if (p === 'planting') return 'plan';
+  return 'climate'; // fullswing / harvest
+}
 let clYear=new Date().getFullYear();
 let histYear=new Date().getFullYear();
 
@@ -12134,7 +12198,22 @@ function renderYearTabContent(tab){
   else if(tab==='climate')renderClimateTab();
   else if(tab==='plan')renderNextSeason();
 }
-function renderYear(){renderYearTabContent(activeYearTab);}
+function renderYear(){
+  // First entry: pick the tab that matches the current season phase.
+  if (!renderYear._entered) {
+    renderYear._entered = true;
+    activeYearTab = defaultYearTabForSeason();
+    // Flip the pvt-btn active state to reflect the chosen default
+    document.querySelectorAll('#view-year .pvt-btn').forEach(b => {
+      b.classList.toggle('active', (b.getAttribute('onclick')||'').includes(`'${activeYearTab}'`));
+    });
+    ['almanac','checklist','journal','climate','plan'].forEach(t=>{
+      const el=document.getElementById('yr-'+t);
+      if(el)el.style.display=t===activeYearTab?'':'none';
+    });
+  }
+  renderYearTabContent(activeYearTab);
+}
 
 // ── CHECKLISTS ──
 function stepClYear(d){clYear+=d;const el=document.getElementById('cl-year-label');if(el)el.textContent=clYear;renderChecklists();}
