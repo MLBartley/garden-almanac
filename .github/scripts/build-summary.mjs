@@ -155,6 +155,17 @@ function sowCard(digest) {
   `, '#c4922a');
 }
 
+function pruneCard(digest) {
+  const items = digest?.pruningDue || [];
+  if (!items.length) return '';
+  const monthAbbr = m => new Date(2000, m-1, 1).toLocaleString('en-US',{month:'short'});
+  const inner = items.map(d => {
+    const windows = d.windows.map(w => `<b>${monthAbbr(w.month)}:</b> ${w.purpose}`).join('<br>');
+    return row('✂️', d.plantName, windows);
+  }).join('');
+  return card('✂️ Prune this month', inner, '#c4922a');
+}
+
 function feedCard(digest) {
   const feeds = digest?.feedsNeeded || [];
   if (!feeds.length) return '';
@@ -239,14 +250,14 @@ async function send(subject, html) {
   let body, subject;
   if (mode === 'daily') {
     body = weatherCard(wx) + frostCard(wx, digest) + readyCard(digest)
-      + transplantCard(digest) + feedCard(digest) + sowCard(digest) + pestCard(digest) + soilCard(digest);
+      + transplantCard(digest) + feedCard(digest) + pruneCard(digest) + sowCard(digest) + pestCard(digest) + soilCard(digest);
     const title = `🌱 Today in the garden — ${digest.monthName || ''}`;
     subject = `Garden ${shortDate(new Date())} · ${Math.round(wx.daily.temperature_2m_max[0])}/${Math.round(wx.daily.temperature_2m_min[0])}°`;
     body = shell(title, body, ageStr);
   } else {
     const title = `📅 Garden week ahead — ${shortDate(new Date())}`;
     subject = `Garden weekly · ${shortDate(new Date())}`;
-    body = shell(title, weatherCard(wx) + frostCard(wx, digest) + weeklyRecap(digest) + pestCard(digest), ageStr);
+    body = shell(title, weatherCard(wx) + frostCard(wx, digest) + weeklyRecap(digest) + pruneCard(digest) + pestCard(digest), ageStr);
   }
   await send(subject, body);
 })().catch(e => { console.error(e); process.exit(1); });

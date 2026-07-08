@@ -2281,6 +2281,124 @@ const PERENNIAL_CARE = [
    harvest:'Snip sprigs through summer; flavor peaks just before flowering. Preserve by freezing or infusing in vinegar — dried tarragon loses most of its punch.'},
 ];
 
+// ═══ PRUNING SCHEDULE ═══
+// Structured pruning windows for perennials — matched to db.plants entries
+// by lowercased-name substring against aliases. Each entry has one or more
+// windows keyed by month (1-12) with a purpose. Bozeman/Zone 5b timing:
+// dormant fruit-tree work in Feb, spring cut-backs on lavender/sage in Apr,
+// post-harvest raspberry cane removal in Aug, asparagus ferns cut in Nov.
+const PRUNING_SCHEDULE = [
+  // Fruit trees — dormant Feb + summer thin
+  {aliases:['apple','crabapple'], windows:[
+    {month:2, purpose:'Dormant structural prune — open the center, remove crossing branches, cut suckers.'},
+    {month:6, purpose:'Thin fruit to 6–8" apart for larger, cleaner apples.'}]},
+  {aliases:['sour cherry','montmorency'], windows:[
+    {month:2, purpose:'Light dormant prune if needed — cherries don\'t need much.'},
+    {month:7, purpose:'Post-harvest cleanup — remove dead / crossing wood while wounds heal fast.'}]},
+  {aliases:['plum','american plum'], windows:[
+    {month:2, purpose:'Prune in DRY late winter only — wet cuts invite silver leaf + black knot. Remove any black-knot galls on sight.'}]},
+  {aliases:['chokecherry'], windows:[
+    {month:3, purpose:'Cut aggressive suckers to control spread. If black knot appears, prune infected wood 6" below the gall + disinfect pruners.'}]},
+  // Nut
+  {aliases:['hazelnut','filbert'], windows:[
+    {month:2, purpose:'Dormant prune — remove suckers to keep as a tree, or let bush.'}]},
+  // Cane berries
+  {aliases:['raspberry'], windows:[
+    {month:8, purpose:'Cut spent floricanes (this year\'s fruiting canes) to the ground; keep 4–6 strong primocanes per foot for next year.'},
+    {month:3, purpose:'Tip surviving primocanes at 4–5 ft to encourage lateral branching.'}]},
+  {aliases:['thimbleberry'], windows:[
+    {month:3, purpose:'Minimal — remove dead wood and thin dense stems.'}]},
+  // Bush fruits
+  {aliases:['currant','gooseberry'], windows:[
+    {month:2, purpose:'Prune to an open center. Renew oldest wood (3+ years) each year.'}]},
+  {aliases:['golden currant'], windows:[
+    {month:2, purpose:'Light dormant prune — remove dead wood only. Very low-maintenance.'}]},
+  {aliases:['elderberry'], windows:[
+    {month:3, purpose:'Cut out canes older than 3 years to renew the bush.'}]},
+  {aliases:['serviceberry','saskatoon'], windows:[
+    {month:2, purpose:'Light dormant prune if needed. Remove suckers if you want a tree form.'}]},
+  {aliases:['buffalo berry'], windows:[
+    {month:2, purpose:'Minimal dormant prune. Thorny — glove up.'}]},
+  {aliases:['mock orange'], windows:[
+    {month:6, purpose:'Prune RIGHT after bloom — remove oldest 1/3 of canes to ground. Never prune in spring, that removes this year\'s flower buds.'}]},
+  {aliases:['shrubby cinquefoil','potentilla'], windows:[
+    {month:4, purpose:'Cut back by 1/3 in early spring as new growth emerges. Every ~3 years, cut to 6" for a full rejuvenation.'}]},
+  // Vine
+  {aliases:['grape'], windows:[
+    {month:2, purpose:'Hard dormant pruning — fruit forms only on last year\'s wood. Leave 4 renewal canes with 8–10 buds each; remove all else.'}]},
+  // Herbaceous perennial herbs (spring cut-back is the big one)
+  {aliases:['lavender'], windows:[
+    {month:4, purpose:'Cut back by 1/3 as new growth emerges — never into old woody stems (it won\'t regrow).'}]},
+  {aliases:['culinary sage','sage'], windows:[
+    {month:4, purpose:'Prune out woody stems before new growth begins. Cuts into leafy wood only.'}]},
+  {aliases:['rosemary'], windows:[
+    {month:4, purpose:'Light shaping if it survived winter. Never take more than 1/3.'}]},
+  {aliases:['thyme'], windows:[
+    {month:6, purpose:'Light trim after flowering to keep the plant tidy and productive.'}]},
+  {aliases:['oregano'], windows:[
+    {month:3, purpose:'Cut down last year\'s dead stems to make room for spring growth.'},
+    {month:8, purpose:'Cut back by half after flowering to encourage a second flush.'}]},
+  {aliases:['mint'], windows:[
+    {month:6, purpose:'Cut back hard (half or more) to keep bushy and prevent flowering (which weakens leaf flavor).'}]},
+  {aliases:['tarragon','french tarragon'], windows:[
+    {month:6, purpose:'Cut back if it bolts to preserve leaf flavor.'},
+    {month:11, purpose:'Mulch crown heavily before hard frost.'}]},
+  {aliases:['fennel'], windows:[
+    {month:9, purpose:'Deadhead before seed sets — fennel reseeds aggressively.'}]},
+  {aliases:['sorrel','french sorrel'], windows:[
+    {month:6, purpose:'Remove flower stalks as they form to keep leaves coming.'}]},
+  // Ground fruit + perennial veg
+  {aliases:['strawberry'], windows:[
+    {month:3, purpose:'Rake out old leaves and mulch. Every ~3 years, renovate: mow the bed after fruiting.'}]},
+  {aliases:['asparagus','purple asparagus'], windows:[
+    {month:11, purpose:'Cut ferns down to the ground after they yellow — cleanup after hard frost. Compost or discard (may harbor asparagus beetle eggs).'}]},
+  // Native trees — sucker management
+  {aliases:['aspen'], windows:[
+    {month:2, purpose:'Dormant structural prune. Manage root suckers around the drip line annually.'}]},
+  {aliases:['sugar maple'], windows:[
+    {month:2, purpose:'Light dormant prune only — no more than 1/4 of the canopy in any year.'}]},
+];
+
+// Return array of {plant, windows:[{month, purpose}], scheduleType, lastPruned}
+// for every established plant with a pruning window that opens this month.
+// Skips anything already pruned this year (via plant.lastPruned).
+function getPruningDueThisMonth(now = new Date()) {
+  const month = now.getMonth() + 1;
+  const yr = now.getFullYear();
+  const out = [];
+  (db.plants || []).forEach(p => {
+    if (p.status === 'noted' || p.status === 'planned') return;
+    const lastYr = p.lastPruned ? parseInt(String(p.lastPruned).slice(0, 4), 10) : NaN;
+    if (Number.isFinite(lastYr) && lastYr === yr) return;
+    // User-set pruneMonth takes priority
+    if (p.pruneMonth && +p.pruneMonth === month) {
+      out.push({ plant: p, windows: [{ month, purpose: 'Scheduled prune month.' }], scheduleType: 'user' });
+      return;
+    }
+    // Library match by name
+    const name = (p.common || '').toLowerCase();
+    for (const entry of PRUNING_SCHEDULE) {
+      if (!entry.aliases.some(a => name.includes(a))) continue;
+      const dueWindows = entry.windows.filter(w => w.month === month);
+      if (dueWindows.length) {
+        out.push({ plant: p, windows: dueWindows, scheduleType: 'library' });
+      }
+      return; // first library match wins
+    }
+  });
+  return out;
+}
+
+// Return all pruning windows across the year for a given plant name, for
+// display in the perennial-edibles reference tab. Empty array if unknown.
+function getPruningWindowsForPlant(commonName) {
+  const name = (commonName || '').toLowerCase();
+  for (const entry of PRUNING_SCHEDULE) {
+    if (entry.aliases.some(a => name.includes(a))) return entry.windows.slice();
+  }
+  return [];
+}
+
 // Index by id, merging in design + care/harvest metadata
 const PLANT_IDX = {};
 PLANT_LIB.forEach(p => {
@@ -3502,16 +3620,21 @@ function renderCare(d) {
   // fires when (now - lastDivided OR added year) ≥ divideYears.
   const monNow = now.getMonth() + 1;
   const yrNow = now.getFullYear();
+  // Pruning — driven by PRUNING_SCHEDULE (library) + user-set pruneMonth.
+  // Dedups by plant.lastPruned year so a marked plant clears until next year.
+  getPruningDueThisMonth(now).forEach(due => {
+    const p = due.plant;
+    const monthName = new Date(2000, monNow - 1, 1).toLocaleString('en-US', { month: 'long' });
+    const purpose = due.windows[0]?.purpose || `Scheduled prune month is ${monthName}.`;
+    tasks.push({
+      cls:'normal', icon:'✂️',
+      title:`Prune ${p.common}${due.scheduleType === 'library' ? '' : ''}`,
+      desc: purpose,
+      onclick:`markPruned('${p.id}')`,
+    });
+  });
   (db.plants || []).forEach(p => {
     if (p.status === 'noted' || p.status === 'planned') return; // only established plants
-    if (p.pruneMonth && +p.pruneMonth === monNow) {
-      tasks.push({
-        cls:'normal', icon:'✂️',
-        title:`Prune ${p.common}`,
-        desc:`Scheduled prune month is ${new Date(2000, p.pruneMonth-1, 1).toLocaleString('en-US',{month:'long'})}.`,
-        onclick:`markPruned('${p.id}')`,
-      });
-    }
     if (p.divideYears && p.divideYears > 0) {
       const lastDivRef = p.lastDivided || (p.added || '');
       const refYear = parseInt(String(lastDivRef).slice(0,4), 10);
@@ -8551,6 +8674,13 @@ function renderGardenPlantsLibrary(){
         </div>
         ${e.harvest?`<div style="margin-top:7px;font-size:.82rem;line-height:1.45;"><span style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.06em;color:var(--moss);">🧺 WHEN TO HARVEST</span><br>${esc(e.harvest)}</div>`:''}
         ${e.care?`<div style="margin-top:6px;font-size:.82rem;line-height:1.45;color:var(--muted);"><span style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.06em;color:var(--sky);">💧 CARE</span><br>${esc(e.care)}</div>`:''}
+        ${(()=>{
+          const windows = getPruningWindowsForPlant(e.name);
+          if (!windows.length) return '';
+          const monthAbbr = m => new Date(2000, m-1, 1).toLocaleString('en-US',{month:'short'});
+          const lines = windows.map(w => `<div style="margin-top:3px;"><b>${monthAbbr(w.month)}:</b> ${esc(w.purpose)}</div>`).join('');
+          return `<div style="margin-top:6px;font-size:.82rem;line-height:1.45;color:var(--muted);"><span style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.06em;color:var(--gold);">✂️ WHEN TO PRUNE</span>${lines}</div>`;
+        })()}
       </div>`;
     }).join('');
   }
@@ -11057,6 +11187,13 @@ function buildEmailDigest(){
       if (p.frostTol === 'tender' || p.frostTol === 'verytender') tenderOutside.push(p.name);
     });
   });
+  // Pruning windows opening this month
+  const pruningDue = (typeof getPruningDueThisMonth === 'function' ? getPruningDueThisMonth(now) : [])
+    .slice(0, 6).map(d => ({
+      plantName: d.plant.common, plantId: d.plant.id,
+      windows: d.windows.map(w => ({month: w.month, purpose: w.purpose})),
+      scheduleType: d.scheduleType,
+    }));
   // Feeding needed — heavy/moderate feeders past their schedule
   const feedsNeeded = (typeof getFeedingNeeded === 'function' ? getFeedingNeeded() : [])
     .slice(0, 6)
@@ -11073,7 +11210,7 @@ function buildEmailDigest(){
     sowOpportunityCount: countSowOpportunities(),
     monthPests, recentEvents, recentHarvest, recentSows,
     lowSoilBeds, tenderOutside: [...new Set(tenderOutside)],
-    feedsNeeded,
+    feedsNeeded, pruningDue,
   };
 }
 
@@ -12755,6 +12892,7 @@ if (!TEST_MODE) {
     getSeasonPhase, isActiveSeason, getReadyToHarvest, countSowOpportunities,
     applyBloomRanges, BLOOM_RANGES,
     FEEDING_SCHEDULE, getFeedingNeeded, isFeedAmendment,
+    PRUNING_SCHEDULE, getPruningDueThisMonth, getPruningWindowsForPlant,
     // Allow tests to inject a db before calling helpers that read the
     // lexical `db`. Reassign the top-level binding rather than window.db,
     // since `let db` doesn't attach to window in module/script scope.

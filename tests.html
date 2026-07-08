@@ -765,6 +765,55 @@ function runTests(win) {
       Object.keys(T.PLANT_CARE_META).every(id => !!T.PLANT_IDX[id]));
   }
 
+  // ── Scenario 33-prune: pruning schedule matches by month + skips done
+  {
+    // Static lookup — Apple has Feb + Jun windows
+    const appleWin = T.getPruningWindowsForPlant('Apple');
+    assert('Scenario 33-prune: Apple has Feb+Jun windows',
+      appleWin.some(w => w.month === 2) && appleWin.some(w => w.month === 6),
+      'got: ' + JSON.stringify(appleWin));
+    // Raspberry has August (cane removal)
+    const rasp = T.getPruningWindowsForPlant('Raspberry');
+    assert('Scenario 33-prune b: Raspberry has August window',
+      rasp.some(w => w.month === 8));
+    // Lavender April
+    const lav = T.getPruningWindowsForPlant('Lavender');
+    assert('Scenario 33-prune c: Lavender has April window',
+      lav.some(w => w.month === 4));
+    // Unknown plant returns empty
+    assertEq('Scenario 33-prune d: unknown plant → []',
+      T.getPruningWindowsForPlant('Unicorn'), []);
+
+    // Due-this-month: force February check with a plant
+    const db = T.defaultDB();
+    db.plants = [
+      {id:'p1', common:'Apple', status:'established'},
+      {id:'p2', common:'Raspberry', status:'established', lastPruned: new Date().toISOString().slice(0,10)},
+      {id:'p3', common:'Lavender', status:'noted'}, // status=noted → skipped
+    ];
+    T.setDb(db);
+    const feb = new Date(2026, 1, 15); // February
+    const dueFeb = T.getPruningDueThisMonth(feb);
+    assert('Scenario 33-prune e: Apple flagged due in February',
+      dueFeb.some(d => d.plant.id === 'p1'),
+      'got: ' + JSON.stringify(dueFeb.map(d=>d.plant.common)));
+    // Raspberry has no Feb window and was already pruned this year → not flagged
+    assert('Scenario 33-prune f: recently-pruned Raspberry not flagged',
+      !dueFeb.some(d => d.plant.id === 'p2'));
+    // Lavender status=noted → skipped
+    assert('Scenario 33-prune g: noted-only plant skipped',
+      !dueFeb.some(d => d.plant.id === 'p3'));
+
+    // User-set pruneMonth takes priority
+    const db2 = T.defaultDB();
+    db2.plants = [{id:'p1', common:'Custom Bush', status:'established', pruneMonth: 6}];
+    T.setDb(db2);
+    const jun = new Date(2026, 5, 1);
+    const dueJun = T.getPruningDueThisMonth(jun);
+    assert('Scenario 33-prune h: user pruneMonth honored',
+      dueJun.some(d => d.plant.id === 'p1' && d.scheduleType === 'user'));
+  }
+
   // ── Scenario 33-feed: feeding schedule fires when overdue ───────────
   {
     const yr = new Date().getFullYear();
