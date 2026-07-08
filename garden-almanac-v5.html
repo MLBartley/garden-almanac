@@ -1625,11 +1625,25 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
           <input class="form-input" id="settings-api-key" type="password" placeholder="sk-ant-…" autocomplete="off" spellcheck="false">
           <div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);padding:4px 13px 8px;">Required for seed packet scanning. Stored locally on this device only.</div>
         </div>
-        <div class="form-field" style="border-bottom:none;">
+        <div class="form-field">
           <div class="form-label">Google Sheets sync URL</div>
           <input class="form-input" id="settings-sheets-url" type="url" placeholder="https://script.google.com/…" autocomplete="off">
           <div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);padding:4px 13px 8px;">Optional. See sync-setup-guide.md to configure.</div>
         </div>
+        <div class="form-field">
+          <div class="form-label">📧 Email summary — GitHub Gist ID</div>
+          <input class="form-input" id="settings-gist-id" type="text" placeholder="e.g. a1b2c3d4e5f6…" autocomplete="off" spellcheck="false">
+          <div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);padding:4px 13px 8px;">A secret Gist holding your latest garden snapshot — the GitHub Action reads it to email a daily/weekly digest.</div>
+        </div>
+        <div class="form-field" style="border-bottom:none;">
+          <div class="form-label">GitHub fine-grained PAT (Gists: read &amp; write)</div>
+          <input class="form-input" id="settings-gist-pat" type="password" placeholder="github_pat_…" autocomplete="off" spellcheck="false">
+          <div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);padding:4px 13px 8px;">Stored locally on this device only. Used to sync your snapshot to the Gist on each app open.</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button class="btn-sm" style="flex:1;padding:9px;" onclick="syncGardenSnapshot(true)">📤 Sync snapshot now</button>
+        <span id="gist-sync-status" style="flex:1;display:flex;align-items:center;font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);"></span>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:10px;">
         <button class="btn-sm" style="flex:1;padding:9px;" onclick="exportDB()">Export backup ↓</button>
@@ -10777,14 +10791,184 @@ function setSheetsUrl(url){localStorage.setItem(SHEETS_KEY,url);}
 const API_KEY_KEY='bozeman_claude_key';
 function getApiKey(){return localStorage.getItem(API_KEY_KEY)||'';}
 function setApiKey(k){if(k)localStorage.setItem(API_KEY_KEY,k);else localStorage.removeItem(API_KEY_KEY);}
+// Gist sync config — used by the GitHub Actions email-summary workflow.
+const GIST_ID_KEY='bozeman_gist_id', GIST_PAT_KEY='bozeman_gist_pat', GIST_SYNCED_KEY='bozeman_gist_last_sync';
+function getGistId(){return localStorage.getItem(GIST_ID_KEY)||'';}
+function setGistId(v){if(v)localStorage.setItem(GIST_ID_KEY,v);else localStorage.removeItem(GIST_ID_KEY);}
+function getGistPat(){return localStorage.getItem(GIST_PAT_KEY)||'';}
+function setGistPat(v){if(v)localStorage.setItem(GIST_PAT_KEY,v);else localStorage.removeItem(GIST_PAT_KEY);}
+function getGistLastSync(){return parseInt(localStorage.getItem(GIST_SYNCED_KEY)||'0',10);}
+function setGistLastSync(t){localStorage.setItem(GIST_SYNCED_KEY,String(t));}
 function saveSettings(){
   const key=document.getElementById('settings-api-key').value.trim();
   const url=document.getElementById('settings-sheets-url').value.trim();
+  const gistId=document.getElementById('settings-gist-id').value.trim();
+  const gistPat=document.getElementById('settings-gist-pat').value.trim();
   setApiKey(key);
   if(url&&url.startsWith('https://script.google.com'))setSheetsUrl(url);
   else if(!url)localStorage.removeItem(SHEETS_KEY);
+  setGistId(gistId);
+  if(gistPat) setGistPat(gistPat);
   checkSyncStatus();
   closeModal('settings-modal');
+  // If both creds present, run an immediate sync so the user sees confirmation.
+  if(gistId && getGistPat()) syncGardenSnapshot(true);
+}
+
+// Pre-computed digest of the most relevant signals for the email summary.
+// The build-summary workflow just formats these — keeps the workflow lean
+// and reuses the PWA's already-tested computations.
+function buildEmailDigest(){
+  const now = new Date();
+  const phase = getSeasonPhase(now);
+  const ready = getReadyToHarvest().slice(0, 8).map(r => ({
+    name: r.baseName, variety: r.variety || '',
+    bed: r.bed, emoji: r.plant?.emoji || '🧺',
+    harvest: r.plant?.harvest || '',
+    daysSinceHarvest: r.daysSinceHarvest, ready: r.ready,
+  }));
+  const transplants = getRecentTransplants(21).map(t => {
+    const open = transplantNudges(t).filter(n => n.type !== 'water'
+      && !(db.transplantNudgeDone?.[t.sowLogId]?.[n.type]));
+    return {
+      name: t.baseName, variety: t.variety || '',
+      bed: t.bed, daysAgo: t.daysAgo,
+      stage: transplantStage(t).key,
+      emoji: t.plant?.emoji || '🌱',
+      openNudges: open.map(n => ({ type: n.type, text: n.text, icon: n.icon })),
+    };
+  });
+  const month = now.getMonth() + 1;
+  const plantedFamilies = new Set();
+  Object.values(db.bedDesigns || {}).forEach(des => Object.values(des||{}).forEach(id => {
+    if (id) { const f = getFamily(id); if (f) plantedFamilies.add(f); }
+  }));
+  const monthPests = (typeof BOZEMAN_PESTS !== 'undefined' ? BOZEMAN_PESTS : [])
+    .filter(p => p.months.includes(month))
+    .map(p => ({
+      name: p.name, emoji: p.emoji, scout: p.scout, action: p.action,
+      hot: p.families.some(f => plantedFamilies.has(f)),
+    }));
+  const weekAgoMs = Date.now() - 7 * 86400000;
+  const recentEvents = (db.gardenEvents || [])
+    .filter(e => new Date(e.date) >= weekAgoMs).slice(0, 12)
+    .map(e => ({ type: e.type, date: e.date, notes: e.notes, auto: !!e.auto }));
+  const recentHarvest = (db.harvestLog || [])
+    .filter(h => new Date(h.date) >= weekAgoMs).slice(0, 20)
+    .map(h => ({ crop: h.crop, bed: h.bed, qty: h.qty, unit: h.unit, date: h.date }));
+  const recentSows = (db.sowLogs || [])
+    .filter(s => new Date(s.date) >= weekAgoMs).slice(0, 20)
+    .map(s => ({ name: s.name, bed: s.bed, method: s.method, date: s.date }));
+  const lowSoilBeds = (db.beds || [])
+    .filter(b => !b.type)
+    .map(b => ({ key: b.key, name: BED_INFO[b.key]?.label || b.name || b.key, score: computeSoilHealth(b.key).score }))
+    .filter(b => b.score < 60);
+  // Frost-tender plants currently outside (for the frost section)
+  const tenderOutside = [];
+  Object.entries(db.bedDesigns || {}).forEach(([bedKey, design]) => {
+    const statuses = db.bedStatuses?.[bedKey] || {};
+    Object.entries(design).forEach(([i, libId]) => {
+      if (statuses[i] !== 'planted') return;
+      const p = PLANT_IDX[libId]; if (!p) return;
+      if (p.frostTol === 'tender' || p.frostTol === 'verytender') tenderOutside.push(p.name);
+    });
+  });
+  return {
+    seasonPhase: phase, activeSeason: isActiveSeason(now),
+    monthName: now.toLocaleString('en-US', { month: 'long' }),
+    ready, transplants,
+    sowOpportunityCount: countSowOpportunities(),
+    monthPests, recentEvents, recentHarvest, recentSows,
+    lowSoilBeds, tenderOutside: [...new Set(tenderOutside)],
+  };
+}
+
+// Build a compact snapshot of the user's garden state for the email
+// summary. Excludes the journal (privacy) and photos (IndexedDB blobs).
+function buildGardenSnapshot(){
+  const now = new Date();
+  const yr = now.getFullYear();
+  // Only ship sowLogs / harvestLog / events from the current year to keep
+  // payload small. Everything else is current-state.
+  const thisYr = arr => (arr||[]).filter(e => String(e.date||'').slice(0,4) === String(yr));
+  return {
+    schema:1,
+    generatedAt: now.toISOString(),
+    location:'Bozeman, MT (Zone 5b)',
+    beds: db.beds || [],
+    bedDesigns: db.bedDesigns || {},
+    bedStatuses: db.bedStatuses || {},
+    bedSoilProfiles: db.bedSoilProfiles || {},
+    bedZones: db.bedZones || {},
+    bedHistory: db.bedHistory || {},
+    lockedBeds: db.lockedBeds || [],
+    seeds: db.seeds || [],
+    sowLogs: thisYr(db.sowLogs),
+    harvestLog: thisYr(db.harvestLog),
+    hardenLogs: (db.hardenLogs || []).filter(e => !e.done),
+    transplantNudgeDone: db.transplantNudgeDone || {},
+    frostCoverings: db.frostCoverings || {},
+    gddLog: thisYr(db.gddLog),
+    rainfallLog: thisYr(db.rainfallLog),
+    soilTempLog: thisYr(db.soilTempLog),
+    gardenEvents: thisYr(db.gardenEvents),
+    amendments: db.amendments || [],
+    plants: (db.plants || []).map(p => {
+      // Strip the heavy thumb blob — keeps payload small
+      const {thumb, thumbType, ...rest} = p; return rest;
+    }),
+    // Pre-computed signals the email workflow renders directly.
+    emailDigest: buildEmailDigest(),
+  };
+}
+
+const SNAPSHOT_FILENAME = 'garden-snapshot.json';
+const SNAPSHOT_THROTTLE_MS = 6 * 3600 * 1000; // sync at most once per 6h on auto
+
+async function syncGardenSnapshot(manual=false){
+  const statusEl = document.getElementById('gist-sync-status');
+  const gistId = getGistId(), pat = getGistPat();
+  if (!gistId || !pat) {
+    if (manual) alert('Add your Gist ID and GitHub PAT in Settings first.');
+    if (statusEl && manual) statusEl.textContent = 'Missing Gist ID or PAT.';
+    return false;
+  }
+  // Throttle automatic syncs (manual button always proceeds)
+  if (!manual) {
+    const since = Date.now() - getGistLastSync();
+    if (since < SNAPSHOT_THROTTLE_MS) return false;
+  }
+  if (statusEl) statusEl.textContent = 'Syncing…';
+  try {
+    const snapshot = buildGardenSnapshot();
+    const body = JSON.stringify({ files: { [SNAPSHOT_FILENAME]: { content: JSON.stringify(snapshot, null, 2) } } });
+    const res = await fetch(`https://api.github.com/gists/${encodeURIComponent(gistId)}`, {
+      method: 'PATCH',
+      headers: {
+        'Accept': 'application/vnd.github+json',
+        'Authorization': `Bearer ${pat}`,
+        'Content-Type': 'application/json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+      body,
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new Error(`Gist sync failed (${res.status}). ${errText.slice(0, 140)}`);
+    }
+    setGistLastSync(Date.now());
+    if (statusEl) {
+      const sizeKB = (body.length / 1024).toFixed(1);
+      statusEl.textContent = `✓ Synced ${sizeKB} KB at ${new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}`;
+      statusEl.style.color = 'var(--moss)';
+    }
+    return true;
+  } catch (e) {
+    console.error('Gist sync failed', e);
+    if (statusEl) { statusEl.textContent = '⚠ ' + e.message; statusEl.style.color = 'var(--clay)'; }
+    if (manual) alert('Sync failed: ' + e.message);
+    return false;
+  }
 }
 async function syncData(){
   const url=getSheetsUrl();
@@ -10864,6 +11048,14 @@ function openModal(id){
   if(id==='settings-modal'){
     document.getElementById('settings-api-key').value=getApiKey();
     document.getElementById('settings-sheets-url').value=getSheetsUrl();
+    document.getElementById('settings-gist-id').value=getGistId();
+    document.getElementById('settings-gist-pat').value=getGistPat();
+    const statusEl=document.getElementById('gist-sync-status');
+    if(statusEl){
+      const t=getGistLastSync();
+      statusEl.textContent = t ? `Last synced ${new Date(t).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}` : 'Not synced yet.';
+      statusEl.style.color='var(--muted)';
+    }
   }
   document.getElementById(id).classList.add('open');
 }
@@ -12306,6 +12498,9 @@ function dismissToast(tid) {
 // ── INIT (skipped in TEST_MODE so tests.html can drive without auto-render) ──
 if (!TEST_MODE) {
   updateHeaderDate();loadWeather();renderAll();checkSyncStatus();
+  // Best-effort background sync of the garden snapshot to Gist (throttled
+  // to once / 6h). The GitHub Action reads it to build the email summary.
+  setTimeout(() => { syncGardenSnapshot().catch(() => {}); }, 4000);
   // Re-render header date at the next midnight so the displayed day rolls over without reload.
   (function scheduleMidnightTick(){
     const now=new Date();

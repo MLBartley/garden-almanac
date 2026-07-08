@@ -1,0 +1,47 @@
+# Daily / weekly garden email summary
+#
+# Reads a snapshot of the garden state from a private GitHub Gist
+# (synced by the PWA on each app open), pulls the current Open-Meteo
+# forecast for Bozeman, and emails a formatted digest via Resend.
+#
+# Two crons, mutually-exclusive by season:
+#  - 13:00 UTC daily      = 7am MDT, used Apr–Sep (active season)
+#  - 01:00 UTC Mondays    = 6pm MST Sun, used Oct–Mar (off-season)
+#
+# Required repo secrets:
+#  RESEND_API_KEY    Resend API token (re_…)
+#  RECIPIENT_EMAIL   where the email goes
+#  SENDER_EMAIL      a verified-from address (or onboarding@resend.dev for testing)
+#  GIST_ID           ID of the secret Gist holding garden-snapshot.json
+#  GIST_PAT          fine-grained GitHub PAT with Gists: read scope
+name: Garden email summary
+
+on:
+  schedule:
+    - cron: '0 13 * * *'   # daily, 7am MDT (Apr–Sep)
+    - cron: '0 1 * * 1'    # Mondays 01:00 UTC = Sun 6pm MST (Oct–Mar)
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Force daily / weekly (otherwise auto by season)'
+        required: false
+        default: 'auto'
+        type: choice
+        options: ['auto', 'daily', 'weekly']
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Send summary
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          GIST_ID: ${{ secrets.GIST_ID }}
+          GIST_PAT: ${{ secrets.GIST_PAT }}
+          TRIGGER_SCHEDULE: ${{ github.event.schedule }}
+          MANUAL_MODE: ${{ github.event.inputs.mode }}
+        run: node .github/scripts/build-summary.mjs
