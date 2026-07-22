@@ -905,6 +905,16 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
       <!-- In-page section index -->
       <div id="track-section-index" style="display:flex;gap:5px;flex-wrap:wrap;margin:8px 0 14px;font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.05em;"></div>
 
+      <!-- Unified Sow hub — succession + gap fillers + direct-sow windows -->
+      <div class="track-section" id="sec-sow-hub">
+        <div class="section-label" style="margin-top:0;display:flex;align-items:center;gap:8px;">
+          <span>🌱 Sow now</span>
+          <span id="sec-sow-hub-count" style="font-weight:400;opacity:.6;font-family:'Crimson Pro',serif;font-size:.85rem;text-transform:none;letter-spacing:0;"></span>
+        </div>
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px;">Succession · gap fillers · open direct-sow windows — all in one list.</div>
+        <div id="sow-hub-list"></div>
+      </div>
+
       <!-- Germination tracker -->
       <div class="track-section" id="sec-germination">
         <div class="section-label" style="margin-top:0;display:flex;align-items:center;gap:8px;">
@@ -1246,9 +1256,9 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
   <div id="bottom-nav">
     <button class="nav-btn active" onclick="switchView('today',this)"><span class="nav-icon">☀️</span>TODAY</button>
     <button class="nav-btn" onclick="switchView('garden',this)"><span class="nav-icon">🗺</span>GARDEN</button>
-    <button class="nav-btn" onclick="switchView('track',this)"><span class="nav-icon">🌱</span>TRACK</button>
+    <button class="nav-btn" onclick="switchView('track',this)"><span class="nav-icon">📋</span>LOG</button>
     <button class="nav-btn" onclick="switchView('plants',this)"><span class="nav-icon">🌿</span>PLANTS</button>
-    <button class="nav-btn" onclick="switchView('year',this)"><span class="nav-icon">📅</span>YEAR</button>
+    <button class="nav-btn" onclick="switchView('year',this)"><span class="nav-icon">📅</span>ALMANAC</button>
   </div>
 
   <!-- AMENDMENT MODAL -->
@@ -10190,6 +10200,95 @@ function logSuccessionSow(cropName) {
   saveDB(db); renderSpring(); renderJournal();
 }
 
+// Unified "Sow now" hub — combines succession-due crops, gap-fillers ready
+// to plant, and direct-sow packets whose window has opened but haven't
+// been sown yet this year. One list, one mental model.
+function renderSowHub() {
+  const el = document.getElementById('sow-hub-list');
+  if (!el) return;
+  const now = new Date();
+  const yr = now.getFullYear();
+  const nowMs = now.getTime();
+  const items = [];
+
+  // 1. Succession — due (or overdue)
+  SUCCESSION_CROPS.forEach(crop => {
+    const key = 'succ_' + crop.name.toLowerCase().replace(/\s+/g,'_');
+    const lastSow = db.oyaLogs?.[key];
+    if (!lastSow) return; // never started this succession
+    const daysSince = Math.round((nowMs - new Date(lastSow)) / 86400000);
+    const daysUntilNext = crop.intervalDays - daysSince;
+    if (daysUntilNext > 7) return; // more than a week out — skip
+    items.push({
+      kind:'succession',
+      emoji: crop.emoji || '🔄',
+      name: crop.name,
+      sub: daysUntilNext <= 0 ? `${-daysUntilNext}d overdue` : `due in ${daysUntilNext}d`,
+      action: `logSuccessionSow('${escAttr(crop.name)}')`,
+      actionLabel: '+ Sowed today',
+    });
+  });
+
+  // 2. Gap fillers — timing = now / indoor
+  (db.seeds || []).forEach(s => {
+    if (!s.isGapFiller || s.skipYear) return;
+    const libId = seedToLibId(s);
+    const plant = libId ? PLANT_IDX[libId] : null;
+    if (!plant) return;
+    const ps = getPlantingStatus(plant, wxData);
+    if (!ps || (ps.status !== 'now' && ps.status !== 'indoor')) return;
+    if (seedTooLateReason(s)) return;
+    items.push({
+      kind:'gap',
+      emoji: plant.emoji || '🪡',
+      name: s.name + (s.variety && !s.variety.startsWith('(') ? ' · ' + s.variety : ''),
+      sub: `🪡 gap filler · ${ps.status === 'indoor' ? 'start indoors' : 'sow now'}`,
+      action: `openSowModal('${escAttr(s.id)}')`,
+      actionLabel: 'Sow →',
+    });
+  });
+
+  // 3. Direct-sow packets — window open, not yet logged this year
+  const directLogged = new Set((db.sowLogs||[])
+    .filter(e => e.method === 'direct' && String(e.date).startsWith(yr))
+    .map(e => e.name.toLowerCase().split(' (')[0]));
+  const seenName = new Set();
+  (db.seeds || []).forEach(s => {
+    if (s.storage === 'live' || s.skipYear || s.isGapFiller) return;
+    const libId = seedToLibId(s);
+    const plant = libId ? PLANT_IDX[libId] : null;
+    if (!plant || plant.sowMethod !== 'direct') return;
+    const k = s.name.toLowerCase();
+    if (directLogged.has(k) || seenName.has(k)) return;
+    if (now < _startWindowDate(plant, yr)) return;
+    if (seedTooLateReason(s)) return;
+    seenName.add(k);
+    items.push({
+      kind:'direct',
+      emoji: plant.emoji || '🌱',
+      name: s.name + (s.variety && !s.variety.startsWith('(') ? ' · ' + s.variety : ''),
+      sub: `direct-sow window open · ${(BED_INFO[s.bed]||{}).label || 'Any bed'}`,
+      action: `openSowModal('${escAttr(s.id)}')`,
+      actionLabel: 'Sow →',
+    });
+  });
+
+  const countEl = document.getElementById('sec-sow-hub-count');
+  if (countEl) countEl.textContent = items.length ? items.length + ' due' : '';
+  const section = document.getElementById('sec-sow-hub');
+  if (section) section.style.display = items.length ? '' : 'none';
+  if (!items.length) { el.innerHTML = ''; return; }
+
+  el.innerHTML = items.map(it => `<div class="succ-card">
+    <div class="succ-emoji">${it.emoji}</div>
+    <div class="succ-body">
+      <div class="succ-name">${esc(it.name)}</div>
+      <div class="succ-detail">${esc(it.sub)}</div>
+    </div>
+    <button class="succ-btn succ-due" onclick="${it.action}">${esc(it.actionLabel)}</button>
+  </div>`).join('');
+}
+
 function renderSuccession() {
   const now = Date.now();
   const el = document.getElementById('succ-list');
@@ -10572,7 +10671,36 @@ function renderSectionIndex() {
     if (!last) return false;
     return Math.round((Date.now() - new Date(last)) / 86400000) >= crop.intervalDays;
   }).length;
+  // Sow hub count: succession-due + gap-fillers-ready + open direct-sow packets.
+  const sowHubCount = (() => {
+    const now = new Date(); const yr = now.getFullYear();
+    let n = 0;
+    n += SUCCESSION_CROPS.filter(c => {
+      const key = 'succ_' + c.name.toLowerCase().replace(/\s+/g,'_');
+      const last = db.oyaLogs?.[key]; if (!last) return false;
+      return c.intervalDays - Math.round((Date.now() - new Date(last)) / 86400000) <= 7;
+    }).length;
+    n += (db.seeds || []).filter(s => {
+      if (!s.isGapFiller || s.skipYear) return false;
+      const p = PLANT_IDX[seedToLibId(s)]; if (!p) return false;
+      const ps = getPlantingStatus(p, wxData);
+      return ps && (ps.status === 'now' || ps.status === 'indoor') && !seedTooLateReason(s);
+    }).length;
+    const directLogged = new Set((db.sowLogs||[]).filter(e=>e.method==='direct'&&String(e.date).startsWith(yr)).map(e=>e.name.toLowerCase().split(' (')[0]));
+    const seen = new Set();
+    n += (db.seeds || []).filter(s => {
+      if (s.storage === 'live' || s.skipYear || s.isGapFiller) return false;
+      const p = PLANT_IDX[seedToLibId(s)]; if (!p || p.sowMethod !== 'direct') return false;
+      const k = s.name.toLowerCase();
+      if (directLogged.has(k) || seen.has(k)) return false;
+      if (now < _startWindowDate(p, yr)) return false;
+      if (seedTooLateReason(s)) return false;
+      seen.add(k); return true;
+    }).length;
+    return n;
+  })();
   const sections = [
+    {id:'sec-sow-hub',     label:'🌱 Sow now',  count:sowHubCount, show: sowHubCount > 0},
     {id:'sec-germination', label:'🌱 Germ',     count:(db.sowLogs||[]).filter(e=>e.status==='waiting').length, show:true},
     {id:'sec-hardening',   label:'🌿 Hardening',count:(db.hardenLogs||[]).filter(e=>!e.done).length, show:true},
     {id:'sec-transplants', label:'🌱 New',      count:getRecentTransplants(21).length, show: mo >= 4 && mo <= 7},
@@ -10595,6 +10723,7 @@ function scrollToTrackSection(id) {
 // Master spring render
 function renderSpring(){
   renderSectionIndex();
+  renderSowHub();
   renderGermination();
   renderHardening();
   renderRecentTransplants();
