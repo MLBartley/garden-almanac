@@ -725,6 +725,7 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <div class="section-label" style="margin-top:0;">Today's care</div>
         <div id="care-list"></div>
       </div>
+      <div id="winter-mode-wrap"></div>
       <div id="daily-round-wrap"></div>
       <div id="multi-day-wrap"></div>
       <div id="pest-scout-wrap"></div>
@@ -736,8 +737,12 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
         <div id="moon-sun-widget" style="display:none;"></div>
       </div>
       <div class="card" style="padding:0;overflow:hidden;margin-top:8px;">
-        <div style="padding:7px 13px 0;font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:.1em;">QUICK NOTE</div>
-        <textarea class="journal-input" id="quick-note" placeholder="What did you notice today…" style="min-height:60px;border-bottom:1px solid var(--rule);"></textarea>
+        <div style="padding:7px 13px 0;font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:.1em;display:flex;align-items:center;justify-content:space-between;">
+          <span>📓 JOURNAL</span>
+          <span onclick="switchViewByName('year');setTimeout(()=>setYearTab('journal',document.querySelector('#view-year .pvt-btn[onclick*=journal]')),50);" style="color:var(--moss);cursor:pointer;font-size:8px;">View all →</span>
+        </div>
+        <div id="quick-journal-recent" style="padding:4px 13px;font-size:.78rem;color:var(--muted);"></div>
+        <textarea class="journal-input" id="quick-note" placeholder="What did you notice today…" style="min-height:60px;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);"></textarea>
         <div style="padding:6px 13px;display:flex;justify-content:flex-end;">
           <button class="btn-primary" onclick="quickLog()">Log →</button>
         </div>
@@ -7660,6 +7665,7 @@ function quickLog(){
   db.journal.unshift({id:'j'+Date.now(),date:new Date().toISOString(),mood:'',tags:['quick'],text,
     weather:wxData?{temp:Math.round(wxData.current.temperature_2m),desc:(WMO[wxData.current.weather_code]||['',''])[1]}:null});
   saveDB(db);document.getElementById('quick-note').value='';renderJournal();
+  renderQuickJournalRecent();
 }
 function renderJournal(){
   if(!db.journal.length){document.getElementById('journal-list').innerHTML=`<div class="empty-state"><div class="empty-icon">📓</div><div class="empty-text">Your journal is empty.<br>Write your first entry above.</div></div>`;return;}
@@ -9357,6 +9363,8 @@ function countSowOpportunities() {
 function renderDailyRound(d) {
   const el = document.getElementById('daily-round-wrap');
   if (!el) return;
+  // Off-season: hand off to the winter-mode dashboard instead.
+  renderWinterMode();
   if (!isActiveSeason()) { el.innerHTML = ''; return; }
   const phase = getSeasonPhase();
   // 1. Water
@@ -9438,6 +9446,93 @@ function renderDailyRound(d) {
 function switchToTodayPests() {
   const el = document.getElementById('pest-scout-wrap');
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── WINTER-MODE DASHBOARD (preseason / winddown) ──────────────────────
+// In the off-season, replace the Daily Round with a planning-focused
+// dashboard: wishlist snapshot, seed viability check, last-season snapshot
+// prompt, rotation-planning hook. Rendered from loadWeather via
+// renderDailyRound when isActiveSeason() is false.
+function renderWinterMode() {
+  const el = document.getElementById('winter-mode-wrap');
+  if (!el) return;
+  const phase = getSeasonPhase();
+  if (phase !== 'preseason' && phase !== 'winddown') { el.innerHTML = ''; return; }
+  const isPreseason = phase === 'preseason';
+  const yr = new Date().getFullYear();
+  const label = isPreseason ? 'Winter planning' : 'Season wrap-up';
+
+  // Wishlist
+  const wishlist = db.wishlist || [];
+  const wlCount = wishlist.length;
+  const wlSample = wishlist.slice(0, 3).map(w => w.name).filter(Boolean).join(', ');
+
+  // Seed inventory audit
+  const seeds = (db.seeds || []).filter(s => !s.skipYear);
+  const totalPackets = seeds.filter(s => s.storage !== 'live').length;
+  const tooLateSeeds = seeds.filter(s => seedTooLateReason(s));
+  const oldSeeds = seeds.filter(s => {
+    if (!s.addedDate) return false;
+    const y = parseInt(String(s.addedDate).slice(0,4), 10);
+    return Number.isFinite(y) && (yr - y) >= 3;
+  });
+
+  // Snapshot: did we snapshot last year's beds?
+  const snappedYears = Object.keys(db.bedHistory || {}).map(y => parseInt(y,10)).filter(Number.isFinite);
+  const lastSnap = snappedYears.length ? Math.max(...snappedYears) : null;
+  const needsSnapshot = phase === 'winddown' && lastSnap !== yr;
+  const canReviewLastYear = snappedYears.includes(yr - 1);
+
+  // Compose sections
+  const parts = [];
+  parts.push(`<div class="dr-row" onclick="switchViewByName('track');setTimeout(()=>setTrackTab('plan',document.querySelector('#view-track .pvt-btn[onclick*=plan]')),50);">
+    <span class="dr-ic">📋</span>
+    <span class="dr-txt"><strong>Wishlist${wlCount?` · ${wlCount} item${wlCount===1?'':'s'}`:''}</strong>${wlSample?`<br><span class="dr-sub">${esc(wlSample)}${wlCount>3?` +${wlCount-3}`:''}</span>`:'<br><span class="dr-sub">Add seeds / plants / tools you want next season.</span>'}</span>
+    <span class="dr-go">›</span></div>`);
+
+  parts.push(`<div class="dr-row" onclick="switchViewByName('garden');setTimeout(()=>{setGardenTab('seeds',document.querySelector('#view-garden .pvt-btn[onclick*=seeds]'));},50);">
+    <span class="dr-ic">🌾</span>
+    <span class="dr-txt"><strong>Seed inventory · ${totalPackets} packet${totalPackets===1?'':'s'}</strong><br><span class="dr-sub">${tooLateSeeds.length?`⛔ ${tooLateSeeds.length} too-late for this season · `:''}${oldSeeds.length?`⚠ ${oldSeeds.length} older than 3yr — test germination`:'Audit viability, order gaps.'}</span></span>
+    <span class="dr-go">›</span></div>`);
+
+  if (needsSnapshot) {
+    parts.push(`<div class="dr-row" onclick="switchViewByName('garden');setTimeout(()=>setGardenTab('history',document.querySelector('#view-garden .pvt-btn[onclick*=history]')),50);">
+      <span class="dr-ic">📸</span>
+      <span class="dr-txt"><strong>Snapshot ${yr} beds</strong><br><span class="dr-sub">Preserve what grew where before the winter reset — powers next year's rotation guide.</span></span>
+      <span class="dr-go">›</span></div>`);
+  }
+
+  if (canReviewLastYear) {
+    parts.push(`<div class="dr-row" onclick="switchViewByName('garden');setTimeout(()=>setGardenTab('history',document.querySelector('#view-garden .pvt-btn[onclick*=history]')),50);">
+      <span class="dr-ic">🔁</span>
+      <span class="dr-txt"><strong>Rotation planning</strong><br><span class="dr-sub">Review last year's bed history and plan this year's family moves.</span></span>
+      <span class="dr-go">›</span></div>`);
+  }
+
+  parts.push(`<div class="dr-row" onclick="switchViewByName('garden');setTimeout(()=>setGardenTab('beds',document.querySelector('#view-garden .pvt-btn[onclick*=beds]')),50);">
+    <span class="dr-ic">🗺</span>
+    <span class="dr-txt"><strong>Design ${isPreseason?yr:yr+1} beds</strong><br><span class="dr-sub">Assign seeds to beds — run auto-suggest with your inventory.</span></span>
+    <span class="dr-go">›</span></div>`);
+
+  el.innerHTML = `
+    <div class="section-label" style="margin-top:14px;">❄️ ${label}</div>
+    <div class="daily-round">${parts.join('')}</div>`;
+}
+
+// ── JOURNAL: recent-entries strip above the quick-note input ──────────
+function renderQuickJournalRecent() {
+  const el = document.getElementById('quick-journal-recent');
+  if (!el) return;
+  const recent = (db.journal || []).slice(0, 3);
+  if (!recent.length) { el.innerHTML = '<span style="color:var(--muted);font-size:.78rem;">No entries yet.</span>'; return; }
+  el.innerHTML = recent.map(e => {
+    const d = new Date(e.date);
+    const rel = Math.floor((Date.now() - d.getTime()) / 86400000);
+    const when = rel === 0 ? 'today' : rel === 1 ? 'yesterday' : `${rel}d ago`;
+    const text = (e.text || '').replace(/\s+/g, ' ').trim();
+    const snippet = text.length > 80 ? text.slice(0, 78) + '…' : text;
+    return `<div style="padding:3px 0;border-top:1px solid var(--rule);"><span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--moss);">${when}</span> — ${esc(snippet || '(no text)')}</div>`;
+  }).join('');
 }
 
 // ════════════════════════════════════════
@@ -13002,7 +13097,7 @@ function renderSeedSaving(){
   </div>`).join('');
 }
 
-function renderAll(){renderJournal();renderPlants();renderTimeline();renderSeeds();renderSpring();renderReadyToPlant();renderWeekSprint();renderMoonWidget();renderYear();}
+function renderAll(){renderJournal();renderQuickJournalRecent();renderPlants();renderTimeline();renderSeeds();renderSpring();renderReadyToPlant();renderWeekSprint();renderMoonWidget();renderYear();}
 
 // ── Toast helper (used for undo, sync errors, update prompts) ──
 const _toasts = new Map();
