@@ -678,6 +678,8 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
     <div style="font-size:1.3rem">🌱</div>
     <div class="header-title"><strong>Garden</strong> Almanac</div>
     <div class="header-date" id="header-date"></div>
+    <button class="sync-btn" onclick="openGlobalSearch()" title="Search plants, beds, seeds…" style="margin-left:2px;">🔍</button>
+    <button class="sync-btn" onclick="openGuideForCurrentView()" title="What can I do here?" style="margin-left:2px;">?</button>
     <button class="sync-btn" id="sync-btn" onclick="syncData()">⟳</button>
     <span class="sync-status sync-off" id="sync-status">LOCAL</span>
     <button class="sync-btn" onclick="openModal('settings-modal')" title="Settings" style="margin-left:2px;">⚙</button>
@@ -1634,6 +1636,31 @@ textarea.journal-input{width:100%;border:none;outline:none;font-family:'Crimson 
   </div>
 
   <!-- SETTINGS MODAL -->
+  <!-- GLOBAL SEARCH MODAL -->
+  <div class="modal-overlay" id="search-modal">
+    <div class="modal-sheet" style="max-height:80vh;overflow:hidden;display:flex;flex-direction:column;">
+      <div class="modal-handle"></div>
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px;">
+        <div class="modal-title">🔍 Search</div>
+        <button onclick="closeModal('search-modal')" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;">×</button>
+      </div>
+      <input id="search-input" type="text" placeholder="Plant, seed, bed, zone, harvest log…" style="width:100%;padding:10px 12px;border:1px solid var(--rule);border-radius:6px;font-size:.95rem;box-sizing:border-box;margin-bottom:10px;" oninput="renderSearchResults(this.value)">
+      <div id="search-results" style="flex:1;overflow-y:auto;"></div>
+    </div>
+  </div>
+
+  <!-- WHAT'S HERE (per-view guide) -->
+  <div class="modal-overlay" id="guide-modal">
+    <div class="modal-sheet" style="max-height:80vh;overflow:hidden;display:flex;flex-direction:column;">
+      <div class="modal-handle"></div>
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px;">
+        <div class="modal-title" id="guide-title">What's here?</div>
+        <button onclick="closeModal('guide-modal')" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;">×</button>
+      </div>
+      <div id="guide-body" style="flex:1;overflow-y:auto;font-size:.85rem;line-height:1.55;"></div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="settings-modal">
     <div class="modal-sheet">
       <div class="modal-handle"></div>
@@ -11647,6 +11674,161 @@ function switchView(id,btn){
   }
   if(id==='year') renderYear();
 }
+// ═══ GLOBAL SEARCH ═══
+// Cross-cuts plants (inventory + library + perennials), seeds, beds, zones,
+// and harvest log. Ranks by exact-name matches, then substring hits.
+function openGlobalSearch() {
+  openModal('search-modal');
+  const el = document.getElementById('search-input');
+  if (el) { el.value = ''; setTimeout(() => el.focus(), 120); }
+  renderSearchResults('');
+}
+
+function renderSearchResults(query) {
+  const el = document.getElementById('search-results');
+  if (!el) return;
+  const q = (query || '').toLowerCase().trim();
+  if (!q) {
+    el.innerHTML = `<div style="color:var(--muted);font-size:.85rem;padding:14px;text-align:center;">Type to search across plants, seeds, beds, zones, harvests…</div>`;
+    return;
+  }
+  const results = [];
+  // 1. Library plants
+  PLANT_LIB.forEach(p => {
+    const name = (p.name || '').toLowerCase();
+    if (name.includes(q)) results.push({
+      icon: p.emoji || '🌿', label: p.name, sub: `Library · ${p.cat || 'plant'}`,
+      onclick: `closeModal('search-modal');switchViewByName('plants');setTimeout(()=>{const b=document.getElementById('pvt-garden');if(b)setPlantView('garden',b);plantSearchQuery='${escAttr(p.name)}';renderPlants();},60);`,
+      score: name === q ? 100 : name.startsWith(q) ? 50 : 10,
+    });
+  });
+  // 2. Perennial edibles reference
+  (typeof PERENNIAL_CARE !== 'undefined' ? PERENNIAL_CARE : []).forEach(e => {
+    const name = e.name.toLowerCase();
+    if (name.includes(q) || e.aliases.some(a => a.includes(q))) results.push({
+      icon: e.emoji || '🌿', label: e.name, sub: `Perennial · ${e.type}`,
+      onclick: `closeModal('search-modal');switchViewByName('plants');setTimeout(()=>{const b=document.getElementById('pvt-garden');if(b)setPlantView('garden',b);plantSearchQuery='${escAttr(e.name)}';renderPlants();},60);`,
+      score: name === q ? 100 : name.startsWith(q) ? 50 : 10,
+    });
+  });
+  // 3. Yard plants (db.plants)
+  (db.plants || []).forEach(p => {
+    const name = (p.common || '').toLowerCase();
+    if (name.includes(q) || (p.latin || '').toLowerCase().includes(q)) results.push({
+      icon: p.emoji || '🌿', label: p.common, sub: `In yard${p.location?' · '+p.location:''}`,
+      onclick: `closeModal('search-modal');switchViewByName('plants');setTimeout(()=>{plantSearchQuery='${escAttr(p.common)}';renderPlants();},60);`,
+      score: name === q ? 95 : name.startsWith(q) ? 45 : 8,
+    });
+  });
+  // 4. Seed inventory
+  (db.seeds || []).forEach(s => {
+    const name = (s.name || '').toLowerCase();
+    const variety = (s.variety || '').toLowerCase();
+    if (name.includes(q) || variety.includes(q)) results.push({
+      icon: '🌾', label: s.name + (s.variety && !s.variety.startsWith('(') ? ' · ' + s.variety : ''),
+      sub: `Seed · ${s.storage === 'live' ? 'live start' : s.storage} · ${(BED_INFO[s.bed]||{}).label || s.bed || 'unassigned'}`,
+      onclick: `closeModal('search-modal');switchViewByName('garden');setTimeout(()=>{setGardenTab('seeds',document.querySelector('#view-garden .pvt-btn[onclick*=seeds]'));const inp=document.getElementById('seed-search');if(inp){inp.value='${escAttr(s.name)}';searchSeeds('${escAttr(s.name)}');}},60);`,
+      score: name === q ? 90 : name.startsWith(q) ? 40 : 6,
+    });
+  });
+  // 5. Beds
+  (db.beds || []).forEach(b => {
+    const name = (b.name || '').toLowerCase();
+    const label = (BED_INFO[b.key]||{}).label || b.name;
+    if (name.includes(q) || (b.theme||'').toLowerCase().includes(q)) results.push({
+      icon: (BED_INFO[b.key]||{}).emoji || '🛏',
+      label, sub: `Bed · ${b.dims || ''}${b.theme?' · '+b.theme:''}`,
+      onclick: `closeModal('search-modal');openBedFromOverview('${escAttr(b.key)}');`,
+      score: name === q ? 85 : name.startsWith(q) ? 35 : 5,
+    });
+  });
+  // 6. Perennial zones
+  Object.entries(db.bedZones || {}).forEach(([bedKey, zones]) => {
+    (zones || []).forEach(z => {
+      const name = (z.name || '').toLowerCase();
+      if (name.includes(q)) results.push({
+        icon: z.emoji || '🌳', label: z.name, sub: `Perennial zone`,
+        onclick: `closeModal('search-modal');openBedFromOverview('${escAttr(bedKey)}');setTimeout(()=>scrollToZone('${escAttr(z.id)}'),400);`,
+        score: name === q ? 80 : name.startsWith(q) ? 30 : 4,
+      });
+    });
+  });
+  // 7. Recent harvest log entries
+  (db.harvestLog || []).slice(0, 40).forEach(h => {
+    const crop = (h.crop || '').toLowerCase();
+    if (crop.includes(q)) results.push({
+      icon: '🧺', label: `${h.crop} · ${h.qty || ''} ${h.unit || ''}`,
+      sub: `Harvest · ${h.date} · ${(BED_INFO[h.bed]||{}).label || h.bed || 'unknown'}`,
+      onclick: `closeModal('search-modal');switchViewByName('track');setTimeout(()=>scrollToTrackSection('sec-harvest'),60);`,
+      score: 3,
+    });
+  });
+  // Sort + dedupe by label
+  results.sort((a, b) => b.score - a.score);
+  const seenLabels = new Set();
+  const top = [];
+  for (const r of results) {
+    const key = r.label + '|' + r.sub;
+    if (seenLabels.has(key)) continue;
+    seenLabels.add(key);
+    top.push(r);
+    if (top.length >= 25) break;
+  }
+  if (!top.length) { el.innerHTML = `<div style="color:var(--muted);font-size:.85rem;padding:14px;text-align:center;">No matches for "${esc(query)}".</div>`; return; }
+  el.innerHTML = top.map(r => `<div style="display:flex;align-items:baseline;gap:9px;padding:8px 10px;border-bottom:1px solid var(--rule);cursor:pointer;" onclick="${r.onclick}">
+    <span style="font-size:1.1rem;">${r.icon}</span>
+    <div style="flex:1;min-width:0;"><div style="font-size:.9rem;font-weight:600;">${esc(r.label)}</div><div style="font-size:.75rem;color:var(--muted);">${esc(r.sub)}</div></div>
+    <span style="color:var(--muted);">›</span>
+  </div>`).join('');
+}
+
+// ═══ WHAT'S HERE (per-view guide) ═══
+const GUIDES = {
+  today: {title:'Today', body:[
+    ['☀️ Weather + forecast', 'Live conditions and a 3-day plan card. Frost alerts include a per-plant "cover tonight" checklist for tender transplants.'],
+    ['🧺 Daily Round (in-season)', 'Water · Ready to harvest · Feed · Scout · Sow — the round in one place. Log buttons file harvest / amendment / sow entries without leaving Today.'],
+    ['❄️ Winter mode (off-season)', 'Wishlist · seed audit · snapshot prompt · rotation planning — the same top card, refocused for planning.'],
+    ['📓 Journal', 'The 3 most recent entries + a quick-note box for anything you noticed today.'],
+    ['⚙ Settings', 'API key, Sheets sync, email-summary Gist ID + PAT, export/import.'],
+  ]},
+  garden: {title:'Garden', body:[
+    ['Beds', 'Overview card per bed in-season (tap to open the design editor); the editor is the default in planting season. Includes soil profile, rotation history, and a "🚶 Walkthrough" button on the perennial bed for in-yard audits.'],
+    ['Seeds', 'Full inventory. Assign to a bed, split across beds, flag as gap fillers, mark too-late.'],
+    ['History', 'Year-by-year bed snapshots + rotation guide. Snapshot at end of season to preserve what grew where.'],
+  ]},
+  track: {title:'Log', body:[
+    ['🌱 Sow now', 'Succession, gap-fillers, and open direct-sow windows — one list, one action per entry.'],
+    ['Germination · Hardening · Recently transplanted', 'Active-season trackers. Each has one-tap advance / done / photo.'],
+    ['Oya · Succession · Harvest log · Garden events · Transplant log', 'The full record. Sections auto-hide out of season.'],
+    ['Wishlist', 'Seeds / plants / tools to buy or try next season.'],
+    ['Compost', 'Tumbler status, C:N ratio, amendments, soil-health scorecard per bed.'],
+  ]},
+  plants: {title:'Plants', body:[
+    ['List / Compact', 'Native + perennial plants in the yard. Add, edit, group, filter.'],
+    ['Bloom', 'Bloom calendar timeline — see what\'s in flower across the season.'],
+    ['Garden', 'Reference library: every veg / herb / flower / cover crop with care + when-to-harvest + pruning windows.'],
+  ]},
+  year: {title:'Almanac', body:[
+    ['Almanac timeline', 'Milestone view of the whole year — planting windows, GDD milestones, seasonal cues.'],
+    ['Checklist', 'Month-by-month Zone 5b Bozeman tasks.'],
+    ['Journal', 'Full journal history with tags, weather, filters.'],
+    ['Climate', 'GDD, rainfall, soil-temp logs. Auto-populated from Open-Meteo daily.'],
+    ['Plan', 'Planting calendar for this year\'s seed inventory.'],
+  ]},
+};
+
+function currentViewName() {
+  const active = document.querySelector('.view.active');
+  return active ? active.id.replace(/^view-/, '') : 'today';
+}
+function openGuideForCurrentView() {
+  const name = currentViewName();
+  const g = GUIDES[name] || GUIDES.today;
+  document.getElementById('guide-title').textContent = `📖 ${g.title} — what's here?`;
+  document.getElementById('guide-body').innerHTML = g.body.map(([h, d]) => `<div style="padding:8px 0;border-top:1px solid var(--rule);"><div style="font-weight:600;margin-bottom:2px;">${esc(h)}</div><div style="color:var(--muted);">${esc(d)}</div></div>`).join('');
+  openModal('guide-modal');
+}
+
 function openModal(id){
   const today=new Date().toISOString().slice(0,10);
   const fields={'log-sow-modal':'ls-date','log-harden-modal':'lh-date','log-harvest-modal':'hv-date','seed-save-modal':'ss-date'};
